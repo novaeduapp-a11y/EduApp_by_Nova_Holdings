@@ -1,0 +1,119 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireStaff } from "@/lib/permissions";
+import { z } from "zod";
+
+const createAbsenceSchema = z.object({
+  eleveId: z.string().min(1, "L'élève est requis"),
+  dateAbsence: z.string(),
+  periode: z.enum(["MATIN", "APRES_MIDI", "JOURNEE"]).default("JOURNEE"),
+  dureeHeures: z.number().min(0).optional(),
+  matiereId: z.string().optional(),
+  justifiee: z.boolean().default(false),
+  motif: z.string().optional(),
+  document: z.string().optional(),
+});
+
+// GET /api/absences - Liste des absences
+export async function GET(request: NextRequest) {
+  try {
+    const authResult = await requireStaff();
+    if (!authResult.ok) return authResult.response;
+
+    const { searchParams } = new URL(request.url);
+    const eleveId = searchParams.get("eleveId");
+    const classeId = searchParams.get("classeId");
+    const justifiee = searchParams.get("justifiee");
+    const dateDebut = searchParams.get("dateDebut");
+    const dateFin = searchParams.get("dateFin");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = {};
+    
+    if (eleveId) where.eleveId = eleveId;
+    if (classeId) where.eleve = { classeId };
+    if (justifiee !== null && justifiee !== "") where.justifiee = justifiee === "true";
+    if (dateDebut || dateFin) {
+      where.dateAbsence = {};
+      if (dateDebut) where.dateAbsence.gte = new Date(dateDebut);
+      if (dateFin) where.dateAbsence.lte = new Date(dateFin);
+    }
+
+    const [absences, total] = await Promise.all([
+      prisma.absence.findMany({
+        where,
+        include: {
+          eleve: {
+            select: { id: true, nom: true, prenom: true, matricule: true, classe: { select: { id: true, nom: true } } },
+          },
+          matiere: { select: { id: true, nom: true } },
+        },
+        orderBy: { dateAbsence: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.absence.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      data: absences,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    console.error("Erreur GET /api/absences:", error);
+    return NextResponse.json(
+      { success: false, error: { code: "SERVER_ERROR", message: "Erreur serveur" } },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/absences - Créer une absence
+export async function POST(request: NextRequest) {
+  try {
+    const authResult = await requireStaff();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
+
+    const body = await request.json();
+    const validation = createAbsenceSchema.safeParse(body);
+
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: { code: "VALIDATION_ERROR", message: "Données invalides", details: validation.error.issues } },
+        { status: 400 }
+      );
+    }
+
+    const data = validation.data;
+
+    const absence = await prisma.absence.create({
+      data: {
+        eleveId: data.eleveId,
+        dateAbsence: new Date(data.dateAbsence),
+        periode: data.periode,
+        dureeHeures: data.dureeHeures,
+        matiereId: data.matiereId || null,
+        justifiee: data.justifiee,
+        motif: data.motif,
+        document: data.document,
+        createdBy: session.user.id,
+      },
+      include: {
+        eleve: { select: { id: true, nom: true, prenom: true, matricule: true, classe: { select: { id: true, nom: true } } } },
+        matiere: { select: { id: true, nom: true } },
+      },
+    });
+
+    return NextResponse.json({ success: true, data: absence }, { status: 201 });
+  } catch (error) {
+    console.error("Erreur POST /api/absences:", error);
+    return NextResponse.json(
+      { success: false, error: { code: "SERVER_ERROR", message: "Erreur serveur" } },
+      { status: 500 }
+    );
+  }
+}

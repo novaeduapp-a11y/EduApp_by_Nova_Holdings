@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light only" />
+  <title>Devis DEV-2026-002 — El Hadji Dieng</title>
+  <link rel="icon" href="./assets-devis/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --color-blue: #1a237e;
+      --color-blue-mid: #283593;
+      --color-orange: #ff6f00;
+      --color-orange-dark: #e65100;
+      --color-white: #ffffff;
+      --color-gray-light: #f5f5f5;
+      --color-gray-dark: #333333;
+      --text-primary: #333333;
+      --text-muted: #666666;
+      --border: #e8e8ee;
+      --shadow: rgba(26, 35, 126, 0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text-primary);
+      background: linear-gradient(180deg, #eef0f8 0%, #f5f5f5 40%, #f5f5f5 100%);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 12px 20px;
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toolbar button {
+      font-family: inherit;
+      font-weight: 600;
+      font-size: 13px;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      background: var(--color-orange);
+      color: white;
+    }
+
+    .toolbar button:hover { background: var(--color-orange-dark); }
+
+    .toolbar a {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--color-blue);
+      text-decoration: none;
+    }
+
+    .page {
+      width: min(920px, calc(100% - 32px));
+      margin: 24px auto 48px;
+      background: var(--color-white);
+      box-shadow: 0 12px 40px var(--shadow);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, var(--color-blue) 0%, var(--color-blue-mid) 100%);
+      color: white;
+      padding: 36px 40px 32px;
+      position: relative;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      left: 40px;
+      right: 40px;
+      bottom: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--color-orange), var(--color-orange-dark));
+      border-radius: 2px 2px 0 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+
+    .brand img {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: white;
+    }
+
+    .brand-text strong {
+      display: block;
+      font-family: Inter, Poppins, sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-text span {
+      font-size: 12px;
+      opacity: 0.85;
+    }
+
+    .hero h1 {
+      font-family: Inter, Poppins, sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      max-width: 16ch;
+      margin-bottom: 8px;
+    }
+
+    .hero p.lead {
+      opacity: 0.9;
+      font-size: 14px;
+      max-width: 48ch;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .meta-item {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .meta-item label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.75;
+      margin-bottom: 4px;
+    }
+
+    .meta-item strong { font-size: 14px; font-weight: 600; }
+
+    .content { padding: 36px 40px 48px; }
+
+    .parties {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .card {
+      background: var(--color-gray-light);
+      border-radius: 12px;
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+    }
+
+    .card h2 {
+      color: var(--color-blue);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card h2::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-orange);
+    }
+
+    .card dl { display: grid; gap: 8px; }
+    .card dt { font-size: 11px; color: var(--text-muted); }
+    .card dd { font-weight: 600; font-size: 13.5px; color: var(--color-gray-dark); }
+    .card a { color: var(--color-blue); text-decoration: none; font-weight: 600; }
+    .blank { border-bottom: 1px dotted #bbb; color: transparent; min-width: 120px; display: inline-block; }
+
+    section { margin-bottom: 32px; }
+
+    .section-title {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--color-blue);
+    }
+
+    .section-title .num {
+      font-family: Inter, Poppins, sans-serif;
+      font-weight: 700;
+      color: var(--color-orange);
+      font-size: 18px;
+    }
+
+    .section-title h2 {
+      font-family: Inter, Poppins, sans-serif;
+      font-size: 18px;
+      color: var(--color-blue);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    p { margin-bottom: 10px; }
+    ul { padding-left: 18px; margin-bottom: 12px; }
+    li { margin-bottom: 6px; }
+
+    .total-banner {
+      background: linear-gradient(135deg, var(--color-blue), var(--color-blue-mid));
+      color: white;
+      border-radius: 14px;
+      padding: 20px 22px;
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+      align-items: center;
+      margin: 18px 0 8px;
+    }
+
+    .total-banner .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.8;
+      margin-bottom: 4px;
+    }
+
+    .total-banner .amount {
+      font-family: Inter, Poppins, sans-serif;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .total-banner .ref {
+      text-align: right;
+      font-size: 13px;
+      opacity: 0.95;
+    }
+
+    .total-banner .ref strong {
+      display: block;
+      font-size: 20px;
+      margin-top: 4px;
+      color: #ffcc80;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin: 12px 0 8px;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--color-blue);
+      color: white;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    th:first-child { border-radius: 8px 0 0 0; }
+    th:last-child { border-radius: 0 8px 0 0; }
+
+    tr:nth-child(even) td { background: #fafbff; }
+
+    td.price, th.price { text-align: right; white-space: nowrap; font-weight: 600; }
+
+    .lot {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 18px;
+    }
+
+    .lot-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+      background: var(--color-gray-light);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .lot-head h3 {
+      color: var(--color-blue);
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .lot-head .badge {
+      background: var(--color-orange);
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .lot-body { padding: 16px 18px 18px; }
+
+    .lot-body h4 {
+      color: var(--color-blue);
+      font-size: 13px;
+      font-weight: 700;
+      margin: 14px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .lot-body h4:first-child { margin-top: 0; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .incl, .excl {
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+    }
+
+    .incl { background: #eef7f0; border: 1px solid #c8e6c9; }
+    .excl { background: #fff5f0; border: 1px solid #ffccbc; }
+
+    .incl strong, .excl strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .incl strong { color: #2e7d32; }
+    .excl strong { color: var(--color-orange-dark); }
+
+    .check-list { list-style: none; padding: 0; }
+    .check-list li {
+      padding-left: 22px;
+      position: relative;
+      margin-bottom: 8px;
+    }
+    .check-list li::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      color: var(--color-blue);
+      font-weight: 700;
+    }
+
+    .sign {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 8px;
+    }
+
+    .sign-box {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      min-height: 180px;
+    }
+
+    .sign-box h3 {
+      color: var(--color-blue);
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+
+    .sign-line {
+      margin-top: 48px;
+      border-top: 1px solid #ccc;
+      padding-top: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .footer {
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .footer a { color: var(--color-blue); font-weight: 600; text-decoration: none; }
+
+    .note {
+      background: #fff8e1;
+      border-left: 4px solid var(--color-orange);
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      margin: 12px 0;
+    }
+
+    @media print {
+      body { background: white; font-size: 11.5px; }
+      .toolbar { display: none !important; }
+      .page {
+        width: 100%;
+        margin: 0;
+        box-shadow: none;
+        border-radius: 0;
+      }
+      .hero { padding: 24px 28px 22px; }
+      .content { padding: 24px 28px 32px; }
+      .lot, .card, .total-banner, tr { break-inside: avoid; }
+      a { color: inherit !important; text-decoration: none !important; }
+      @page { margin: 12mm; }
+    }
+
+    @media (max-width: 720px) {
+      .parties, .two-col, .sign, .meta, .total-banner { grid-template-columns: 1fr; }
+      .total-banner .ref { text-align: left; }
+      .hero, .content { padding: 24px 20px; }
+      .hero h1 { font-size: 22px; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <a href="https://elhadji-dieng.com/" target="_blank" rel="noopener">elhadji-dieng.com</a>
+    <button type="button" onclick="window.print()">Imprimer / PDF</button>
+  </div>
+
+  <article class="page">
+    <header class="hero">
+      <div class="brand">
+        <img src="./assets-devis/favicon.svg" alt="Logo El Hadji Dieng" />
+        <div class="brand-text">
+          <strong>El Hadji Dieng</strong>
+          <span>Développeur Web — Dakar, Sénégal</span>
+        </div>
+      </div>
+      <h1>Proposition commerciale</h1>
+      <p class="lead">Cession du code de la plateforme web et réalisation des applications Parents &amp; Enseignants.</p>
+      <div class="meta">
+        <div class="meta-item">
+          <label>Référence</label>
+          <strong>DEV-2026-002</strong>
+        </div>
+        <div class="meta-item">
+          <label>Date</label>
+          <strong>15 août 2026</strong>
+        </div>
+        <div class="meta-item">
+          <label>Validité</label>
+          <strong>30 jours</strong>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <div class="parties">
+        <div class="card">
+          <h2>Prestataire</h2>
+          <dl>
+            <div>
+              <dt>Nom</dt>
+              <dd>El Hadji Dieng</dd>
+            </div>
+            <div>
+              <dt>Adresse</dt>
+              <dd>Dakar, Parcelles Assainies, Sénégal</dd>
+            </div>
+            <div>
+              <dt>Téléphone</dt>
+              <dd><a href="tel:+221774548661">+221 77 454 86 61</a></dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd><a href="mailto:el.elhadji.dieng@gmail.com">el.elhadji.dieng@gmail.com</a></dd>
+            </div>
+            <div>
+              <dt>Portfolio</dt>
+              <dd><a href="https://elhadji-dieng.com/">elhadji-dieng.com</a></dd>
+            </div>
+          </dl>
+        </div>
+        <div class="card">
+          <h2>Client</h2>
+          <dl>
+            <div>
+              <dt>Établissement / Structure</dt>
+              <dd><span class="blank">________________</span></dd>
+            </div>
+            <div>
+              <dt>Responsable</dt>
+              <dd>M. Mendy</dd>
+            </div>
+            <div>
+              <dt>Fonction</dt>
+              <dd><span class="blank">________________</span></dd>
+            </div>
+            <div>
+              <dt>Téléphone / Email</dt>
+              <dd><span class="blank">________________</span></dd>
+            </div>
+            <div>
+              <dt>Nombre d’élèves (approx.)</dt>
+              <dd><span class="blank">________________</span></dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <section>
+        <div class="section-title">
+          <span class="num">01</span>
+          <h2>Contexte</h2>
+        </div>
+        <p>Suite à la présentation de la solution de gestion scolaire, le besoin retenu est le suivant :</p>
+        <ul>
+          <li><strong>Acquisition du code</strong> de la plateforme web déjà présentée</li>
+          <li><strong>Application dédiée aux parents</strong></li>
+          <li><strong>Plateforme / application distincte</strong> pour les professeurs et maîtres</li>
+        </ul>
+        <p>Ces éléments sont traités en <strong>trois lots séparés</strong>, chacun avec son périmètre, ses livrables et son prix.</p>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">02</span>
+          <h2>Récapitulatif financier</h2>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Lot</th>
+              <th>Désignation</th>
+              <th class="price">Prix</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>A</strong></td>
+              <td>Cession du code — plateforme web actuelle</td>
+              <td class="price">650 000 FCFA</td>
+            </tr>
+            <tr>
+              <td><strong>B</strong></td>
+              <td>Application Parents</td>
+              <td class="price">1 800 000 – 2 500 000 FCFA</td>
+            </tr>
+            <tr>
+              <td><strong>C</strong></td>
+              <td>Plateforme / Application Professeurs &amp; Maîtres</td>
+              <td class="price">1 700 000 – 2 500 000 FCFA</td>
+            </tr>
+            <tr>
+              <td colspan="2"><strong>Sous-total applications (B + C)</strong></td>
+              <td class="price">3 500 000 – 5 000 000 FCFA</td>
+            </tr>
+            <tr>
+              <td colspan="2"><strong>Total projet (A + B + C)</strong></td>
+              <td class="price">4 150 000 – 5 650 000 FCFA</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="total-banner">
+          <div>
+            <div class="label">Proposition de référence</div>
+            <div class="amount">4 850 000 FCFA</div>
+          </div>
+          <div class="ref">
+            Lot A 650 000 + Apps 4 200 000
+            <strong>Milieu de fourchette</strong>
+          </div>
+        </div>
+        <p class="note">Les fourchettes des lots B et C seront figées après validation du cahier des charges (technologie, phases, notifications).</p>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">03</span>
+          <h2>Lot A — Cession du code (site / plateforme web)</h2>
+        </div>
+
+        <div class="lot">
+          <div class="lot-head">
+            <h3>Plateforme web actuelle</h3>
+            <div class="badge">650 000 FCFA</div>
+          </div>
+          <div class="lot-body">
+            <p>Remise du <strong>code source</strong> de la plateforme web de gestion scolaire présentée en démonstration, pour un déploiement au profit du Client.</p>
+            <p style="font-size:12.5px;color:var(--text-muted)">Fourchette négociable : 500 000 – 750 000 FCFA</p>
+
+            <h4>Fonctionnalités incluses</h4>
+            <table>
+              <thead>
+                <tr><th>Module</th><th>Contenu</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Administration</td><td>Tableau de bord, utilisateurs, rôles</td></tr>
+                <tr><td>Élèves</td><td>Fiches, matricules, import / export</td></tr>
+                <tr><td>Classes &amp; cycles</td><td>Organisation pédagogique</td></tr>
+                <tr><td>Matières</td><td>Coefficients, domaines</td></tr>
+                <tr><td>Notes &amp; évaluations</td><td>Saisie, moyennes, rangs</td></tr>
+                <tr><td>Absences</td><td>Suivi et consultation</td></tr>
+                <tr><td>Bulletins</td><td>PDF professionnels + QR Code de vérification</td></tr>
+                <tr><td>Espaces web</td><td>Direction, professeurs, parents, élèves</td></tr>
+                <tr><td>Paiements</td><td>Suivi des frais (module existant)</td></tr>
+                <tr><td>Paramètres</td><td>Configuration de base de l’établissement</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Livrables</h4>
+            <ul>
+              <li>Code source de l’application web</li>
+              <li>Script / schéma de base de données</li>
+              <li>Fichier d’environnement d’exemple</li>
+              <li>Documentation de démarrage (installation &amp; lancement)</li>
+              <li>1 déploiement sur l’environnement du Client (ou accompagnement)</li>
+              <li>Formation de base : 1 session (~2 h) pour l’équipe administrative</li>
+              <li>Remise des accès administrateur</li>
+            </ul>
+
+            <div class="two-col">
+              <div class="incl">
+                <strong>Inclus</strong>
+                Code source · déploiement initial · formation 2 h · correction bugs bloquants 30 jours
+              </div>
+              <div class="excl">
+                <strong>Non inclus</strong>
+                Hébergement · nom de domaine · évolutions hors périmètre · support illimité après 30 jours · comptes stores
+              </div>
+            </div>
+
+            <h4>Droits d’usage</h4>
+            <ul>
+              <li>Droit d’usage pour l’établissement / structure du Client</li>
+              <li>Modifications internes autorisées</li>
+              <li><strong>Revente ou commercialisation à des tiers</strong> : non autorisée sans avenant écrit</li>
+              <li>Le Prestataire conserve son savoir-faire et peut exploiter une version pour d’autres clients (sauf exclusivité négociée)</li>
+            </ul>
+
+            <h4>Paiement Lot A</h4>
+            <table>
+              <thead>
+                <tr><th>Échéance</th><th class="price">Montant</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>À la commande (40 %)</td><td class="price">260 000 FCFA</td></tr>
+                <tr><td>Livraison code + déploiement (40 %)</td><td class="price">260 000 FCFA</td></tr>
+                <tr><td>Recette / formation (20 %)</td><td class="price">130 000 FCFA</td></tr>
+              </tbody>
+            </table>
+            <p><strong>Délai indicatif :</strong> 7 à 15 jours après acompte et accès techniques.</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">04</span>
+          <h2>Lot B — Application Parents</h2>
+        </div>
+
+        <div class="lot">
+          <div class="lot-head">
+            <h3>Application dédiée aux parents</h3>
+            <div class="badge">1,8 – 2,5 M FCFA</div>
+          </div>
+          <div class="lot-body">
+            <p>Application <strong>distincte</strong> de la plateforme d’administration, pensée pour le suivi scolaire sur téléphone.</p>
+
+            <h4>Fonctionnalités prévues</h4>
+            <table>
+              <thead>
+                <tr><th>Fonctionnalité</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Connexion</td><td>Email et / ou téléphone + mot de passe</td></tr>
+                <tr><td>Enfants</td><td>Un ou plusieurs enfants liés au compte</td></tr>
+                <tr><td>Notes</td><td>Consultation par matière / période</td></tr>
+                <tr><td>Bulletins</td><td>Consultation et téléchargement</td></tr>
+                <tr><td>Absences</td><td>Historique et statut</td></tr>
+                <tr><td>Profil</td><td>Informations parent / enfant</td></tr>
+                <tr><td>Notifications</td><td>Alertes (notes, absences, bulletins) — selon option</td></tr>
+                <tr><td>UX mobile</td><td>Interface conçue pour smartphone</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Options techniques</h4>
+            <table>
+              <thead>
+                <tr><th>Option</th><th>Description</th><th>Impact</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>B1 — PWA / mobile web</strong></td><td>Via navigateur, installable</td><td>Plus rapide, bas de fourchette</td></tr>
+                <tr><td><strong>B2 — Native</strong></td><td>Android + iOS (stores)</td><td>Plus long, haut de fourchette</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Livrables</h4>
+            <ul>
+              <li>Application Parents (B1 ou B2)</li>
+              <li>Connexion API / base de la plateforme</li>
+              <li>Comptes de test + guide parent (PDF)</li>
+              <li>1 session de formation parcours parent</li>
+              <li>Si B2 : accompagnement publication stores (comptes à la charge du Client)</li>
+            </ul>
+
+            <div class="excl">
+              <strong>Non inclus</strong>
+              Frais Google Play / Apple · campagne aux parents · SMS payants · messagerie avancée / paiement mobile (sauf avenant)
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">05</span>
+          <h2>Lot C — Plateforme / Application Enseignants</h2>
+        </div>
+
+        <div class="lot">
+          <div class="lot-head">
+            <h3>Professeurs &amp; Maîtres</h3>
+            <div class="badge">1,7 – 2,5 M FCFA</div>
+          </div>
+          <div class="lot-body">
+            <p>Espace <strong>séparé</strong> pour le travail quotidien des enseignants, distinct de l’application parents.</p>
+
+            <h4>Fonctionnalités prévues</h4>
+            <table>
+              <thead>
+                <tr><th>Fonctionnalité</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Connexion enseignant</td><td>Compte nominatif</td></tr>
+                <tr><td>Mes classes</td><td>Classes / groupes affectés</td></tr>
+                <tr><td>Saisie des notes</td><td>Évaluations par matière / classe</td></tr>
+                <tr><td>Absences</td><td>Signalement / suivi selon règles école</td></tr>
+                <tr><td>Élèves</td><td>Liste et infos utiles à la classe</td></tr>
+                <tr><td>Tableau de bord</td><td>Saisies à faire, alertes</td></tr>
+                <tr><td>Profil</td><td>Informations du compte</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Options techniques</h4>
+            <table>
+              <thead>
+                <tr><th>Option</th><th>Description</th><th>Impact</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>C1 — Web responsive</strong></td><td>Optimisé mobile / tablette</td><td>Bas de fourchette</td></tr>
+                <tr><td><strong>C2 — Native</strong></td><td>App Android / iOS</td><td>Haut de fourchette</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Livrables</h4>
+            <ul>
+              <li>Plateforme ou app Enseignants (C1 ou C2)</li>
+              <li>Droits d’accès alignés classes / matières</li>
+              <li>Guide enseignant (PDF)</li>
+              <li>1 session de formation pour enseignants référents</li>
+            </ul>
+
+            <div class="excl">
+              <strong>Non inclus</strong>
+              Emploi du temps automatique · cahier de texte avancé · matériel (tablettes) · frais stores si native
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">06</span>
+          <h2>Prestations transverses &amp; options</h2>
+        </div>
+        <p>Inclus dans B/C selon devis final : cadrage, UX, développement, tests, mise en production, documentation, <strong>garantie bugs 60 jours</strong> après recette, support démarrage (email / WhatsApp, horaires ouvrés).</p>
+        <table>
+          <thead>
+            <tr><th>Option</th><th class="price">Indication</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Maintenance mensuelle</td><td class="price">75 000 – 150 000 FCFA / mois</td></tr>
+            <tr><td>Hébergement annuel</td><td class="price">Devis selon volumétrie</td></tr>
+            <tr><td>Charte graphique école</td><td class="price">150 000 – 400 000 FCFA</td></tr>
+            <tr><td>Paiement mobile (Wave / OM)</td><td class="price">Devis séparé</td></tr>
+            <tr><td>Messagerie parents ↔ école</td><td class="price">Devis séparé</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">07</span>
+          <h2>Planning indicatif</h2>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Phase</th><th>Contenu</th><th>Délai</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>0</td><td>Signature + acompte + cadrage</td><td>Semaine 0</td></tr>
+            <tr><td>1</td><td>Lot A — livraison site / code</td><td>Semaines 1 – 2</td></tr>
+            <tr><td>2</td><td>Lot B — Application Parents</td><td>Semaines 3 – 8</td></tr>
+            <tr><td>3</td><td>Lot C — App / plateforme Enseignants</td><td>Semaines 6 – 12</td></tr>
+            <tr><td>4</td><td>Recette globale + formation</td><td>Semaines 12 – 13</td></tr>
+          </tbody>
+        </table>
+        <p>Les lots B et C peuvent être partiellement parallélisés. Un démarrage <strong>Parents d’abord</strong> est possible.</p>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">08</span>
+          <h2>Modalités de paiement (applications)</h2>
+        </div>
+        <p>Exemple sur un montant apps retenu de <strong>4 200 000 FCFA</strong> :</p>
+        <table>
+          <thead>
+            <tr><th>Échéance</th><th>%</th><th class="price">Montant</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Commande / cadrage</td><td>30 %</td><td class="price">1 260 000 FCFA</td></tr>
+            <tr><td>Livraison Parents (Lot B)</td><td>30 %</td><td class="price">1 260 000 FCFA</td></tr>
+            <tr><td>Livraison Enseignants (Lot C)</td><td>30 %</td><td class="price">1 260 000 FCFA</td></tr>
+            <tr><td>Recette finale</td><td>10 %</td><td class="price">420 000 FCFA</td></tr>
+          </tbody>
+        </table>
+        <p><strong>Moyens :</strong> Wave · Orange Money · Virement bancaire. Facture / reçu à chaque échéance.</p>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">09</span>
+          <h2>À confirmer pour figer le devis</h2>
+        </div>
+        <ul class="check-list">
+          <li>Lot A retenu à <strong>650 000 FCFA</strong></li>
+          <li>Parents + Enseignants dès le départ <em>ou</em> Parents d’abord</li>
+          <li>Technologie : PWA / mobile web <em>ou</em> apps natives (stores)</li>
+          <li>Volumes approximatifs : élèves, parents, enseignants</li>
+          <li>Notifications push dès la V1 : Oui / Non</li>
+          <li>Hébergement : fourni par le Client / proposé par le Prestataire</li>
+        </ul>
+        <p class="note">Après ces réponses, un devis chiffré définitif (montants exacts B et C) sera émis sous <strong>48 heures</strong>.</p>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <span class="num">10</span>
+          <h2>Acceptation</h2>
+        </div>
+        <p>Lots commandés :</p>
+        <ul class="check-list">
+          <li><strong>LOT A</strong> — Site / code — 650 000 FCFA</li>
+          <li><strong>LOT B</strong> — Application Parents — montant : _____________ FCFA</li>
+          <li><strong>LOT C</strong> — App / plateforme Enseignants — montant : _____________ FCFA</li>
+        </ul>
+        <p><strong>Montant total commandé :</strong> _____________________ FCFA</p>
+
+        <div class="sign">
+          <div class="sign-box">
+            <h3>Le Prestataire</h3>
+            <p><strong>El Hadji Dieng</strong><br />
+              Dakar, Parcelles Assainies<br />
+              +221 77 454 86 61<br />
+              el.elhadji.dieng@gmail.com<br />
+              <a href="https://elhadji-dieng.com/">elhadji-dieng.com</a>
+            </p>
+            <div class="sign-line">Signature · Date ___ / ___ / 2026</div>
+          </div>
+          <div class="sign-box">
+            <h3>Le Client</h3>
+            <p>Nom : _________________________<br />
+              Fonction : _____________________<br />
+              Cachet de l’établissement
+            </p>
+            <div class="sign-line">Signature · Date ___ / ___ / 2026</div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div>
+          Document valable 30 jours · Réf. DEV-2026-002<br />
+          Les fourchettes B/C seront remplacées par des montants fermes après cadrage.
+        </div>
+        <div>
+          <a href="https://elhadji-dieng.com/">elhadji-dieng.com</a><br />
+          +221 77 454 86 61
+        </div>
+      </footer>
+    </div>
+  </article>
+</body>
+</html>

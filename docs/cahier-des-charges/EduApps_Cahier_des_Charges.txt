@@ -1,0 +1,588 @@
+ 
+NOVA HOLDINGS
+Dakar, Sénégal
+ 
+ 
+ 
+ 
+CAHIER DES CHARGES
+Projet de Plateforme de Gestion Scolaire
+ 
+ 
+EduParent  ·  EduAdmins
+Applications de gestion scolaire — Mobile & Web
+ 
+ 
+ 
+ 
+Version
+1.0 — Document initial
+Date
+Juin 2025
+Commanditaire
+NOVA HOLDINGS, Dakar, Sénégal
+Statut
+En cours de développement
+Confidentialité
+Confidentiel — usage interne
+
+1. Présentation générale du projet
+ 
+1.1 Contexte
+NOVA HOLDINGS est une société basée à Dakar, Sénégal, opérant dans le secteur de la gestion et des services aux établissements scolaires. Dans le cadre de sa mission de modernisation des outils pédagogiques et administratifs, NOVA HOLDINGS a initié le développement d'une suite applicative numérique destinée à améliorer la communication entre les familles, le corps enseignant et l'administration des établissements.
+Le système scolaire sénégalais, en pleine transformation numérique, manque encore d'outils intégrés accessibles à tous les acteurs de l'école — parents, professeurs, préfets et directeurs — sur des supports modernes (téléphone, tablette, ordinateur). Le présent projet répond à ce besoin.
+ 
+1.2 Objectifs du projet
+La suite EduApps vise à :
+	•	Centraliser la communication école–famille dans une application mobile intuitive
+	•	Digitaliser la gestion administrative des établissements (inscriptions, classes, notes, présences)
+	•	Donner à la direction un tableau de bord en temps réel pour piloter l'établissement au quotidien
+	•	Permettre aux préfets de gérer leurs cycles scolaires de façon indépendante
+	•	Offrir aux professeurs un espace numérique de travail accessible sans installation technique
+ 
+1.3 Périmètre
+Le projet est composé de deux applications distinctes partageant la même architecture de données :
+ 
+Application
+Public cible
+Support
+Statut
+EduParent
+Parents d'élèves
+Mobile (iOS / Android)
+Maquette fonctionnelle
+EduAdmins
+Professeurs, Préfets, Direction
+Mobile + Web (ordinateur)
+Maquette fonctionnelle
+ 
+ 
+2. Parties prenantes et utilisateurs
+ 
+2.1 Commanditaire
+NOVA HOLDINGS
+• Société commanditaire du projet
+• Responsable de la définition des besoins fonctionnels
+• Propriétaire des droits sur les applications développées
+• Adresse : Dakar, Sénégal
+ 
+2.2 Utilisateurs identifiés
+Cinq types d'utilisateurs ont été identifiés, chacun avec un rôle et des droits distincts :
+ 
+Profil
+Application
+Accès
+Description
+Parent
+EduParent
+Mobile uniquement
+Consulte les notes, l'emploi du temps, les absences et communique avec les professeurs
+Professeur de matière
+EduAdmins
+Mobile + Web
+Saisit les notes de sa discipline, gère les présences de ses classes
+Instituteur (primaire)
+EduAdmins
+Mobile + Web
+Gère toutes les matières de sa classe, emploi du temps primaire
+Préfet des études
+EduAdmins
+Mobile + Web
+Inscrit les élèves, crée les classes, édite les bulletins de son cycle
+Directeur / Direction
+EduAdmins
+Mobile + Web
+Pilote l'établissement, bilan quotidien, alertes, communiqués, personnel
+ 
+ 
+2.3 Séparation des cycles — Préfets
+L'application prévoit trois préfets distincts, chacun responsable d'un cycle scolaire. Cette segmentation garantit la confidentialité des données entre cycles :
+ 
+Compte
+Cycle
+Niveaux gérés
+Préfet Collège
+Collège
+6ème, 5ème, 4ème, 3ème
+Préfet Primaire
+Primaire
+CM1, CM2 (et niveaux inférieurs selon l'établissement)
+Préfet Secondaire
+Secondaire
+Seconde, Première, Terminale
+ 
+ 
+3. Application EduParent
+ 
+3.1 Description
+EduParent est une application mobile destinée aux parents d'élèves. Elle permet à chaque parent de suivre la scolarité de ses enfants inscrits dans un établissement partenaire de NOVA HOLDINGS, depuis son téléphone ou sa tablette.
+L'application est volontairement simple et lisible, conçue pour un usage quotidien sans formation préalable.
+ 
+3.2 Fonctionnalités
+3.2.1 Sélection de l'élève
+	•	Le parent peut gérer plusieurs enfants dans la même application
+	•	Sélection via des cartes élève en haut de l'écran (prénom, classe, photo initiale)
+	•	Les données de l'écran s'adaptent automatiquement à l'enfant sélectionné
+ 
+3.2.2 Accueil
+	•	Message de bienvenue personnalisé (prénom de l'enfant, heure de la journée)
+	•	Résumé des indicateurs clés : absences, notes récentes, devoirs, messages non lus
+	•	Accès rapide à l'emploi du temps du jour
+ 
+3.2.3 Notes et résultats
+	•	Consultation des notes par matière et par trimestre
+	•	Affichage des évaluations : type (devoir, composition, interro), date, coefficient, note /20
+	•	Calcul automatique de la moyenne par matière et générale
+	•	Code couleur : bleu pour bonnes notes (≥ 14), bleu clair pour passable (≥ 10), rouge pour insuffisant (< 10)
+ 
+3.2.4 Emploi du temps
+	•	Vue hebdomadaire avec navigation par jour (Lundi–Vendredi)
+	•	Affichage des créneaux : matière, professeur, horaire, salle
+	•	Mise en évidence du jour courant
+ 
+3.2.5 Notifications et alertes
+	•	Réception des alertes envoyées par la direction ou les préfets
+	•	Badge sur l'onglet indiquant le nombre de notifications non lues
+	•	Filtrage par urgence (normal / urgent)
+ 
+3.2.6 Messagerie
+	•	Canal de communication direct avec les professeurs de l'enfant
+	•	Fil de messages par conversation (style SMS)
+	•	Envoi de messages depuis l'application
+ 
+3.3 Design et ergonomie
+L'interface d'EduParent respecte les principes suivants :
+	•	Palette restreinte : blanc (#FFFFFF), fond bleu très pâle (#F4F7FF), bleu principal (#1A5FD4)
+	•	Navigation par onglets en bas de l'écran avec indicateurs de l'onglet actif
+	•	Typographie lisible, sans emojis dans l'interface
+	•	Adapté aux écrans de téléphone (320px–430px de large)
+	•	Mode clair exclusivement
+ 
+3.4 Données affichées
+EduParent est une application de consultation — le parent ne saisit pas de données. Il reçoit uniquement les informations publiées par l'établissement via EduAdmins :
+	•	Notes saisies par les professeurs
+	•	Emploi du temps défini par les préfets
+	•	Alertes publiées par la direction
+	•	Messages envoyés par les professeurs
+ 
+ 
+4. Application EduAdmins
+ 
+4.1 Description
+EduAdmins est la plateforme de gestion scolaire destinée au personnel de l'établissement : professeurs, préfets des études et direction. Elle est disponible en version mobile (application) et en version web (navigateur sur ordinateur).
+L'accès est contrôlé par un système de portails distincts — chaque profil se connecte à son propre espace avec ses propres données et ses propres droits.
+ 
+4.2 Système d'authentification
+L'application propose trois portails distincts sur l'écran de connexion :
+ 
+Portail
+Profils
+Sécurité
+Professeurs
+Prof. de matière, Instituteur primaire
+Identifiant + mot de passe
+Préfets
+Préfet Collège, Préfet Primaire, Préfet Secondaire
+Identifiant + mot de passe
+Direction
+Directeur / Directrice
+Identifiant + mot de passe + code 2FA (6 chiffres)
+ 
+ 
+4.3 Portail Professeurs
+4.3.1 Professeur de matière (collège/secondaire)
+	•	Accès à son planning personnel (emploi du temps de ses classes)
+	•	Gestion des présences : feuille d'appel par cours, par classe, par jour
+	•	Saisie des notes : titre de l'évaluation, note, coefficient, date, trimestre
+	•	Vue des notes de chaque élève dans ses classes uniquement
+	•	Messagerie : réception et envoi de messages aux parents
+	•	Alertes : réception des communications de l'établissement
+	•	RESTRICTION : ne voit que ses propres classes et sa propre matière
+ 
+4.3.2 Instituteur (cycle primaire)
+	•	Mêmes fonctionnalités que le professeur de matière
+	•	DIFFÉRENCE : accès à toutes les matières de sa classe (Mathématiques, Français, Sciences, Histoire-Géo, Anglais, EPS, Arabe)
+	•	Peut saisir des notes pour chaque matière depuis une interface de sélection de matière
+	•	RESTRICTION : ne voit et ne gère que sa propre classe primaire (ex. CM2)
+	•	RESTRICTION : ne peut pas accéder aux classes du collège ou du secondaire
+ 
+Règle fondamentale — séparation primaire / collège
+• Un professeur de collège ne peut en aucun cas accéder aux classes primaires
+• Un instituteur primaire ne peut en aucun cas accéder aux classes du collège
+• Le type de compte (matiere / primaire) est défini à la création du compte par la direction
+ 
+4.4 Portail Préfets
+4.4.1 Inscription des élèves
+	•	Formulaire complet : nom, prénom, date de naissance, lieu de naissance, sexe
+	•	Informations tuteur : nom, lien de parenté, téléphone, contact de secours, adresse
+	•	Données médicales : groupe sanguin, allergies
+	•	Attribution du niveau scolaire (6ème, 5ème, CM2, etc.) à l'inscription
+	•	La classe précise (ex. 4ème A ou 4ème B) est assignée ultérieurement dans l'onglet Classes
+	•	Le préfet ne voit et n'inscrit que des élèves de son propre cycle
+ 
+4.4.2 Gestion des classes
+	•	Création et modification des classes de son cycle
+	•	Affectation des élèves en attente à une classe précise
+	•	Suivi de la capacité de chaque classe
+	•	Affichage du professeur principal et de la salle
+ 
+4.4.3 Bulletins scolaires
+	•	Génération du bulletin officiel de chaque élève
+	•	Calcul automatique des moyennes par matière (coefficients inclus) et moyenne générale
+	•	Appréciation par matière
+	•	Document imprimable au format standard
+ 
+4.4.4 Rédaction de communiqués
+	•	Rédaction de communications à destination des professeurs, parents ou enseignants
+	•	Sélection du destinataire : Professeurs / Enseignants / Parents / Tous
+	•	Niveau d'urgence (normal ou urgent)
+	•	Historique des communiqués envoyés
+ 
+4.4.5 Bilan bulletin
+	•	Synthèse des résultats par classe à chaque fin de trimestre
+	•	Moyenne de classe, répartition par niveaux de performance
+	•	Identification des élèves en difficulté et des meilleurs résultats
+ 
+4.5 Portail Direction
+4.5.1 Bilan du jour
+Tableau de bord quotidien permettant au directeur de piloter l'établissement en temps réel :
+	•	Nombre d'élèves absents avec détail (nom, classe, heure, justification)
+	•	Nombre de professeurs absents avec indication des classes et matières concernées
+	•	Retards signalés (élèves et personnel)
+	•	Perturbations en cours (type : mineur ou grave, description)
+	•	Formulaire de saisie manuelle en temps réel pour chaque catégorie
+ 
+4.5.2 Aperçu général
+	•	Statistiques globales de l'établissement : total élèves, classes actives, taux de présence, moyenne générale
+	•	Répartition par niveaux et par cycles
+	•	Indicateurs clés en temps réel
+ 
+4.5.3 Alertes et communiqués
+	•	Envoi d'alertes à l'ensemble de l'établissement ou à des profils ciblés
+	•	Niveau d'urgence configurable
+	•	Consultation de l'historique complet des communications
+ 
+4.5.4 Gestion du personnel
+	•	Liste du corps enseignant avec matières, classes et statut de présence du jour
+	•	Mise à jour du statut présent/absent
+ 
+4.5.5 Agenda institutionnel
+	•	Prise de notes et rappels pour la direction
+	•	Événements de l'établissement à venir
+ 
+ 
+5. Site web EduAdmins (version ordinateur)
+ 
+5.1 Description
+La version web d'EduAdmins est accessible depuis n'importe quel navigateur (Chrome, Firefox, Safari) sur ordinateur. Elle reprend intégralement les fonctionnalités de l'application mobile en adaptant l'interface à un grand écran.
+ 
+5.2 Landing page marketing
+Avant d'accéder à la plateforme, l'utilisateur voit une page de présentation commerciale comprenant :
+	•	En-tête fixe avec logo EduAdmins et bouton « Se connecter »
+	•	Section héro avec accroche principale et appel à l'action
+	•	Présentation des trois portails (Professeurs, Préfets, Direction)
+	•	Section « Comment ça marche » en 3 étapes
+	•	Section sécurité et confidentialité
+	•	Pied de page avec mention NOVA HOLDINGS, Dakar, Sénégal
+ 
+5.3 Sélection de l'école
+Après avoir cliqué sur le bouton d'accès, l'utilisateur est invité à sélectionner son établissement :
+	•	Barre de recherche avec auto-complétion (recherche par nom ou ville)
+	•	Liste des établissements partenaires de NOVA HOLDINGS
+	•	Confirmation de l'école sélectionnée avant de continuer
+	•	Le nom de l'école sélectionné apparaît dans la barre latérale une fois connecté
+ 
+5.4 Interface desktop
+Sur ordinateur, la navigation est assurée par une barre latérale fixe (sidebar) à gauche remplaçant la navigation par onglets en bas :
+	•	Logo EduAdmins + nom de l'établissement
+	•	Informations de l'utilisateur connecté (nom, rôle)
+	•	Liens de navigation avec icônes typographiques et libellés complets
+	•	Badges de notifications non lues
+	•	Bouton de déconnexion en bas de la barre
+	•	Contenu principal occupant la largeur restante à droite
+ 
+ 
+6. Architecture technique
+ 
+6.1 Technologies actuelles (maquette)
+Élément
+Technologie
+Description
+Framework UI
+React 18
+Interface utilisateur reactive
+Style
+CSS-in-JS inline
+Styles directement dans les composants React
+Format mobile
+JSX (.jsx)
+Composants React pour Expo/React Native Web
+Format web
+HTML autonome
+Fichier HTML unique avec React pré-transpilé
+Transpilation
+Sucrase
+Conversion JSX → JavaScript natif (pré-compilation)
+Données démo
+Données statiques
+150 élèves fictifs, notes, planning, personnel
+ 
+ 
+6.2 Architecture cible (production)
+Pour le passage en production avec de vrais utilisateurs, les composants suivants seront nécessaires :
+ 
+Composant
+Solution recommandée
+Rôle
+Base de données
+Supabase (PostgreSQL)
+Stockage de toutes les données scolaires
+Authentification
+Supabase Auth
+Gestion des comptes et sessions sécurisées
+Règles d'accès
+Row Level Security
+Chaque utilisateur ne voit que ses données
+API
+REST / Supabase
+Communication entre l'app et la base de données
+Hébergement web
+Vercel / Netlify
+Mise en ligne de la version web
+App mobile
+Expo / React Native
+Déploiement sur iOS et Android
+Stockage fichiers
+Supabase Storage
+Photos de profil, bulletins PDF
+ 
+ 
+6.3 Sécurité
+	•	Authentification individuelle par email et mot de passe pour chaque utilisateur
+	•	Double authentification (2FA) pour le portail Direction
+	•	Isolation stricte des données par rôle : un parent ne voit que ses enfants, un professeur ne voit que ses classes
+	•	Isolation par cycle pour les préfets : chaque préfet n'accède qu'à son cycle
+	•	Aucune donnée partagée entre établissements
+	•	Chiffrement des données sensibles (mots de passe hashés, communications)
+ 
+ 
+7. Données gérées par le système
+ 
+7.1 Données élèves
+Champ
+Type
+Saisi par
+Nom et prénom
+Texte
+Préfet
+Date et lieu de naissance
+Date / Texte
+Préfet
+Sexe
+M / F
+Préfet
+Matricule
+Généré auto
+Système
+Tuteur légal
+Texte
+Préfet
+Lien de parenté
+Texte
+Préfet
+Téléphone tuteur
+Texte
+Préfet
+Adresse
+Texte
+Préfet
+Classe
+Référence
+Préfet (après création de la classe)
+Groupe sanguin
+Texte
+Préfet
+Allergies
+Texte
+Préfet
+ 
+ 
+7.2 Données notes
+Champ
+Type
+Saisi par
+Titre de l'évaluation
+Texte
+Professeur
+Note
+Décimal /20
+Professeur
+Coefficient
+Entier
+Professeur
+Trimestre
+Sélection
+Professeur
+Date
+Date
+Professeur
+Matière
+Texte
+Professeur
+ 
+ 
+7.3 Données présences
+Champ
+Type
+Saisi par
+Élève
+Référence
+Professeur
+Date
+Date
+Professeur
+Cours
+Référence
+Professeur
+Statut
+Présent / Absent / Retard
+Professeur
+ 
+ 
+8. Exigences non fonctionnelles
+ 
+8.1 Performance
+	•	Chargement initial de l'application web en moins de 3 secondes sur une connexion 4G
+	•	Réponse aux interactions utilisateur en moins de 200ms
+	•	Support de 500 utilisateurs simultanés sans dégradation des performances
+ 
+8.2 Compatibilité
+Plateforme
+Versions supportées
+iOS
+iOS 14 et supérieur
+Android
+Android 8 (API 26) et supérieur
+Web
+Chrome 90+, Firefox 88+, Safari 14+, Edge 90+
+ 
+ 
+8.3 Accessibilité
+	•	Interface lisible sans formation préalable
+	•	Taille de texte minimale de 12pt pour le contenu, 14pt pour les éléments interactifs
+	•	Contraste suffisant entre texte et fond (ratio WCAG AA minimum)
+	•	Navigation possible sans connexion internet pour les données déjà chargées (mode hors-ligne partiel)
+ 
+8.4 Disponibilité
+	•	Disponibilité cible : 99.5% sur l'année scolaire
+	•	Maintenance planifiée en dehors des heures de cours (avant 7h ou après 19h)
+	•	Sauvegarde automatique quotidienne des données
+ 
+ 
+9. Livrables du projet
+ 
+9.1 Phase 1 — Maquette (réalisée)
+	•	Application mobile EduParent (.jsx) — interface parent complète
+	•	Application mobile EduAdmins (.jsx) — interfaces prof, préfet, direction
+	•	Site web EduAdmins (.html) — version ordinateur autonome avec landing page
+	•	Présent cahier des charges
+ 
+9.2 Phase 2 — Développement production (à planifier)
+	•	Configuration de la base de données (Supabase)
+	•	Mise en place de l'authentification sécurisée
+	•	Connexion des interfaces aux données réelles
+	•	Tests fonctionnels et de sécurité
+	•	Déploiement web (hébergement)
+	•	Publication sur App Store (iOS) et Google Play (Android)
+ 
+9.3 Phase 3 — Déploiement et formation (à planifier)
+	•	Formation du personnel des établissements partenaires
+	•	Migration des données existantes (si applicable)
+	•	Support technique post-lancement
+	•	Documentation utilisateur (guide d'utilisation par profil)
+ 
+ 
+10. Planning estimatif
+ 
+Phase
+Durée estimée
+Responsable
+Statut
+Phase 1 — Maquette fonctionnelle
+Réalisée
+NOVA HOLDINGS / Prestataire
+✓ Terminé
+Phase 2 — Base de données & API
+4–6 semaines
+Développeur back-end
+À planifier
+Phase 2 — Intégration front-end
+3–4 semaines
+Développeur React
+À planifier
+Phase 2 — Tests & corrections
+2–3 semaines
+Équipe QA
+À planifier
+Phase 3 — Déploiement
+1–2 semaines
+DevOps
+À planifier
+Phase 3 — Formation établissements
+Variable
+NOVA HOLDINGS
+À planifier
+ 
+ 
+11. Glossaire
+ 
+Terme
+Définition
+2FA
+Authentification à deux facteurs — vérification en deux étapes pour la connexion
+API
+Interface de programmation permettant à l'application de communiquer avec la base de données
+Bulletin
+Document officiel récapitulant les notes et appréciations d'un élève pour un trimestre
+Cahier des charges
+Document définissant les besoins, contraintes et objectifs d'un projet informatique
+Cycle
+Regroupement de niveaux scolaires sous la responsabilité d'un préfet (Primaire, Collège, Secondaire)
+JSX
+Extension syntaxique de JavaScript utilisée par React pour décrire les interfaces
+Préfet
+Responsable administratif d'un cycle scolaire dans un établissement
+React
+Bibliothèque JavaScript utilisée pour construire les interfaces des applications
+Row Level Security
+Mécanisme de Supabase garantissant que chaque utilisateur n'accède qu'à ses propres données
+Supabase
+Service de base de données et d'authentification recommandé pour la phase de production
+Trimestre
+Période de 3 mois constituant une unité d'évaluation scolaire (1er, 2ème, 3ème trimestre)
+ 
+ 
+12. Validation et signatures
+ 
+Ce document est soumis à la validation de NOVA HOLDINGS avant engagement des phases de développement suivantes.
+ 
+ 
+Rôle
+Nom
+Date
+Signature
+Commanditaire
+NOVA HOLDINGS
+_____ / _____ / 2025
+_________________
+Responsable projet
+
+_____ / _____ / 2025
+_________________
+Développeur principal
+
+_____ / _____ / 2025
+_________________
+ 
+ 
+Document préparé par NOVA HOLDINGS — Confidentiel
