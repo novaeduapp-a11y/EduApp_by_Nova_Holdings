@@ -38,7 +38,7 @@ export default function Home() {
               </div>
               <div>
                 <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                  EduGestion Pro
+                  EduApps
                 </span>
                 <span className="hidden sm:inline text-xs text-gray-500 ml-2">Sénégal 🇸🇳</span>
               </div>
@@ -48,6 +48,9 @@ export default function Home() {
               <a href="#fonctionnalites" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">
                 Fonctionnalités
               </a>
+              <Link href="/eduadmins" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">
+                EduAdmins
+              </Link>
               <a href="#tarifs" className="text-gray-600 hover:text-blue-600 transition-colors font-medium">
                 Tarifs
               </a>
@@ -95,9 +98,8 @@ export default function Home() {
             </h1>
             
             <p className="mt-6 text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-              Plateforme complète pour les écoles primaires au Sénégal. 
-              Gérez élèves, notes, bulletins et paiements. 
-              <strong className="text-gray-900">Optimisée pour les connexions faibles.</strong>
+              Plateforme des établissements partenaires de <strong className="text-gray-900">NOVA HOLDINGS</strong>.
+              Notes, absences, bulletins — pour les familles, les professeurs et la direction.
             </p>
 
             <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
@@ -541,13 +543,13 @@ export default function Home() {
                 <div className="p-2 bg-white rounded-xl">
                   <GraduationCap className="h-6 w-6 text-blue-600" />
                 </div>
-                <span className="text-xl font-bold">EduGestion Pro</span>
+                <span className="text-xl font-bold">EduApps</span>
               </div>
               <p className="text-gray-400 mb-4 max-w-md">
-                La plateforme de gestion scolaire la plus complète pour les écoles primaires au Sénégal. Simplifiez votre quotidien.
+                Suite de gestion scolaire pour les établissements partenaires de NOVA HOLDINGS. EduParent et EduAdmins.
               </p>
               <div className="flex gap-4">
-                <Badge className="bg-green-600">🇸🇳 Made in Senegal</Badge>
+                <Badge className="bg-green-600">NOVA HOLDINGS · Dakar</Badge>
               </div>
             </div>
             <div>
@@ -570,10 +572,10 @@ export default function Home() {
           </div>
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-400 text-sm">
-              © {new Date().getFullYear()} EduGestion Pro. Tous droits réservés.
+              © {new Date().getFullYear()} NOVA HOLDINGS. Tous droits réservés.
             </p>
             <p className="text-gray-400 text-sm">
-              Développé avec ❤️ par El Hadji Dieng
+              Réalisé par Khidma Service Digital
             </p>
           </div>
         </div>

@@ -1,40 +1,26 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireProfesseur } from "@/lib/request-auth";
+import { getProfAssignments } from "@/lib/prof-scope";
 
-// GET - Classes du professeur connecté
 export async function GET() {
   try {
-    const session = await auth();
+    const authResult = await requireProfesseur();
+    if (!authResult.ok) return authResult.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
-    if (session.user.role !== "PROFESSEUR") {
+    const assignments = await getProfAssignments(authResult.user.id);
+    if (!assignments) {
       return NextResponse.json({ error: "Accès réservé aux professeurs" }, { status: 403 });
     }
 
-    const classeMatieres = await prisma.classeMatiere.findMany({
-      where: { professeurId: session.user.id },
-      include: {
-        classe: {
-          include: {
-            _count: { select: { eleves: { where: { deletedAt: null } } } },
-          },
-        },
-        matiere: true,
-      },
-    });
-
     return NextResponse.json({
-      data: classeMatieres.map(cm => ({
-        id: cm.classe.id,
-        nom: cm.classe.nom,
-        niveau: cm.classe.niveau,
-        effectif: cm.classe._count.eleves,
-        matiere: cm.matiere.nom,
-        matiereId: cm.matiere.id,
+      success: true,
+      data: assignments.map((item) => ({
+        id: item.classeId,
+        nom: item.classeNom,
+        niveau: item.niveau,
+        effectif: item.effectif,
+        matiere: item.matiereNom,
+        matiereId: item.matiereId,
       })),
     });
   } catch (error) {

@@ -1,16 +1,22 @@
 # EduAdmins
 
-Plateforme **Professeurs / Préfets / Direction** — mobile + web — Lot C.
+Plateforme **Professeurs / Préfets / Direction** — **web uniquement** (même site que le socle).  
+CDC V2 §8 · phases : [planning/phases/03-lot-c-eduadmins.md](../../planning/phases/03-lot-c-eduadmins.md)
 
-## Objectif
+**Livrable :** `http://localhost:3000/eduadmins` et les portails web du socle.  
+Le dossier Expo ci-dessous est un **prototype hors forfait** (le client a retiré l’app mobile EduAdmins le 16/08/2026).
 
-Portails distincts, saisie notes, inscriptions, classes, bulletins, bilan direction, landing + sélection école.
+### Web
 
-## Statut
+- Landing : [http://localhost:3000/eduadmins](http://localhost:3000/eduadmins)
+- Portail préfet : `/prefet` (après login `prefet.primaire@ecole.sn`)
+- Prof / direction : espaces socle existants (`/professeur`, `/directeur`)
 
-À démarrer après (ou en parallèle partielle de) EduParent.
+### Comptes démo (mot de passe `Admin@123`)
 
-## Liens
-
-- CDC §4–5 — `../../docs/cahier-des-charges/`
-- Socle — `../../socle/gestion_des_ecoles/`
+| Portail | E-mail | Isolation |
+|---------|--------|-----------|
+| Instituteur | `professeur@ecole.sn` | Primaire · Dakar |
+| Prof matière | `prof.college@ecole.sn` | Collège · Dakar |
+| Préfet primaire | `prefet.primaire@ecole.sn` | Cycle primaire · Dakar |
+| Direction | `directeur@ecole.sn` | 2FA · Dakar |

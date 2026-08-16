@@ -55,8 +55,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         identifier: { label: "Email ou Téléphone", type: "text" },
         password: { label: "Mot de passe", type: "password" },
+        challengeId: { label: "Challenge 2FA", type: "text" },
+        code: { label: "Code 2FA", type: "text" },
       },
       async authorize(credentials) {
+        const challengeId = String(credentials?.challengeId ?? "").trim();
+        const code = String(credentials?.code ?? "").trim();
+
+        if (challengeId && code) {
+          const challenge = await prisma.twoFactorChallenge.findUnique({
+            where: { id: challengeId },
+            include: { user: true },
+          });
+          if (!challenge || challenge.usedAt || challenge.expiresAt < new Date()) {
+            throw new Error("Code 2FA invalide ou expiré");
+          }
+          const codeOk = await bcrypt.compare(code, challenge.codeHash);
+          if (!codeOk || !challenge.user.actif || challenge.user.role !== "DIRECTEUR") {
+            throw new Error("Code 2FA invalide ou expiré");
+          }
+          await prisma.twoFactorChallenge.update({
+            where: { id: challenge.id },
+            data: { usedAt: new Date() },
+          });
+          return {
+            id: challenge.user.id,
+            email: challenge.user.email,
+            nom: challenge.user.nom,
+            prenom: challenge.user.prenom,
+            role: challenge.user.role,
+            photo: challenge.user.photo,
+          };
+        }
+
         if (!credentials?.identifier || !credentials?.password) {
           throw new Error("Email/Téléphone/Matricule et mot de passe requis");
         }
@@ -100,6 +131,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!isPasswordValid) {
           throw new Error("Identifiants invalides");
+        }
+
+        if (user.role === "DIRECTEUR" && user.twoFactorEnabled) {
+          throw new Error("2FA_REQUIRED");
         }
 
         return {

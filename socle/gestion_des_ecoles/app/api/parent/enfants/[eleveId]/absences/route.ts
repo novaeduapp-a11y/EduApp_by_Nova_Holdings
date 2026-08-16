@@ -1,26 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireParent } from "@/lib/request-auth";
 
-// GET - Récupérer les absences d'un enfant
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { eleveId: string } }
 ) {
   try {
-    const session = await auth();
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
+    const authResult = await requireParent();
+    if (!authResult.ok) return authResult.response;
 
     const { eleveId } = params;
 
-    // Vérifier que le parent a accès à cet élève
     const parentEleve = await prisma.parentEleve.findUnique({
       where: {
         parentId_eleveId: {
-          parentId: session.user.id,
+          parentId: authResult.user.id,
           eleveId: eleveId,
         },
       },

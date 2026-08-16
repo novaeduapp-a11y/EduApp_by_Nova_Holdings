@@ -1,0 +1,19 @@
+{
+  "name": "eduapps-nova-holdings",
+  "private": true,
+  "description": "Workspace EduApps — NOVA HOLDINGS (KSD)",
+  "scripts": {
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f postgres",
+    "socle:install": "npm install --prefix socle/gestion_des_ecoles",
+    "socle:dev": "npm run dev --prefix socle/gestion_des_ecoles",
+    "parent:start": "npm start --prefix apps/eduparent",
+    "admins:start": "npm start --prefix apps/eduadmins",
+    "socle:db:generate": "npm run db:generate --prefix socle/gestion_des_ecoles",
+    "socle:db:migrate": "npm run db:migrate --prefix socle/gestion_des_ecoles",
+    "socle:db:deploy": "npm exec --prefix socle/gestion_des_ecoles -- prisma migrate deploy",
+    "socle:db:seed": "npm run db:seed --prefix socle/gestion_des_ecoles",
+    "socle:db:studio": "npm run db:studio --prefix socle/gestion_des_ecoles"
+  }
+}

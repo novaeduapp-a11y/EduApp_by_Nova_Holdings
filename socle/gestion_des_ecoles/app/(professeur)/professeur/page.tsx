@@ -165,29 +165,29 @@ export default function ProfesseurDashboard() {
           </Card>
         </Link>
 
-        <Link href="/professeur/evaluations">
+        <Link href="/professeur/classes">
           <Card className="hover:shadow-lg transition-all hover:-translate-y-1 duration-300 cursor-pointer h-full">
             <CardContent className="pt-6 flex flex-col items-center text-center">
               <div className="p-4 bg-purple-100 rounded-full mb-4">
                 <ClipboardList className="h-8 w-8 text-purple-600" />
               </div>
-              <h3 className="font-semibold text-lg">Créer une Évaluation</h3>
+              <h3 className="font-semibold text-lg">Mes classes</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Planifiez un devoir ou une composition
+                Uniquement les classes qui vous sont affectées
               </p>
             </CardContent>
           </Card>
         </Link>
 
-        <Link href="/professeur/absences">
+        <Link href="/professeur/appel">
           <Card className="hover:shadow-lg transition-all hover:-translate-y-1 duration-300 cursor-pointer h-full">
             <CardContent className="pt-6 flex flex-col items-center text-center">
               <div className="p-4 bg-orange-100 rounded-full mb-4">
                 <Calendar className="h-8 w-8 text-orange-600" />
               </div>
-              <h3 className="font-semibold text-lg">Gérer les Absences</h3>
+              <h3 className="font-semibold text-lg">Feuille d’appel</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Marquez les absences de vos élèves
+                Présent, absent ou retard
               </p>
             </CardContent>
           </Card>
@@ -232,7 +232,7 @@ export default function ProfesseurDashboard() {
               <Clock className="h-5 w-5" />
               Prochaines Évaluations
             </CardTitle>
-            <Link href="/professeur/evaluations">
+            <Link href="/professeur/notes">
               <Button variant="outline" size="sm">Voir tout</Button>
             </Link>
           </CardHeader>

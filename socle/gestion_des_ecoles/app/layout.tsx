@@ -6,8 +6,9 @@ import { Providers } from "@/components/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Gestion Scolaire - Plateforme de Gestion des Notes & Bulletins",
-  description: "Application de gestion scolaire pour les établissements d'enseignement primaire au Sénégal",
+  title: "EduApps — NOVA HOLDINGS",
+  description:
+    "Suite de gestion scolaire pour les établissements partenaires de NOVA HOLDINGS. EduParent et EduAdmins.",
 };
 
 export default function RootLayout({

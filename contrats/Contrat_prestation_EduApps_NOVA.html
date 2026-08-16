@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CTR-2026-003 — Contrat de prestation EduApps / NOVA HOLDINGS</title>
+  <link rel="icon" href="../docs/commercial/assets-devis/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --color-blue: #1a237e;
+      --color-blue-mid: #283593;
+      --color-orange: #ff6f00;
+      --color-orange-dark: #e65100;
+      --border: #e8e8ee;
+      --text: #333;
+      --muted: #666;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Poppins, sans-serif;
+      color: var(--text);
+      background: #eef0f8;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .toolbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; justify-content: flex-end; gap: 12px; padding: 12px 20px;
+      background: rgba(255,255,255,.92); border-bottom: 1px solid var(--border);
+    }
+    .toolbar button {
+      font-family: inherit; font-weight: 600; font-size: 13px;
+      border: none; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+      background: var(--color-orange); color: #fff;
+    }
+    .page {
+      width: min(920px, calc(100% - 32px));
+      margin: 24px auto 48px;
+      background: #fff;
+      box-shadow: 0 12px 40px rgba(26,35,126,.08);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .hero {
+      background: linear-gradient(135deg, var(--color-blue), var(--color-blue-mid));
+      color: #fff; padding: 32px 40px 28px; position: relative;
+    }
+    .hero::after {
+      content: ""; position: absolute; left: 40px; right: 40px; bottom: 0; height: 4px;
+      background: linear-gradient(90deg, var(--color-orange), var(--color-orange-dark));
+    }
+    .hero h1 { font-family: Inter, Poppins, sans-serif; font-size: 22px; margin: 8px 0; }
+    .hero .ref { opacity: .85; font-size: 12px; }
+    .content { padding: 32px 40px 48px; }
+    h2 {
+      color: var(--color-blue); font-size: 14px; margin: 22px 0 10px;
+      padding-bottom: 6px; border-bottom: 2px solid var(--color-blue);
+    }
+    p, li { margin-bottom: 8px; }
+    ul { padding-left: 18px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 12.5px; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; }
+    th { background: #f5f5f5; color: var(--color-blue); }
+    .price { text-align: right; white-space: nowrap; font-weight: 600; }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+    .card { background: #f5f5f5; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+    .card h3 { color: var(--color-blue); font-size: 12px; text-transform: uppercase; margin-bottom: 8px; }
+    .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
+    .sign-box { border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-height: 180px; }
+    .sign-line { margin-top: 48px; border-top: 1px solid #ccc; padding-top: 8px; font-size: 12px; color: var(--muted); }
+    .note { font-size: 12px; color: var(--muted); }
+    .blank { border-bottom: 1px dotted #999; min-width: 8em; display: inline-block; }
+    @media print {
+      .toolbar { display: none; }
+      body { background: #fff; }
+      .page { width: 100%; margin: 0; box-shadow: none; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Imprimer / PDF</button>
+  </div>
+  <article class="page">
+    <header class="hero">
+      <p class="ref">CTR-2026-003 · Devis DEV-2026-003-F · Projet de contrat</p>
+      <h1>Contrat de prestation de services informatiques</h1>
+      <p>Suite EduApps — EduParent · EduAdmins · Socle — Forfait 3 000 000 FCFA</p>
+    </header>
+    <div class="content">
+      <div class="parties">
+        <div class="card">
+          <h3>Le Prestataire</h3>
+          <p><strong>Khidma Service Digital (KSD)</strong><br />
+          Entreprise individuelle — El Hadji Dieng, Gérant<br />
+          NINEA 013266251 · RCCM SN DKR 2026 A 29392<br />
+          Dakar, Parcelle Assainie U8<br />
+          +221 77 454 86 61 · el.elhadji.dieng@gmail.com</p>
+        </div>
+        <div class="card">
+          <h3>Le Client</h3>
+          <p><strong>NOVA HOLDINGS</strong><br />
+          Représentée par M. Mendy<br />
+          Forme / NINEA / RCCM : à compléter le jour de la signature<br />
+          Dakar, Sénégal</p>
+        </div>
+      </div>
+
+      <h2>Article 1 — Objet</h2>
+      <p>Le Prestataire réalise la conception, le développement, le déploiement initial et la formation prévue de la suite EduApps (Lots A, B et C), conformément aux annexes.</p>
+
+      <h2>Article 2 — Documents contractuels (ordre de priorité)</h2>
+      <p>1. Le présent contrat et avenants · 2. Devis DEV-2026-003-F · 3. Cadrage des périmètres · 4. CDC d’exécution V2 · 5. CDC client v1.0 (archive, non opposable en cas de conflit).</p>
+
+      <h2>Article 3 — Prix forfaitaire</h2>
+      <table>
+        <thead><tr><th>Lot</th><th>Désignation</th><th class="price">Prix</th></tr></thead>
+        <tbody>
+          <tr><td>A</td><td>Socle existant</td><td class="price">450 000 FCFA</td></tr>
+          <tr><td>B</td><td>EduParent</td><td class="price">1 100 000 FCFA</td></tr>
+          <tr><td>C</td><td>EduAdmins web + API</td><td class="price">1 450 000 FCFA</td></tr>
+          <tr><td colspan="2"><strong>Total</strong></td><td class="price">3 000 000 FCFA</td></tr>
+        </tbody>
+      </table>
+      <p>V1.0 (tranche 2) : socle + EduParent (seule app mobile), 1 école pilote. V1.1 (tranche 3) : EduAdmins <strong>web</strong> (même site), multi-écoles, 2FA, EDT / messagerie / communiqués.</p>
+      <p class="note">Hors forfait : hébergement, domaine, comptes Apple / Google Play (EduParent), SMS / e-mail, maintenance, formation de masse, app élève, app mobile EduAdmins, paiements dans les apps.</p>
+
+      <h2>Article 4 — Paiement</h2>
+      <table>
+        <thead><tr><th>Tranche</th><th>Déclencheur</th><th>%</th><th class="price">Montant</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Signature + démarrage</td><td>30 %</td><td class="price">900 000 FCFA</td></tr>
+          <tr><td>2</td><td>Recette V1.0</td><td>30 %</td><td class="price">900 000 FCFA</td></tr>
+          <tr><td>3</td><td>Recette V1.1 + production</td><td>40 %</td><td class="price">1 200 000 FCFA</td></tr>
+        </tbody>
+      </table>
+      <p>Wave · Orange Money · virement. <strong>Démarrage à réception de la tranche 1.</strong> Suspension possible après 15 jours de retard de paiement.</p>
+      <p>Paiement Prestataire : Wave/OM <span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span> · Banque <span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
+
+      <h2>Article 5 — Délais</h2>
+      <p>3 à 4,5 mois à compter de la tranche 1, sous réserve des obligations du Client (infra, stores, données pilote, recette).</p>
+
+      <h2>Article 6 — Recette</h2>
+      <p>Notification e-mail de livraison. Le Client a <strong>10 jours ouvrés</strong> pour des réserves écrites et motivées. Silence = recette tacite. Bug bloquant : connexion, consultation d’une note, génération d’un bulletin.</p>
+
+      <h2>Article 7 — Garantie</h2>
+      <p>Lot A : 30 jours. Lots B et C : 60 jours après recette du lot. Hors évolutions, hébergement et usage non conforme. Maintenance : contrat séparé après V1.1 (indication 100–150 k FCFA/mois).</p>
+
+      <h2>Article 8 — Propriété</h2>
+      <p>Livrables spécifiques EduApps cédés au Client à réception de la tranche 3. Le Prestataire conserve outils génériques et savoir-faire, avec droit d’usage pour NOVA et établissements partenaires. Revente hors réseau Client = avenant.</p>
+
+      <h2>Article 9 — Données</h2>
+      <p>Client = responsable de traitement. Prestataire = sous-traitant technique pendant la mission. Confidentialité réciproque.</p>
+
+      <h2>Article 10 — Responsabilité, résiliation, droit</h2>
+      <p>Plafond : montants encaissés (hors dol). Résiliation pour faute après mise en demeure 15 jours. Tranche 1 acquise en cas de résiliation Client hors faute Prestataire. Droit sénégalais / OHADA · juridictions de Dakar.</p>
+
+      <h2>Article 11 — Annexes</h2>
+      <p>A Devis DEV-2026-003-F · B Cadrage périmètres · C CDC V2 · D Critères de recette V1.0 / V1.1.</p>
+      <p>Interlocuteur Client : <span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></p>
+
+      <p>Fait à Dakar, le ____ / ____ / 2026, en deux originaux. Paraphe sur chaque page. « Lu et approuvé ».</p>
+
+      <div class="sign">
+        <div class="sign-box">
+          <h3 style="color:#1a237e;margin-bottom:8px;">Le Prestataire — KSD</h3>
+          <p>El Hadji Dieng, Gérant</p>
+          <div class="sign-line">Signature · Date</div>
+        </div>
+        <div class="sign-box">
+          <h3 style="color:#1a237e;margin-bottom:8px;">Le Client — NOVA HOLDINGS</h3>
+          <p>M. Mendy · Fonction _____________ · Cachet</p>
+          <div class="sign-line">Signature · Date</div>
+        </div>
+      </div>
+    </div>
+  </article>
+</body>
+</html>

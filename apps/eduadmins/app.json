@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "EduAdmins",
+    "slug": "eduadmins",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "eduadmins",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#F4F7FF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "sn.novaholdings.eduadmins"
+    },
+    "android": {
+      "package": "sn.novaholdings.eduadmins",
+      "adaptiveIcon": {
+        "backgroundColor": "#1A5FD4"
+      }
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

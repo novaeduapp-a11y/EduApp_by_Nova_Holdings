@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { getHomePathForRole } from "@/lib/role-routes";
 import { NextResponse } from "next/server";
 
-const publicRoutes = ["/", "/login", "/api/auth", "/api/bulletins/verifier", "/bulletins/verifier"];
+const publicRoutes = ["/", "/login", "/eduadmins", "/api/auth", "/api/mobile", "/api/parent", "/api/staff", "/api/ecoles", "/api/bulletins/verifier", "/bulletins/verifier"];
 const authRoutes = ["/login"];
 
 export default auth((req) => {
@@ -11,9 +11,16 @@ export default auth((req) => {
   const userRole = req.auth?.user?.role;
 
   const isPublicRoute = publicRoutes.some(
-    (route) => nextUrl.pathname === route || nextUrl.pathname.startsWith("/api/auth")
+    (route) =>
+      nextUrl.pathname === route ||
+      nextUrl.pathname.startsWith("/api/auth") ||
+      nextUrl.pathname.startsWith("/api/mobile") ||
+      nextUrl.pathname.startsWith("/api/parent") ||
+      nextUrl.pathname.startsWith("/api/staff") ||
+      nextUrl.pathname.startsWith("/api/ecoles")
   );
   const isAuthRoute = authRoutes.includes(nextUrl.pathname);
+  const isPrefetRoute = nextUrl.pathname.startsWith("/prefet");
   const isParentRoute = nextUrl.pathname.startsWith("/parent") && !nextUrl.pathname.startsWith("/parents");
   const isEleveRoute = nextUrl.pathname.startsWith("/eleve") && !nextUrl.pathname.startsWith("/eleves");
   const isProfesseurRoute = nextUrl.pathname.startsWith("/professeur");
@@ -39,27 +46,27 @@ export default auth((req) => {
   // Rediriger les utilisateurs vers leur espace dédié
   if (isLoggedIn) {
     // Parent ne peut accéder qu'à /parent
-    if (userRole === "PARENT" && (isDashboardRoute || isEleveRoute || isProfesseurRoute || isDirecteurRoute)) {
+    if (userRole === "PARENT" && (isDashboardRoute || isEleveRoute || isProfesseurRoute || isDirecteurRoute || isPrefetRoute)) {
       return NextResponse.redirect(new URL("/parent", nextUrl));
     }
 
-    // Élève ne peut accéder qu'à /eleve
-    if (userRole === "ELEVE" && (isDashboardRoute || isParentRoute || isProfesseurRoute || isDirecteurRoute)) {
+    if (userRole === "ELEVE" && (isDashboardRoute || isParentRoute || isProfesseurRoute || isDirecteurRoute || isPrefetRoute)) {
       return NextResponse.redirect(new URL("/eleve", nextUrl));
     }
 
-    // Professeur ne peut accéder qu'à /professeur
-    if (userRole === "PROFESSEUR" && (isDashboardRoute || isParentRoute || isEleveRoute || isDirecteurRoute)) {
+    if (userRole === "PROFESSEUR" && (isDashboardRoute || isParentRoute || isEleveRoute || isDirecteurRoute || isPrefetRoute)) {
       return NextResponse.redirect(new URL("/professeur", nextUrl));
     }
 
-    // Directeur : accès au back-office + /directeur, pas aux autres portails
-    if (userRole === "DIRECTEUR" && (isParentRoute || isEleveRoute || isProfesseurRoute)) {
+    if (userRole === "PREFET" && (isDashboardRoute || isParentRoute || isEleveRoute || isProfesseurRoute || isDirecteurRoute)) {
+      return NextResponse.redirect(new URL("/prefet", nextUrl));
+    }
+
+    if (userRole === "DIRECTEUR" && (isParentRoute || isEleveRoute || isProfesseurRoute || isPrefetRoute)) {
       return NextResponse.redirect(new URL("/directeur", nextUrl));
     }
 
-    // Admin peut accéder au dashboard, mais pas aux espaces dédiés
-    if (userRole === "ADMIN" && (isParentRoute || isEleveRoute || isProfesseurRoute || isDirecteurRoute)) {
+    if (userRole === "ADMIN" && (isParentRoute || isEleveRoute || isProfesseurRoute || isDirecteurRoute || isPrefetRoute)) {
       return NextResponse.redirect(new URL("/dashboard", nextUrl));
     }
   }

@@ -13,8 +13,20 @@ enum Role {
   ADMIN
   DIRECTEUR
   PROFESSEUR
+  PREFET
   PARENT
   ELEVE
+}
+
+enum TypeProfesseur {
+  MATIERE
+  PRIMAIRE
+}
+
+enum FamilleCycle {
+  PRIMAIRE
+  COLLEGE
+  SECONDAIRE
 }
 
 enum Sexe {
@@ -55,12 +67,17 @@ model User {
   adresse       String?
   photo         String?
   actif         Boolean   @default(true)
+  ecoleId       String?          @map("ecole_id")
+  typeProfesseur TypeProfesseur? @map("type_professeur")
+  familleCycle  FamilleCycle?    @map("famille_cycle")
+  twoFactorEnabled Boolean       @default(false) @map("two_factor_enabled")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   // Relations
+  ecole        Ecole?        @relation(fields: [ecoleId], references: [id])
   evaluations  Evaluation[]
   notes        Note[]
   absences     Absence[]
@@ -70,8 +87,40 @@ model User {
   accounts     Account[]
   parentEleves ParentEleve[]
   eleve        Eleve?
+  twoFactorChallenges TwoFactorChallenge[]
 
+  @@index([ecoleId])
   @@map("users")
+}
+
+model Ecole {
+  id     String  @id @default(cuid())
+  nom    String
+  ville  String
+  actif  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users   User[]
+  classes Classe[]
+  eleves  Eleve[]
+
+  @@map("ecoles")
+}
+
+model TwoFactorChallenge {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  codeHash  String    @map("code_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factor_challenges")
 }
 
 model Account {
@@ -114,10 +163,11 @@ model VerificationToken {
 }
 
 model Cycle {
-  id          String  @id @default(cuid())
+  id          String        @id @default(cuid())
   nom         String
   description String?
   ordre       Int
+  famille     FamilleCycle  @default(PRIMAIRE)
 
   classes Classe[]
 
@@ -131,15 +181,18 @@ model Classe {
   anneeScolaire String @map("annee_scolaire")
   effectifMax   Int    @default(40) @map("effectif_max")
   cycleId       String? @map("cycle_id")
+  ecoleId       String  @map("ecole_id")
 
   createdAt DateTime @default(now())
 
   // Relations
+  ecole          Ecole           @relation(fields: [ecoleId], references: [id])
   cycle          Cycle?          @relation(fields: [cycleId], references: [id])
   eleves         Eleve[]
   evaluations    Evaluation[]
   classeMatieres ClasseMatiere[]
 
+  @@index([ecoleId])
   @@map("classes")
 }
 
@@ -165,6 +218,7 @@ model Eleve {
   emailParent     String? @map("email_parent")
 
   classeId  String  @map("classe_id")
+  ecoleId   String  @map("ecole_id")
   matricule String  @unique
   adresse   String?
   photo     String?
@@ -175,6 +229,7 @@ model Eleve {
   deletedAt DateTime?
 
   // Relations
+  ecole             Ecole             @relation(fields: [ecoleId], references: [id])
   classe            Classe            @relation(fields: [classeId], references: [id])
   notes             Note[]
   absences          Absence[]
@@ -185,6 +240,7 @@ model Eleve {
   parentEleves      ParentEleve[]
   paiements         Paiement[]
 
+  @@index([ecoleId])
   @@map("eleves")
 }
 

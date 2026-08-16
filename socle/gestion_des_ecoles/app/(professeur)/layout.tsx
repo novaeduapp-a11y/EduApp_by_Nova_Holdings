@@ -15,6 +15,7 @@ import {
   X,
   Bell,
   User,
+  ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Accueil", href: "/professeur", icon: Home },
   { name: "Mes Classes", href: "/professeur/classes", icon: Users },
   { name: "Saisie des Notes", href: "/professeur/notes", icon: BookOpen },
+  { name: "Feuille d’appel", href: "/professeur/appel", icon: ClipboardCheck },
 ];
 
 export default function ProfesseurLayout({

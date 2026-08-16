@@ -1,29 +1,18 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireParent } from "@/lib/request-auth";
 
-// GET - Récupérer les enfants du parent connecté
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204 });
+}
+
 export async function GET() {
   try {
-    const session = await auth();
+    const authResult = await requireParent();
+    if (!authResult.ok) return authResult.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
-    // Vérifier que l'utilisateur est un parent
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true },
-    });
-
-    if (user?.role !== "PARENT") {
-      return NextResponse.json({ error: "Accès réservé aux parents" }, { status: 403 });
-    }
-
-    // Récupérer les enfants liés à ce parent
     const parentEleves = await prisma.parentEleve.findMany({
-      where: { parentId: session.user.id },
+      where: { parentId: authResult.user.id },
       include: {
         eleve: {
           include: {

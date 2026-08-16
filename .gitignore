@@ -9,3 +9,7 @@ build/
 .env.local
 **/.env
 **/uploads/
+.idea/
+*.tsbuildinfo
+.expo/
+**/.expo/

@@ -1,8 +1,17 @@
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "Gestion Scolaire";
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "EduApps";
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-export const NIVEAUX = ["CI", "CP", "CE1", "CE2", "CM1", "CM2"] as const;
+export const NIVEAUX_PRIMAIRE = ["CI", "CP", "CE1", "CE2", "CM1", "CM2"] as const;
+export const NIVEAUX_COLLEGE = ["6ème", "5ème", "4ème", "3ème"] as const;
+export const NIVEAUX_SECONDAIRE = ["Seconde", "Première", "Terminale"] as const;
+export const NIVEAUX = [...NIVEAUX_PRIMAIRE, ...NIVEAUX_COLLEGE, ...NIVEAUX_SECONDAIRE] as const;
 export type Niveau = (typeof NIVEAUX)[number];
+
+export const FAMILLES_CYCLE = {
+  PRIMAIRE: { label: "Primaire", niveaux: NIVEAUX_PRIMAIRE },
+  COLLEGE: { label: "Collège", niveaux: NIVEAUX_COLLEGE },
+  SECONDAIRE: { label: "Secondaire", niveaux: NIVEAUX_SECONDAIRE },
+} as const;
 
 export const ANNEE_SCOLAIRE_COURANTE = "2025-2026";
 
@@ -32,6 +41,7 @@ export const ROLES = {
   ADMIN: "ADMIN",
   DIRECTEUR: "DIRECTEUR",
   PROFESSEUR: "PROFESSEUR",
+  PREFET: "PREFET",
   PARENT: "PARENT",
   ELEVE: "ELEVE",
 } as const;

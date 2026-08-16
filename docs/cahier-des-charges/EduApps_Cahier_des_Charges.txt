@@ -1,4 +1,8 @@
  
+[ARCHIVE — CDC client v1.0, juin 2025]
+Le document d’exécution est EduApps_Cahier_des_Charges_V2.md
+Les périmètres tranchés sont dans docs/cadrage/PERIMETRES.md
+
 NOVA HOLDINGS
 Dakar, Sénégal
  

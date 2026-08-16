@@ -1,78 +1,57 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireProfesseur } from "@/lib/request-auth";
+import { evaluationWhere, getProfAssignments, groupedClasses } from "@/lib/prof-scope";
 
-// GET - Dashboard du professeur connecté
 export async function GET() {
   try {
-    const session = await auth();
+    const authResult = await requireProfesseur();
+    if (!authResult.ok) return authResult.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
-    }
-
-    if (session.user.role !== "PROFESSEUR") {
+    const assignments = await getProfAssignments(authResult.user.id);
+    if (!assignments) {
       return NextResponse.json({ error: "Accès réservé aux professeurs" }, { status: 403 });
     }
 
-    // Récupérer les classes où le professeur enseigne
-    const classeMatieres = await prisma.classeMatiere.findMany({
-      where: { professeurId: session.user.id },
-      include: {
-        classe: {
+    const classes = groupedClasses(assignments);
+    const evaluations = assignments.length
+      ? await prisma.evaluation.findMany({
+          where: evaluationWhere(assignments),
           include: {
-            _count: { select: { eleves: { where: { deletedAt: null } } } },
+            classe: true,
+            matiere: true,
+            _count: { select: { notes: true } },
           },
-        },
-        matiere: true,
-      },
-    });
+          orderBy: { dateEvaluation: "desc" },
+        })
+      : [];
 
-    // Récupérer les évaluations du professeur
-    const evaluations = await prisma.evaluation.findMany({
-      where: { professeurId: session.user.id, deletedAt: null },
-      include: {
-        classe: true,
-        matiere: true,
-        _count: { select: { notes: true } },
-      },
-      orderBy: { dateEvaluation: "desc" },
-    });
-
-    // Compter les évaluations en attente de notes
-    const evaluationsEnAttente = evaluations.filter(e => {
-      const classeEffectif = classeMatieres.find(cm => cm.classeId === e.classeId)?.classe._count.eleves || 0;
-      return e._count.notes < classeEffectif;
+    const effectifByClasse = new Map(classes.map((item) => [item.id, item.effectif]));
+    const evaluationsEnAttente = evaluations.filter((evaluation) => {
+      const effectif = effectifByClasse.get(evaluation.classeId) ?? 0;
+      return evaluation._count.notes < effectif;
     }).length;
 
-    // Total élèves
-    const totalEleves = classeMatieres.reduce((acc, cm) => acc + cm.classe._count.eleves, 0);
-
-    // Prochaines évaluations
-    const prochainesEvaluations = evaluations
-      .filter(e => new Date(e.dateEvaluation) >= new Date())
-      .slice(0, 5)
-      .map(e => ({
-        id: e.id,
-        titre: e.titre,
-        classe: e.classe.nom,
-        matiere: e.matiere.nom,
-        date: e.dateEvaluation.toISOString(),
-      }));
-
     return NextResponse.json({
+      success: true,
       data: {
-        totalClasses: classeMatieres.length,
-        totalEleves,
+        totalClasses: classes.length,
+        totalEleves: classes.reduce((sum, item) => sum + item.effectif, 0),
         totalEvaluations: evaluations.length,
         evaluationsEnAttente,
-        classes: classeMatieres.map(cm => ({
-          id: cm.classe.id,
-          nom: cm.classe.nom,
-          effectif: cm.classe._count.eleves,
-          matiere: cm.matiere.nom,
+        classes: assignments.map((item) => ({
+          id: item.classeId,
+          nom: item.classeNom,
+          effectif: item.effectif,
+          matiere: item.matiereNom,
         })),
-        prochainesEvaluations,
+        prochainesEvaluations: evaluations.slice(0, 5).map((evaluation) => ({
+          id: evaluation.id,
+          titre: evaluation.titre,
+          classe: evaluation.classe.nom,
+          matiere: evaluation.matiere.nom,
+          date: evaluation.dateEvaluation.toISOString(),
+        })),
       },
     });
   } catch (error) {

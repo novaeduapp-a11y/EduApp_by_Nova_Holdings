@@ -103,13 +103,13 @@ export function Sidebar() {
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!sidebarCollapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-blue-600" />
-              <span className="font-bold text-lg">Gestion Scolaire</span>
+              <GraduationCap className="h-8 w-8 text-[#1A5FD4]" />
+              <span className="font-bold text-lg">EduApps</span>
             </Link>
           )}
           {sidebarCollapsed && (
             <Link href="/dashboard" className="mx-auto">
-              <GraduationCap className="h-8 w-8 text-blue-600" />
+              <GraduationCap className="h-8 w-8 text-[#1A5FD4]" />
             </Link>
           )}
           <Button

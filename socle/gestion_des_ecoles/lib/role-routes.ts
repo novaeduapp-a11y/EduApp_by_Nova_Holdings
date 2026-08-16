@@ -7,6 +7,8 @@ export function getHomePathForRole(role: string | undefined): string {
       return "/parent";
     case "ELEVE":
       return "/eleve";
+    case "PREFET":
+      return "/prefet";
     case "PROFESSEUR":
       return "/professeur";
     case "DIRECTEUR":
