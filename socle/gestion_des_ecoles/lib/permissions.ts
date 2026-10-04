@@ -49,7 +49,7 @@ export async function requireRoles(allowedRoles: readonly Role[]): Promise<AuthR
   if (!allowedRoles.includes(result.session.user.role)) {
     return forbidden();
   }
-  return result;
+  return { ok: true, session: result.session };
 }
 
 export const requireStaff = () => requireRoles(STAFF_ROLES);

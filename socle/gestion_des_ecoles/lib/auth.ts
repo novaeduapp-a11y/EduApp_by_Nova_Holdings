@@ -174,6 +174,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               photo: true,
               actif: true,
               twoFactorEnabled: true,
+              mustChangePassword: true,
               ecoleId: true,
             },
           });

@@ -1,91 +1,75 @@
-name: CI - Tests et Sécurité
+name: CI
 
 on:
-  push:
-    branches: [main, cursor/**]
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  push:
+    branches:
+      - main
 
 jobs:
-  lint:
-    name: Lint et validation du code
+  lint-and-build:
+    name: Lint, typecheck & build
     runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eduapps_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: socle/gestion_des_ecoles/package-lock.json
-      
-      - name: Installation des dépendances
+
+      - name: Install dependencies
         working-directory: socle/gestion_des_ecoles
-        run: npm ci --legacy-peer-deps
-      
-      - name: Génération Prisma
+        run: npm ci
+
+      - name: Prisma validate
         working-directory: socle/gestion_des_ecoles
-        run: npm run db:generate
-      
-      - name: Lint
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+        run: npx prisma validate
+
+      - name: Prisma generate
+        working-directory: socle/gestion_des_ecoles
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+        run: npx prisma generate
+
+      - name: Run lint
         working-directory: socle/gestion_des_ecoles
         run: npm run lint
 
-  typecheck:
-    name: Vérification TypeScript
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: socle/gestion_des_ecoles/package-lock.json
-      
-      - name: Installation des dépendances
-        working-directory: socle/gestion_des_ecoles
-        run: npm ci --legacy-peer-deps
-      
-      - name: Génération Prisma
-        working-directory: socle/gestion_des_ecoles
-        run: npm run db:generate
-      
-      - name: TypeScript Check
+      - name: Run typecheck
         working-directory: socle/gestion_des_ecoles
         run: npx tsc --noEmit
 
-  build:
-    name: Build Next.js
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: socle/gestion_des_ecoles/package-lock.json
-      
-      - name: Installation des dépendances
-        working-directory: socle/gestion_des_ecoles
-        run: npm ci --legacy-peer-deps
-      
-      - name: Génération Prisma
-        working-directory: socle/gestion_des_ecoles
-        run: npm run db:generate
-        env:
-          DATABASE_URL: postgresql://test:test@localhost/test
-      
       - name: Build
         working-directory: socle/gestion_des_ecoles
-        run: npm run build
         env:
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET || 'test-secret-for-ci-build-only-minimum-32-chars' }}
-          DATABASE_URL: postgresql://test:test@localhost/test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+        run: npm run build
 
   security-tests:
     name: Tests de sécurité
@@ -93,11 +77,11 @@ jobs:
     
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:16-alpine
         env:
-          POSTGRES_USER: eduapp
-          POSTGRES_PASSWORD: testpass123
-          POSTGRES_DB: gestion_scolaire_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eduapps_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -107,7 +91,8 @@ jobs:
           - 5432:5432
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -116,58 +101,50 @@ jobs:
           cache: 'npm'
           cache-dependency-path: socle/gestion_des_ecoles/package-lock.json
       
-      - name: Installation des dépendances
+      - name: Install dependencies
         working-directory: socle/gestion_des_ecoles
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       
-      - name: Génération Prisma Client
+      - name: Prisma generate
         working-directory: socle/gestion_des_ecoles
-        run: npm run db:generate
         env:
-          DATABASE_URL: postgresql://eduapp:testpass123@localhost:5432/gestion_scolaire_test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+        run: npx prisma generate
       
-      - name: Migration de la base de données de test
+      - name: Run database migrations
         working-directory: socle/gestion_des_ecoles
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
         run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: postgresql://eduapp:testpass123@localhost:5432/gestion_scolaire_test
       
-      - name: Seed de la base de données de test
+      - name: Seed test database
         working-directory: socle/gestion_des_ecoles
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
         run: npm run db:seed
-        env:
-          DATABASE_URL: postgresql://eduapp:testpass123@localhost:5432/gestion_scolaire_test
       
-      - name: Démarrage du serveur de test
+      - name: Start test server
         working-directory: socle/gestion_des_ecoles
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+          NEXTAUTH_SECRET: test-secret-for-verification-12345678901234567890
+          NEXTAUTH_URL: http://localhost:3000
         run: |
           npm run dev &
           echo $! > .server.pid
-          # Wait for server to be ready
           timeout 60 bash -c 'until curl -f http://localhost:3000/api/parametres; do sleep 2; done' || exit 1
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://eduapp:testpass123@localhost:5432/gestion_scolaire_test
-          AUTH_SECRET: test-secret-for-verification-12345678901234567890
-          NEXTAUTH_SECRET: test-secret-for-verification-12345678901234567890
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
-          NEXT_PUBLIC_APP_NAME: EduApps
-          NEXT_PUBLIC_ADMIN_URL: http://localhost:3000
       
-      - name: Exécution des tests de sécurité
+      - name: Run security tests
         working-directory: socle/gestion_des_ecoles
-        run: npm run test
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://eduapp:testpass123@localhost:5432/gestion_scolaire_test
-          AUTH_SECRET: test-secret-for-verification-12345678901234567890
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
           NEXTAUTH_SECRET: test-secret-for-verification-12345678901234567890
           BASE_URL: http://localhost:3000
-          NEXT_PUBLIC_APP_URL: http://localhost:3000
-          NEXT_PUBLIC_APP_NAME: EduApps
-          NEXT_PUBLIC_ADMIN_URL: http://localhost:3000
+        run: npm run test
       
-      - name: Arrêt du serveur
+      - name: Stop server
         if: always()
         working-directory: socle/gestion_des_ecoles
         run: |
@@ -176,7 +153,7 @@ jobs:
             rm .server.pid
           fi
       
-      - name: Upload résultats des tests
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:

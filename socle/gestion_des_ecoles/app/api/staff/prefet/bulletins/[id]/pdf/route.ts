@@ -31,7 +31,8 @@ export async function GET(
       return NextResponse.json({ error: "Bulletin introuvable" }, { status: 404 });
     }
 
-    const pdf = await renderToBuffer(createElement(BulletinPDF, { data }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdf = await renderToBuffer(createElement(BulletinPDF, { data }) as any);
     return new NextResponse(new Uint8Array(pdf), {
       headers: {
         "Content-Type": "application/pdf",

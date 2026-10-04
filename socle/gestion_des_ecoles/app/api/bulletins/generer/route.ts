@@ -21,10 +21,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Récupérer l'élève avec sa classe
+    // Récupérer l'élève avec sa classe et son école
     const eleve = await prisma.eleve.findUnique({
       where: { id: eleveId },
       include: {
+        ecole: true,
         classe: {
           include: {
             cycle: true,
@@ -194,10 +195,10 @@ export async function POST(request: NextRequest) {
     // Préparer les données pour le PDF
     const bulletinData = {
       ecole: {
-        nom: "École Primaire Cheikh Anta Diop",
-        adresse: "Avenue Cheikh Anta Diop, Dakar, Sénégal",
-        telephone: "+221 33 123 45 67",
-        email: "contact@ecole-cad.sn",
+        nom: eleve.ecole.nom,
+        adresse: eleve.ecole.adresse || `${eleve.ecole.ville}, Sénégal`,
+        telephone: eleve.ecole.telephone || "",
+        email: eleve.ecole.email || "",
       },
       eleve: {
         nom: eleve.nom,
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest) {
       },
       periode: {
         nom: periode.nom,
-        anneeScolaire: "2025-2026",
+        anneeScolaire: periode.anneeScolaire,
       },
       notes: bulletinNotes,
       moyenneGenerale,

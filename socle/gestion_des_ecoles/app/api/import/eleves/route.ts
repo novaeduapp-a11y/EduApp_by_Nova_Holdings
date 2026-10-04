@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireManagement } from "@/lib/permissions";
+import { requireAdmin, isAuthFailure } from "@/lib/unified-auth";
 import * as XLSX from "xlsx";
 
 // POST /api/import/eleves - Importer des élèves depuis Excel
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireManagement();
-    if (!authResult.ok) return authResult.response;
+    const authResult = await requireAdmin();
+    if (isAuthFailure(authResult)) return authResult.response;
+    const { user } = authResult;
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
@@ -36,8 +37,9 @@ export async function POST(request: NextRequest) {
     // Récupérer les classes existantes
     const classes = await prisma.classe.findMany({
       where: { anneeScolaire: "2025-2026" },
+      select: { id: true, nom: true, ecoleId: true },
     });
-    const classeMap = new Map(classes.map((c) => [c.nom.toLowerCase(), c.id]));
+    const classeMap = new Map(classes.map((c) => [c.nom.toLowerCase(), c]));
 
     // Traiter les données
     const results = {
@@ -83,9 +85,16 @@ export async function POST(request: NextRequest) {
         }
 
         // Trouver la classe
-        const classeId = classeMap.get(classeNom.toLowerCase());
-        if (!classeId) {
+        const classe = classeMap.get(classeNom.toLowerCase());
+        if (!classe) {
           results.errors.push({ ligne, erreur: `Classe "${classeNom}" non trouvée` });
+          continue;
+        }
+
+        // Vérifier que l'ADMIN peut importer dans cette école (ou est ADMIN global)
+        const isGlobalAdmin = !user.ecoleId;
+        if (!isGlobalAdmin && user.ecoleId !== classe.ecoleId) {
+          results.errors.push({ ligne, erreur: `Permission refusée pour l'école de la classe "${classeNom}"` });
           continue;
         }
 
@@ -133,7 +142,8 @@ export async function POST(request: NextRequest) {
             dateNaissance,
             lieuNaissance: lieuNaissance?.toString().trim() || null,
             sexe: sexeValue,
-            classeId,
+            classeId: classe.id,
+            ecoleId: classe.ecoleId,
             nomPere: nomPere?.toString().trim() || null,
             telephonePere: telephonePere?.toString().trim() || null,
             nomMere: nomMere?.toString().trim() || null,
