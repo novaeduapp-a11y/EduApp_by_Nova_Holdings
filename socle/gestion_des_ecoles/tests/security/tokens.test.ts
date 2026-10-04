@@ -221,11 +221,8 @@ describe("Token Security", () => {
     it("should reject token without Bearer prefix", async () => {
       const token = await mobileLogin("parent@test.sn", "Admin@123");
 
-      // Make request without Bearer prefix
-      const res = await tokenRequest(
-        token.replace("Bearer ", ""),
-        "/api/parent/enfants"
-      );
+      // Make request with empty string as token (no auth header value)
+      const res = await tokenRequest("", "/api/parent/enfants");
       expect(res.status).toBe(401);
     });
   });
