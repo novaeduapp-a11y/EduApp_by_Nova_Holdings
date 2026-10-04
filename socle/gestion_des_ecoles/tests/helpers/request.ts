@@ -1,7 +1,10 @@
 import * as http from "http";
 import { encode } from "@auth/core/jwt";
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+// Fallback to localhost if BASE_URL is not properly set
+const BASE_URL = (process.env.BASE_URL && process.env.BASE_URL !== "/" && process.env.BASE_URL !== "") 
+  ? process.env.BASE_URL 
+  : "http://localhost:3000";
 
 interface RequestOptions {
   method?: string;
