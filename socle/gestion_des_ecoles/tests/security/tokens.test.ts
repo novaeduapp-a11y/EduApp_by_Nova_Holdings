@@ -153,8 +153,9 @@ describe("Token Security", () => {
       const res = await tokenRequest(expiredToken, "/api/parent/enfants");
       expect(res.status).toBe(401);
       
-      const data = res.data as { error?: { message?: string } };
-      expect(data.error?.message).toContain("expirée");
+      const data = res.data as { error?: string | { message?: string } };
+      const errorMessage = typeof data.error === 'string' ? data.error : data.error?.message;
+      expect(errorMessage).toContain("expirée");
     });
 
     it("should accept valid token with future expiry", async () => {
