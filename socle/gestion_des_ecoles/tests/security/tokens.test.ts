@@ -42,12 +42,15 @@ describe("Token Security", () => {
         method: "POST",
       });
       expect(revokeRes.status).toBe(200);
+      
+      // Wait a moment for DB to commit the revocation
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Try to use revoked token
       const res2 = await tokenRequest(token, "/api/parent/enfants");
       expect(res2.status).toBe(401);
       
-      const data = res2.data as { error?: { message?: string } };
+      const data = res2.data as { success?: boolean; error?: { code?: string; message?: string } };
       expect(data.error?.message).toContain("révoquée");
     });
 
