@@ -139,17 +139,17 @@ describe("Token Security", () => {
       // Create a token that's already expired
       const { signMobileToken } = await import("@/lib/mobile-token");
 
-      // Create token with past expiry
+      // Create token with expiry far in the past (Jan 1, 2020)
       const expiredToken = signMobileToken({
         id: testData.users.parent.id,
         email: testData.users.parent.email,
         nom: testData.users.parent.nom,
         prenom: testData.users.parent.prenom,
         role: testData.users.parent.role,
-        exp: Date.now() - 1000, // Expired 1 second ago
+        exp: 1577836800000, // Jan 1, 2020 00:00:00 UTC - definitely expired
       });
       
-      console.log("Expired token created, exp:", Date.now() - 1000, "now:", Date.now());
+      console.log("Expired token created with exp:", 1577836800000, "(Jan 1, 2020), now:", Date.now());
 
       // Try to use expired token
       const res = await tokenRequest(expiredToken, "/api/parent/enfants");
