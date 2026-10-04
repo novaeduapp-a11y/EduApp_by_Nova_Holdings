@@ -148,9 +148,12 @@ describe("Token Security", () => {
         role: testData.users.parent.role,
         exp: Date.now() - 1000, // Expired 1 second ago
       });
+      
+      console.log("Expired token created, exp:", Date.now() - 1000, "now:", Date.now());
 
       // Try to use expired token
       const res = await tokenRequest(expiredToken, "/api/parent/enfants");
+      console.log("Expired token response - status:", res.status, "data:", JSON.stringify(res.data).substring(0, 100));
       expect(res.status).toBe(401);
       
       const data = res.data as { error?: string | { message?: string } };
