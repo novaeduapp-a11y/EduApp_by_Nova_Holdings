@@ -38,6 +38,40 @@ async function resolveUser(): Promise<AuthOk | AuthFail> {
       response: NextResponse.json({ error: "Session expirée" }, { status: 401 }),
     };
   }
+
+  // Vérifier que l'utilisateur est toujours actif et que le token n'est pas révoqué
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      id: true,
+      actif: true,
+      tokenRevocations: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!dbUser?.actif) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Compte désactivé" }, { status: 401 }),
+    };
+  }
+
+  // Si le token a été révoqué après son émission, rejeter
+  // Token exp est en millisecondes, on calcule l'émission comme exp - 30 jours
+  const tokenExp = user.exp || Date.now();
+  const tokenIssuedAt = tokenExp - (30 * 24 * 60 * 60 * 1000);
+  
+  const latestRevocation = dbUser.tokenRevocations[0];
+  if (latestRevocation && latestRevocation.createdAt.getTime() > tokenIssuedAt) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Session révoquée. Reconnectez-vous." }, { status: 401 }),
+    };
+  }
+
   return { ok: true, user };
 }
 

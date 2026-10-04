@@ -92,9 +92,12 @@ async function resolveUser(): Promise<
   }
 
   // Si le token a été révoqué après son émission, rejeter
-  // Note: on ne peut pas savoir l'heure exacte d'émission du token,
-  // donc on utilise la dernière révocation comme seuil
-  if (user.tokenRevocations.length > 0) {
+  // Token exp est en millisecondes, on calcule l'émission comme exp - 30 jours
+  const tokenExp = mobileUser.exp || Date.now();
+  const tokenIssuedAt = tokenExp - (30 * 24 * 60 * 60 * 1000); // 30 jours avant expiration
+  
+  const latestRevocation = user.tokenRevocations[0];
+  if (latestRevocation && latestRevocation.createdAt.getTime() > tokenIssuedAt) {
     return unauthorized("Session révoquée. Reconnectez-vous.");
   }
 
