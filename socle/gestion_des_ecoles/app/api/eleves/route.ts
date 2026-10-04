@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
 
     // Pour les professeurs, filtrer par classes enseignées
     if ("affectations" in user && user.affectations && !isAdmin) {
-      const classeIds = [...new Set(user.affectations.map((a: { classeId: string }) => a.classeId))];
+      const affectations = user.affectations as Array<{ classeId: string; matiereId: string }>;
+      const classeIds = [...new Set(affectations.map((a) => a.classeId))];
       if (classeIds.length > 0) {
         where.classeId = { in: classeIds };
       } else {
