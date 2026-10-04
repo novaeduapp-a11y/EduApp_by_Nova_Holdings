@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { fetchEnfants, fetchNotifications, getStoredUser, getToken, login as apiLogin, setToken, type Enfant, type ParentUser } from "@/lib/api";
+import { fetchEnfants, fetchNotifications, getStoredUser, getToken, login as apiLogin, setToken, verifyParent2fa, type Enfant, type ParentUser } from "@/lib/api";
 
 type Session = {
   user: ParentUser | null;
@@ -7,7 +7,8 @@ type Session = {
   selectedId: string | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ requires2fa: boolean; challengeId?: string; debugCode?: string }>;
+  confirm2fa: (challengeId: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   selectChild: (id: string) => void;
   selected: Enfant | null;
@@ -65,7 +66,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       unreadCount,
       login: async (email, password) => {
         setError(null);
-        const nextUser = await apiLogin(email, password);
+        const result = await apiLogin(email, password);
+        if (result.requires2fa) {
+          return {
+            requires2fa: true,
+            challengeId: result.challengeId,
+            debugCode: result.debugCode,
+          };
+        }
+        setUser(result.user);
+        await loadEnfants();
+        return { requires2fa: false };
+      },
+      confirm2fa: async (challengeId, code) => {
+        const nextUser = await verifyParent2fa(challengeId, code);
         setUser(nextUser);
         await loadEnfants();
       },

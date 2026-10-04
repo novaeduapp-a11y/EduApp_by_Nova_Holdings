@@ -1,5 +1,5 @@
-import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
+import { storageGet, storageRemove, storageSet } from "@/lib/storage";
 
 function getApiUrl(): string {
   const env = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
@@ -16,11 +16,11 @@ const TOKEN_KEY = "eduparent.token";
 const USER_KEY = "eduparent.user";
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return storageGet(TOKEN_KEY);
 }
 
 export async function getStoredUser(): Promise<ParentUser | null> {
-  const raw = await SecureStore.getItemAsync(USER_KEY);
+  const raw = await storageGet(USER_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as ParentUser;
@@ -31,11 +31,11 @@ export async function getStoredUser(): Promise<ParentUser | null> {
 
 export async function setToken(token: string | null, user?: ParentUser | null): Promise<void> {
   if (token) {
-    await SecureStore.setItemAsync(TOKEN_KEY, token);
-    if (user) await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    await storageSet(TOKEN_KEY, token);
+    if (user) await storageSet(USER_KEY, JSON.stringify(user));
   } else {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
-    await SecureStore.deleteItemAsync(USER_KEY);
+    await storageRemove(TOKEN_KEY);
+    await storageRemove(USER_KEY);
   }
 }
 
@@ -81,15 +81,68 @@ export type Enfant = {
 };
 
 export async function login(identifier: string, password: string) {
-  const body = await request<{ data: { token: string; user: ParentUser } }>(
-    "/api/mobile/login",
-    {
-      method: "POST",
-      body: JSON.stringify({ identifier, password }),
-    }
-  );
+  const body = await request<{
+    data:
+      | { requires2fa: true; challengeId: string; debugCode?: string }
+      | { requires2fa?: false; token: string; user: ParentUser };
+  }>("/api/mobile/login", {
+    method: "POST",
+    body: JSON.stringify({ identifier, password }),
+  });
+  if ("requires2fa" in body.data && body.data.requires2fa) {
+    return {
+      requires2fa: true as const,
+      challengeId: body.data.challengeId,
+      debugCode: body.data.debugCode,
+    };
+  }
+  await setToken(body.data.token, body.data.user);
+  return { requires2fa: false as const, user: body.data.user };
+}
+
+export async function verifyParent2fa(challengeId: string, code: string) {
+  const body = await request<{ data: { token: string; user: ParentUser } }>("/api/mobile/2fa", {
+    method: "POST",
+    body: JSON.stringify({ challengeId, code }),
+  });
   await setToken(body.data.token, body.data.user);
   return body.data.user;
+}
+
+export async function updateCompte(payload: {
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone?: string | null;
+  adresse?: string | null;
+}) {
+  return request<{
+    data: { prenom: string; nom: string; email: string; telephone: string | null; adresse: string | null };
+  }>("/api/parent/compte", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateComptePassword(currentPassword: string, newPassword: string) {
+  return request<{ data: { ok: boolean } }>("/api/parent/compte/password", {
+    method: "POST",
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+}
+
+export async function updateCompte2fa(
+  payload:
+    | { action: "start" }
+    | { action: "enable"; challengeId: string; code: string }
+    | { action: "disable"; password: string }
+) {
+  return request<{
+    data: { challengeId?: string; debugCode?: string; twoFactorEnabled?: boolean };
+  }>("/api/parent/compte/2fa", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function fetchEnfants() {
@@ -132,9 +185,11 @@ export async function fetchAbsences(eleveId: string) {
         heures: number | null;
         motif: string | null;
         justifiee: boolean;
+        kind: "ABSENCE" | "RETARD";
         matiere: string | null;
+        trimestre: string;
       }>;
-      stats: { total: number; justifiees: number; nonJustifiees: number };
+      stats: { total: number; retards: number; justifiees: number; nonJustifiees: number };
     };
   }>(`/api/parent/enfants/${eleveId}/absences`);
 }
@@ -152,6 +207,71 @@ export async function fetchBulletins(eleveId: string) {
       fichierPdf: string | null;
     }>;
   }>(`/api/parent/enfants/${eleveId}/bulletins`);
+}
+
+export async function fetchBulletin(eleveId: string, bulletinId: string) {
+  return request<{
+    data: {
+      id: string;
+      ecole: { nom: string; adresse: string; telephone: string; email: string };
+      eleve: {
+        nom: string;
+        prenom: string;
+        matricule: string;
+        dateNaissance: string;
+        classe: string;
+        effectif: number;
+      };
+      periode: { nom: string; anneeScolaire: string };
+      notes: Array<{
+        matiere: string;
+        note: number;
+        noteSur: number;
+        coefficient: number;
+        moyenne: number;
+        appreciation: string;
+      }>;
+      moyenneGenerale: number;
+      rang: number;
+      mention: string;
+      appreciationGenerale: string;
+      dateGeneration: string;
+    };
+  }>(`/api/parent/enfants/${eleveId}/bulletins/${bulletinId}`);
+}
+
+export async function fetchCompte() {
+  return request<{
+    data: {
+      profil: {
+        id: string;
+        nom: string;
+        prenom: string;
+        email: string;
+        telephone: string | null;
+        adresse?: string | null;
+        twoFactorEnabled?: boolean;
+        role: string;
+      };
+      etablissement: {
+        nom: string;
+        ville: string;
+        adresse: string;
+        telephone: string;
+        email: string;
+        anneeScolaire: string;
+      };
+      enfants: Array<{
+        id: string;
+        nom: string;
+        prenom: string;
+        matricule: string;
+        classe: string;
+        relation: string;
+      }>;
+      notificationsNonLues: number;
+    };
+  }>("/api/parent/compte");
 }
 
 export async function downloadBulletinPdf(eleveId: string, bulletinId: string, filename: string): Promise<string> {
@@ -188,7 +308,7 @@ export async function fetchAccueil(eleveId: string) {
         matiere: string;
         evaluation: string;
       }>;
-      absences: { total: number; nonJustifiees: number };
+      absences: { total: number; retards: number; nonJustifiees: number };
       moyenne: { valeur: number | null; periode: string; mention: string | null } | null;
       notificationsNonLues: number;
       coursDuJour: Array<{ matiere: string; horaire: string; salle: string | null }>;
@@ -205,6 +325,7 @@ export async function fetchNotifications() {
       message: string;
       readAt: string | null;
       createdAt: string;
+      data: { eleveId?: string; filId?: string; bulletinId?: string; date?: string } | null;
     }>;
   }>("/api/parent/notifications");
 }
@@ -237,7 +358,8 @@ export async function fetchMessagerie(eleveId: string) {
   return request<{
     data: {
       fils: Array<{
-        id: string;
+        id: string | null;
+        professeurId: string;
         professeur: string;
         matiere: string | null;
         dernierMessage: string | null;
@@ -246,4 +368,36 @@ export async function fetchMessagerie(eleveId: string) {
       }>;
     };
   }>(`/api/parent/enfants/${eleveId}/messagerie`);
+}
+
+export async function startConversation(eleveId: string, professeurId: string, corps: string) {
+  return request<{ data: { filId: string; messageId: string } }>(
+    `/api/parent/enfants/${eleveId}/messagerie`,
+    { method: "POST", body: JSON.stringify({ professeurId, corps }) }
+  );
+}
+
+export async function fetchConversation(eleveId: string, filId: string) {
+  return request<{
+    data: {
+      id: string;
+      professeur: string;
+      matiere: string | null;
+      messages: Array<{
+        id: string;
+        auteurId: string;
+        auteur: string;
+        role: string;
+        corps: string;
+        createdAt: string;
+      }>;
+    };
+  }>(`/api/parent/enfants/${eleveId}/messagerie/${filId}`);
+}
+
+export async function replyToFil(eleveId: string, filId: string, corps: string) {
+  return request<{ data: { id: string } }>(`/api/parent/enfants/${eleveId}/messagerie/${filId}`, {
+    method: "POST",
+    body: JSON.stringify({ corps }),
+  });
 }

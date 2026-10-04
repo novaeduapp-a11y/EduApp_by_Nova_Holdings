@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireProfesseur } from "@/lib/request-auth";
 import { canAccessMatiere, forbiddenClasse, getProfAssignments } from "@/lib/prof-scope";
+import { recalculerMoyennesPourClasse } from "@/lib/notes-moyennes";
 
 const schema = z.object({
   notes: z.array(
@@ -87,7 +88,37 @@ export async function PUT(
       )
     );
 
-    return NextResponse.json({ data: { saved: results.length } });
+    await recalculerMoyennesPourClasse(evaluation.classeId, evaluation.periodeId);
+
+    const eleveIds = [...new Set(parsed.data.notes.map((row) => row.eleveId))];
+    const [liens, matiere, elevesNotif] = await Promise.all([
+      prisma.parentEleve.findMany({
+        where: { eleveId: { in: eleveIds } },
+        select: { parentId: true, eleveId: true },
+      }),
+      prisma.matiere.findUnique({
+        where: { id: evaluation.matiereId },
+        select: { nom: true },
+      }),
+      prisma.eleve.findMany({
+        where: { id: { in: eleveIds } },
+        select: { id: true, prenom: true, nom: true },
+      }),
+    ]);
+    const nomById = new Map(elevesNotif.map((e) => [e.id, `${e.prenom} ${e.nom}`]));
+    if (liens.length > 0) {
+      await prisma.notification.createMany({
+        data: liens.map((lien) => ({
+          userId: lien.parentId,
+          type: "note",
+          title: `Note · ${nomById.get(lien.eleveId) ?? "élève"}`,
+          message: `${matiere?.nom ?? "Matière"} · ${evaluation.titre} — visible dans EduParent.`,
+          data: { eleveId: lien.eleveId, evaluationId: evaluation.id },
+        })),
+      });
+    }
+
+    return NextResponse.json({ data: { saved: results.length, parentsNotifies: liens.length } });
   } catch (error) {
     console.error("Erreur saisie notes:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

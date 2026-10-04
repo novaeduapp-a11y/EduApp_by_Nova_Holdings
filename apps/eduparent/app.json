@@ -7,22 +7,29 @@
     "scheme": "eduparent",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#F4F7FF"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "sn.novaholdings.eduparent"
+      "bundleIdentifier": "sn.novaholdings.eduparent",
+      "buildNumber": "1"
     },
     "android": {
       "package": "sn.novaholdings.eduparent",
+      "versionCode": 1,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A5FD4"
       }
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

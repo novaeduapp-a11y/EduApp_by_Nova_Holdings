@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checklist livraison V1.1 — EduApps</title>
+  <link rel="stylesheet" href="../guides/guide.css" />
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Enregistrer en PDF</button>
+  </div>
+  <article class="page">
+    <header class="hero">
+      <p>EduApps · NOVA HOLDINGS · Tranche 3</p>
+      <h1>Checklist V1.1 — recette et production</h1>
+      <p class="lead">Produit prêt pour la recette client. L’URL publique et les stores attendent le domaine, l’hébergement et les comptes Apple / Google (hors forfait).</p>
+    </header>
+    <div class="body">
+      <h2>Produit (fait)</h2>
+      <ul>
+        <li>Trois portails web : professeur, préfet, direction</li>
+        <li>2FA obligatoire pour tout compte directeur</li>
+        <li>Isolation école / cycle / classe-matière</li>
+        <li>Inscription préfet + bulletin PDF + notif parent</li>
+        <li>Bilan du jour directeur (appel, personnel, perturbations)</li>
+        <li>Landing EduAdmins + login + menus</li>
+        <li>EduParent : communiqué, EDT, message, notes, absences, bulletins</li>
+        <li>Guides imprimables + 2 supports de formation</li>
+      </ul>
+
+      <h2>Recette client (à cocher ensemble)</h2>
+      <ul>
+        <li>Préfet collège : pas d’accès primaire</li>
+        <li>Professeur : seulement ses classes</li>
+        <li>Directeur : code 6 chiffres à chaque connexion</li>
+        <li>Communiqué direction → notification EduParent</li>
+        <li>Créneau EDT préfet → semaine EduParent</li>
+        <li>Message parent ↔ professeur des deux côtés</li>
+      </ul>
+
+      <h2>Avant URL de production (hors forfait hébergement)</h2>
+      <ul>
+        <li>Domaine + certificat HTTPS</li>
+        <li>PostgreSQL production + <code>prisma migrate deploy</code></li>
+        <li>Variables : DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL, JWT mobile</li>
+        <li>Envoi e-mail du code 2FA (aujourd’hui le code s’affiche en recette locale uniquement)</li>
+        <li>Comptes réels (plus @ecole.sn) et mot de passe directeur unique</li>
+      </ul>
+
+      <h2>EduParent store</h2>
+      <p>Build interne, depuis <code>apps/eduparent</code> :</p>
+      <div class="note">
+        <strong>Prévisualisation (APK / TestFlight interne)</strong>
+        <code>npx eas-cli login</code> avec le compte Expo du client, puis<br />
+        <code>npx eas-cli build --profile preview --platform android</code><br />
+        <code>npx eas-cli build --profile preview --platform ios</code>
+      </div>
+      <p>Renseigner <code>EXPO_PUBLIC_API_URL</code> vers l’URL HTTPS du socle avant le build production. Publication store = comptes Apple / Google Play du client.</p>
+
+      <h2>Formations (incluses)</h2>
+      <ul>
+        <li>Session 1 — référents NOVA (2 h)</li>
+        <li>Session 2 — établissement pilote (2 h)</li>
+      </ul>
+      <p class="muted">Hébergement, domaine et comptes stores restent à la charge du client (devis / contrat).</p>
+    </div>
+    <footer>Khidma Service Digital · Prestataire EduApps pour NOVA HOLDINGS</footer>
+  </article>
+</body>
+</html>

@@ -17,7 +17,7 @@ npx expo start -c
 - Android émulateur : dans `.env`, `EXPO_PUBLIC_API_URL=http://10.0.2.2:3000`
 - Téléphone physique : IP locale du Mac, ex. `http://192.168.x.x:3000`
 
-Compte démo : `parent@ecole.sn` / `Admin@123`
+Les identifiants sont fournis par l’établissement.
 
 ## V1.0
 

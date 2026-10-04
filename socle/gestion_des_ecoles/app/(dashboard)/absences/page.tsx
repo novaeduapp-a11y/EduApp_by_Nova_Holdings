@@ -48,6 +48,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAbsences, useJustifyAbsence, useDeleteAbsence } from "@/hooks/use-absences";
+import { useClasses } from "@/hooks/use-classes";
 
 const periodeLabels: Record<string, string> = {
   MATIN: "Matin",
@@ -68,6 +69,8 @@ export default function AbsencesPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [justifieeFilter, setJustifieeFilter] = useState<string>("all");
+  const [classeFilter, setClasseFilter] = useState<string>("all");
+  const [niveauFilter, setNiveauFilter] = useState<string>("all");
   const [selectedAbsence, setSelectedAbsence] = useState<AbsenceItem | null>(null);
   const [isJustifyOpen, setIsJustifyOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -75,11 +78,17 @@ export default function AbsencesPage() {
 
   const { data: absencesData, isLoading } = useAbsences({
     justifiee: justifieeFilter === "all" ? undefined : justifieeFilter === "justifiee",
+    classeId: classeFilter !== "all" ? classeFilter : undefined,
   });
+  const { data: classesData } = useClasses();
   const justifyAbsence = useJustifyAbsence();
   const deleteAbsence = useDeleteAbsence();
 
   const absences = (absencesData?.data || []) as AbsenceItem[];
+  const classes = classesData?.data || [];
+  const niveaux = [...new Set(classes.map((classe) => classe.niveau).filter(Boolean))];
+  const classesFiltrees =
+    niveauFilter === "all" ? classes : classes.filter((classe) => classe.niveau === niveauFilter);
 
   const handleOpenJustify = (absence: AbsenceItem) => {
     setSelectedAbsence(absence);
@@ -119,7 +128,12 @@ export default function AbsencesPage() {
 
   const filteredAbsences = absences.filter((absence) => {
     const eleveName = `${absence.eleve.prenom} ${absence.eleve.nom}`.toLowerCase();
-    return eleveName.includes(search.toLowerCase());
+    if (search && !eleveName.includes(search.toLowerCase())) return false;
+    if (niveauFilter !== "all") {
+      const classe = classes.find((item) => item.nom === absence.eleve.classe?.nom);
+      if (classe && classe.niveau !== niveauFilter) return false;
+    }
+    return true;
   });
 
   const stats = {
@@ -223,6 +237,38 @@ export default function AbsencesPage() {
                 className="pl-9"
               />
             </div>
+            <Select
+              value={niveauFilter}
+              onValueChange={(value) => {
+                setNiveauFilter(value);
+                setClasseFilter("all");
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Tous les niveaux" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les niveaux</SelectItem>
+                {niveaux.map((niveau) => (
+                  <SelectItem key={niveau} value={niveau}>
+                    {niveau}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={classeFilter} onValueChange={setClasseFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Toutes les classes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les classes</SelectItem>
+                {classesFiltrees.map((classe) => (
+                  <SelectItem key={classe.id} value={classe.id}>
+                    {classe.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={justifieeFilter} onValueChange={setJustifieeFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Toutes" />

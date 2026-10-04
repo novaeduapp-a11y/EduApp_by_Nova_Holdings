@@ -1,0 +1,85 @@
+:root {
+  --blue: #1A5FD4;
+  --ink: #12203A;
+  --muted: #5B6B86;
+  --line: #D7E2F5;
+  --paper: #F4F7FF;
+  --white: #ffffff;
+  --tint: #E8F0FE;
+  --passable: #3D6FBF;
+  --fail: #C62828;
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  line-height: 1.55;
+  font-size: 15px;
+}
+.toolbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; gap: 12px; justify-content: flex-end; align-items: center;
+  padding: 12px 20px;
+  background: rgba(255,255,255,.94);
+  border-bottom: 1px solid var(--line);
+}
+.toolbar button, .toolbar a {
+  font: 600 13px inherit;
+  border: none; border-radius: 8px;
+  padding: 10px 16px;
+  background: var(--blue); color: #fff;
+  text-decoration: none; cursor: pointer;
+}
+.page {
+  width: min(820px, calc(100% - 32px));
+  margin: 24px auto 48px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.hero {
+  background: var(--blue);
+  color: #fff;
+  padding: 36px 40px 32px;
+}
+.hero p { opacity: .9; font-size: 13px; margin-bottom: 8px; }
+.hero h1 { font-size: 28px; line-height: 1.2; }
+.hero .lead { margin-top: 12px; max-width: 36em; font-size: 15px; opacity: .95; }
+.body { padding: 32px 40px 48px; }
+h2 {
+  font-size: 18px;
+  color: var(--blue);
+  margin: 28px 0 10px;
+  padding-top: 8px;
+}
+h2:first-child { margin-top: 0; }
+p, li { color: var(--ink); }
+ul, ol { padding-left: 1.2em; margin: 8px 0 12px; }
+li { margin: 4px 0; }
+.note, .warn, .demo {
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 14px 0;
+}
+.note { background: var(--paper); border: 1px solid var(--line); }
+.warn { background: #FFF6E8; border: 1px solid #F3D7A3; }
+.demo { background: #F4F7FF; border: 1px dashed var(--blue); }
+.note strong, .warn strong, .demo strong { display: block; margin-bottom: 4px; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+.muted { color: var(--muted); font-size: 13px; }
+footer {
+  padding: 0 40px 32px;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media print {
+  body { background: #fff; }
+  .toolbar { display: none; }
+  .page { width: auto; margin: 0; border: none; border-radius: 0; }
+  a { color: inherit; text-decoration: none; }
+}

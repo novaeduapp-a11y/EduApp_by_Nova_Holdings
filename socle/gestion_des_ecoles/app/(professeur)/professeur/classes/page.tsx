@@ -1,108 +1,254 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Users, BookOpen } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BookOpen, Calendar, ChevronLeft, ChevronRight, ClipboardCheck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiGet } from "@/lib/api";
+import { EleveToolbar } from "@/components/shared/eleve-toolbar";
+import { uniqueNiveaux } from "@/lib/eleve-filter";
+import {
+  portalChipClass,
+  portalMutedClass,
+  portalPanelClass,
+} from "@/components/eduadmins/portal-shell";
 
-interface ClasseProf {
+type Classe = {
   id: string;
   nom: string;
   niveau: string;
   effectif: number;
-  matiere: string;
-  matiereId: string;
-}
+  matieres: { id: string; nom: string }[];
+};
+
+const PAGE_SIZE = 30;
 
 export default function ProfesseurClassesPage() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["professeur-classes"],
-    queryFn: async () => {
-      const response = await apiGet<ClasseProf[]>("/professeur/classes");
-      return response.data;
-    },
-  });
+  const [classes, setClasses] = useState<Classe[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [search, setSearch] = useState("");
+  const [niveau, setNiveau] = useState("");
+  const [matiereId, setMatiereId] = useState("");
+  const [page, setPage] = useState(1);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-32" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-48" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const load = useCallback(async () => {
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/staff/prof/classes");
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setClasses(body.data ?? []);
+      setStatus("ready");
+    } catch {
+      setClasses([]);
+      setStatus("error");
+    }
+  }, []);
 
-  const classes = data || [];
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, niveau, matiereId]);
+
+  const niveaux = useMemo(() => uniqueNiveaux(classes), [classes]);
+  const matieres = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const classe of classes) {
+      for (const matiere of classe.matieres) map.set(matiere.id, matiere.nom);
+    }
+    return [...map.entries()]
+      .map(([id, nom]) => ({ id, nom }))
+      .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  }, [classes]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return classes.filter((classe) => {
+      if (niveau && classe.niveau !== niveau) return false;
+      if (matiereId && !classe.matieres.some((item) => item.id === matiereId)) return false;
+      if (!q) return true;
+      return (
+        classe.nom.toLowerCase().includes(q) ||
+        classe.niveau.toLowerCase().includes(q) ||
+        classe.matieres.some((item) => item.nom.toLowerCase().includes(q))
+      );
+    });
+  }, [classes, search, niveau, matiereId]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount);
+  const pageItems = filtered.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const from = filtered.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1;
+  const to = Math.min(pageSafe * PAGE_SIZE, filtered.length);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/professeur">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            Mes Classes
-          </h1>
-          <p className="text-muted-foreground">Classes où vous enseignez</p>
-        </div>
+      <div>
+        <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Mes classes</h1>
+        <p className={`${portalMutedClass} mt-1`}>
+          {status === "ready"
+            ? `${classes.length} classe${classes.length > 1 ? "s" : ""} affectée${classes.length > 1 ? "s" : ""} · notes, appel et élèves.`
+            : "Uniquement les classes qui vous sont affectées."}
+        </p>
       </div>
 
-      {classes.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Aucune classe assignée</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Contactez l&apos;administration pour être assigné à des classes
+      <EleveToolbar
+        search={search}
+        onSearchChange={setSearch}
+        placeholder="Rechercher une classe, un niveau ou une matière…"
+        niveaux={niveaux}
+        niveau={niveau}
+        onNiveauChange={setNiveau}
+        extra={
+          matieres.length > 1 ? (
+            <select
+              className="edu-select"
+              aria-label="Filtrer par matière"
+              value={matiereId}
+              onChange={(e) => setMatiereId(e.target.value)}
+            >
+              <option value="">Toutes les matières</option>
+              {matieres.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nom}
+                </option>
+              ))}
+            </select>
+          ) : null
+        }
+      />
+
+      {status === "error" ? (
+        <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+          <p className="text-sm leading-6 text-foreground">Impossible de charger vos classes.</p>
+          <Button type="button" onClick={load}>
+            Réessayer
+          </Button>
+        </div>
+      ) : status === "loading" ? (
+        <div className="space-y-3">
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className={`${portalPanelClass} py-10 text-center`}>
+          <p className="font-medium text-foreground">
+            {classes.length === 0 ? "Aucune classe affectée" : "Aucune classe ne correspond à la recherche."}
+          </p>
+          {classes.length === 0 ? (
+            <p className={`${portalMutedClass} mt-1`}>
+              Le préfet doit vous affecter une matière avant de saisir notes et appel.
             </p>
-          </CardContent>
-        </Card>
+          ) : null}
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {classes.map((classe) => (
-            <Card key={`${classe.id}-${classe.matiereId}`} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>{classe.nom}</span>
-                  <Badge variant="outline">{classe.niveau}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <BookOpen className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">{classe.matiere}</span>
+        <div className="space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="px-4">Classe</TableHead>
+                <TableHead className="px-4">Niveau</TableHead>
+                <TableHead className="hidden px-4 md:table-cell">Matières</TableHead>
+                <TableHead className="px-4">Élèves</TableHead>
+                <TableHead className="px-4 text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pageItems.map((classe) => (
+                <TableRow key={classe.id}>
+                  <TableCell className="px-4 py-3.5">
+                    <Link
+                      href={`/professeur/classes/${classe.id}`}
+                      className="font-semibold text-foreground hover:text-primary"
+                    >
+                      {classe.nom}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="px-4 py-3.5">
+                    <span className={portalChipClass}>{classe.niveau}</span>
+                  </TableCell>
+                  <TableCell className="hidden px-4 py-3.5 md:table-cell">
+                    <p className="text-sm text-foreground">
+                      {classe.matieres.map((item) => item.nom).join(" · ") || "—"}
+                    </p>
+                  </TableCell>
+                  <TableCell className="px-4 py-3.5 tabular-nums text-foreground">{classe.effectif}</TableCell>
+                  <TableCell className="px-4 py-3.5">
+                    <div className="flex justify-end gap-1">
+                      <Button asChild variant="ghost" size="icon">
+                        <Link href={`/professeur/notes?classeId=${classe.id}`} aria-label={`Notes de ${classe.nom}`}>
+                          <BookOpen />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="icon">
+                        <Link href={`/professeur/appel?classeId=${classe.id}`} aria-label={`Appel de ${classe.nom}`}>
+                          <ClipboardCheck />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="icon">
+                        <Link href={`/professeur/edt?classeId=${classe.id}`} aria-label={`Planning de ${classe.nom}`}>
+                          <Calendar />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="ghost" size="icon">
+                        <Link href={`/professeur/classes/${classe.id}`} aria-label={`Élèves de ${classe.nom}`}>
+                          <Users />
+                        </Link>
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {filtered.length > 0 ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className={portalMutedClass}>
+                {from}–{to} sur {filtered.length} · {PAGE_SIZE} par page
+              </p>
+              {filtered.length > PAGE_SIZE ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label="Page précédente"
+                    disabled={pageSafe <= 1}
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  >
+                    <ChevronLeft />
+                    Précédent
+                  </Button>
+                  <p className="min-w-16 text-center text-sm tabular-nums text-foreground">
+                    {pageSafe}/{pageCount}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    aria-label="Page suivante"
+                    disabled={pageSafe >= pageCount}
+                    onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                  >
+                    Suivant
+                    <ChevronRight />
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span>{classe.effectif} élèves</span>
-                </div>
-                <div className="flex gap-2">
-                  <Link href={`/professeur/notes?classeId=${classe.id}&matiereId=${classe.matiereId}`} className="flex-1">
-                    <Button variant="outline" className="w-full" size="sm">
-                      Saisir notes
-                    </Button>
-                  </Link>
-                  <Link href={`/professeur/classes/${classe.id}`} className="flex-1">
-                    <Button className="w-full" size="sm">
-                      Voir élèves
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+              ) : null}
+            </div>
+          ) : null}
         </div>
       )}
     </div>

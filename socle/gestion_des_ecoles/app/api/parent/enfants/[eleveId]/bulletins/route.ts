@@ -31,7 +31,7 @@ export async function GET(
 
     // Récupérer les bulletins de l'élève avec les moyennes générales
     const bulletins = await prisma.bulletin.findMany({
-      where: { eleveId },
+      where: { eleveId, deletedAt: null },
       include: {
         periode: true,
         eleve: {

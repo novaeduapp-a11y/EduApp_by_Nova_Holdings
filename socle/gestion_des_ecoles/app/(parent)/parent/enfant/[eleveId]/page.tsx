@@ -1,206 +1,162 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Calendar, FileText } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiGet } from "@/lib/api";
+import { ParentChildHeader } from "@/components/eduadmins/parent-child-nav";
+import {
+  portalChipClass,
+  portalKpiClass,
+  portalMutedClass,
+  portalPanelClass,
+} from "@/components/eduadmins/portal-shell";
 
-interface NotesData {
-  moyennesGenerales: Array<{
-    moyenne: number;
-    rang: number;
-    mention: string;
-    periode: string;
-  }>;
-}
+type Enfant = { id: string; nom: string; prenom: string; classe: string };
 
-interface AbsencesData {
-  stats: {
-    total: number;
-    justifiees: number;
-    nonJustifiees: number;
-  };
-}
+type Accueil = {
+  notesRecentes: { id: string; valeur: number; matiere: string; evaluation: string }[];
+  absences: { total: number; retards: number; nonJustifiees: number };
+  moyenne: { valeur: number; periode: string; mention: string | null } | null;
+  coursDuJour: { id: string; matiere: string; horaire: string; salle: string | null; professeur: string | null }[];
+};
 
-interface Bulletin {
-  id: string;
-  periode: string;
-  moyenne: number;
-  rang: number;
+function formatNote(value: number) {
+  return Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 export default function EnfantProfilPage() {
   const params = useParams();
   const eleveId = params.eleveId as string;
+  const [enfant, setEnfant] = useState<Enfant | null>(null);
+  const [accueil, setAccueil] = useState<Accueil | null>(null);
+  const [bulletins, setBulletins] = useState(0);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
-  const { data: notesData, isLoading: loadingNotes } = useQuery({
-    queryKey: ["parent-enfant-notes", eleveId],
-    queryFn: async () => {
-      const response = await apiGet<NotesData>(`/parent/enfants/${eleveId}/notes`);
-      return response.data;
-    },
-  });
+  const load = async () => {
+    setStatus("loading");
+    try {
+      const [enfantsRes, accueilRes, bulletinsRes] = await Promise.all([
+        fetch("/api/parent/enfants"),
+        fetch(`/api/parent/enfants/${eleveId}/accueil`),
+        fetch(`/api/parent/enfants/${eleveId}/bulletins`),
+      ]);
+      const enfantsBody = await enfantsRes.json();
+      const accueilBody = await accueilRes.json();
+      const bulletinsBody = await bulletinsRes.json();
+      if (!enfantsRes.ok) throw new Error(enfantsBody.error);
+      if (!accueilRes.ok) throw new Error(accueilBody.error);
+      if (!bulletinsRes.ok) throw new Error(bulletinsBody.error);
+      const found = ((enfantsBody.data ?? []) as Enfant[]).find((item) => item.id === eleveId) ?? null;
+      setEnfant(found);
+      setAccueil(accueilBody.data ?? null);
+      setBulletins((bulletinsBody.data ?? []).length);
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+    }
+  };
 
-  const { data: absencesData, isLoading: loadingAbsences } = useQuery({
-    queryKey: ["parent-enfant-absences", eleveId],
-    queryFn: async () => {
-      const response = await apiGet<AbsencesData>(`/parent/enfants/${eleveId}/absences`);
-      return response.data;
-    },
-  });
+  useEffect(() => {
+    void load();
+  }, [eleveId]);
 
-  const { data: bulletinsData, isLoading: loadingBulletins } = useQuery({
-    queryKey: ["parent-enfant-bulletins", eleveId],
-    queryFn: async () => {
-      const response = await apiGet<Bulletin[]>(`/parent/enfants/${eleveId}/bulletins`);
-      return response.data;
-    },
-  });
-
-  const isLoading = loadingNotes || loadingAbsences || loadingBulletins;
-
-  const derniereMoyenne = notesData?.moyennesGenerales?.[0];
-  const absencesStats = absencesData?.stats;
-  const bulletins = bulletinsData || [];
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-32" />
-        <div className="grid gap-4 md:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const nom = enfant ? `${enfant.prenom} ${enfant.nom}` : "Élève";
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/parent">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
+      <ParentChildHeader
+        eleveId={eleveId}
+        nom={enfant ? nom : undefined}
+        classe={enfant?.classe}
+        title={nom}
+        subtitle="Vue d’ensemble de la scolarité"
+        active="apercu"
+      />
+
+      {status === "error" ? (
+        <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+          <p className="text-sm leading-6 text-foreground">Impossible de charger l’aperçu.</p>
+          <Button type="button" onClick={() => load()}>
+            Réessayer
           </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold">Profil de l&apos;élève</h1>
-          <p className="text-muted-foreground">Vue d&apos;ensemble de la scolarité</p>
         </div>
-      </div>
+      ) : status === "loading" ? (
+        <Skeleton className="h-48" />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Link href={`/parent/enfant/${eleveId}/notes`} className={portalPanelClass}>
+              <p className={portalMutedClass}>Moyenne</p>
+              <p className={`${portalKpiClass} mt-1`}>
+                {accueil?.moyenne ? `${formatNote(Number(accueil.moyenne.valeur))}/20` : "—"}
+              </p>
+              <p className={`${portalMutedClass} mt-1`}>
+                {accueil?.moyenne
+                  ? `${accueil.moyenne.periode}${accueil.moyenne.mention ? ` · ${accueil.moyenne.mention}` : ""}`
+                  : "Aucune moyenne"}
+              </p>
+            </Link>
+            <Link href={`/parent/enfant/${eleveId}/absences`} className={portalPanelClass}>
+              <p className={portalMutedClass}>Absences</p>
+              <p className={`${portalKpiClass} mt-1`}>{accueil?.absences.total ?? 0}</p>
+              <p className={`${portalMutedClass} mt-1`}>
+                {accueil?.absences.nonJustifiees ?? 0} non justifiée{(accueil?.absences.nonJustifiees ?? 0) > 1 ? "s" : ""}
+                {accueil?.absences.retards ? ` · ${accueil.absences.retards} retard${accueil.absences.retards > 1 ? "s" : ""}` : ""}
+              </p>
+            </Link>
+            <Link href={`/parent/enfant/${eleveId}/bulletins`} className={portalPanelClass}>
+              <p className={portalMutedClass}>Bulletins</p>
+              <p className={`${portalKpiClass} mt-1`}>{bulletins}</p>
+              <p className={`${portalMutedClass} mt-1`}>disponibles</p>
+            </Link>
+          </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              Dernière Moyenne
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {derniereMoyenne ? (
-              <>
-                <div className="text-3xl font-bold">{Number(derniereMoyenne.moyenne).toFixed(2)}/20</div>
-                <p className="text-sm text-muted-foreground">
-                  Rang: {derniereMoyenne.rang}e - {derniereMoyenne.mention}
-                </p>
-                <Badge variant="outline" className="mt-2">{derniereMoyenne.periode}</Badge>
-              </>
+          <section className={portalPanelClass}>
+            <h2 className="font-bold tracking-tight text-foreground">Cours du jour</h2>
+            {(accueil?.coursDuJour ?? []).length === 0 ? (
+              <p className={`${portalMutedClass} mt-2`}>Aucun cours aujourd’hui, ou week-end.</p>
             ) : (
-              <p className="text-muted-foreground">Aucune moyenne disponible</p>
+              <ul className="mt-3 space-y-2">
+                {accueil!.coursDuJour.map((cours) => (
+                  <li key={cours.id} className="flex flex-wrap items-baseline justify-between gap-2 rounded-2xl bg-muted px-3 py-2">
+                    <span className="text-sm font-medium text-foreground">{cours.matiere}</span>
+                    <span className={portalMutedClass}>
+                      {cours.horaire}
+                      {cours.salle ? ` · ${cours.salle}` : ""}
+                      {cours.professeur ? ` · ${cours.professeur}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
-          </CardContent>
-        </Card>
+            <p className="mt-3">
+              <Link href={`/parent/enfant/${eleveId}/edt`} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                Voir la semaine
+              </Link>
+            </p>
+          </section>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Absences
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {absencesStats ? (
-              <>
-                <div className="text-3xl font-bold">{absencesStats.total}</div>
-                <p className="text-sm">
-                  <span className="text-green-600">{absencesStats.justifiees} justifiées</span>
-                  {" · "}
-                  <span className="text-red-600">{absencesStats.nonJustifiees} non justifiées</span>
-                </p>
-              </>
+          <section className={portalPanelClass}>
+            <h2 className="font-bold tracking-tight text-foreground">Dernières notes</h2>
+            {(accueil?.notesRecentes ?? []).length === 0 ? (
+              <p className={`${portalMutedClass} mt-2`}>Aucune note récente.</p>
             ) : (
-              <p className="text-muted-foreground">Aucune absence</p>
+              <ul className="mt-3 space-y-2">
+                {accueil!.notesRecentes.map((note) => (
+                  <li key={note.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="text-sm text-foreground">
+                      {note.matiere} · {note.evaluation}
+                    </span>
+                    <span className={portalChipClass}>{formatNote(Number(note.valeur))}</span>
+                  </li>
+                ))}
+              </ul>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Bulletins
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{bulletins.length}</div>
-            <p className="text-sm text-muted-foreground">bulletins disponibles</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Link href={`/parent/enfant/${eleveId}/notes`}>
-          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-              <div className="p-3 bg-blue-100 rounded-full mb-3">
-                <BookOpen className="h-6 w-6 text-blue-600" />
-              </div>
-              <h3 className="font-medium">Voir les Notes</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Consultez toutes les notes et moyennes
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href={`/parent/enfant/${eleveId}/absences`}>
-          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-              <div className="p-3 bg-orange-100 rounded-full mb-3">
-                <Calendar className="h-6 w-6 text-orange-600" />
-              </div>
-              <h3 className="font-medium">Voir les Absences</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Historique des absences et retards
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href={`/parent/enfant/${eleveId}/bulletins`}>
-          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-            <CardContent className="pt-6 flex flex-col items-center text-center">
-              <div className="p-3 bg-green-100 rounded-full mb-3">
-                <FileText className="h-6 w-6 text-green-600" />
-              </div>
-              <h3 className="font-medium">Télécharger Bulletins</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Bulletins PDF avec QR Code
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

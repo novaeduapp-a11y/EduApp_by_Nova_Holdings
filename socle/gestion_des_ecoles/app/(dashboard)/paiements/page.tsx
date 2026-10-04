@@ -86,6 +86,7 @@ interface Stats {
 interface Classe {
   id: string;
   nom: string;
+  niveau?: string;
 }
 
 const TYPE_FRAIS_LABELS: Record<string, string> = {
@@ -111,6 +112,7 @@ export default function PaiementsPage() {
   const [search, setSearch] = useState("");
   const [statutFilter, setStatutFilter] = useState<string>("all");
   const [classeFilter, setClasseFilter] = useState<string>("all");
+  const [niveauFilter, setNiveauFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [versementDialogOpen, setVersementDialogOpen] = useState(false);
   const [selectedPaiement, setSelectedPaiement] = useState<Paiement | null>(null);
@@ -222,16 +224,23 @@ export default function PaiementsPage() {
   console.log("stats:", stats);
   const classes = classesData || [];
   const eleves = elevesData || [];
+  const niveaux = [...new Set(classes.map((classe) => classe.niveau).filter(Boolean))] as string[];
+  const classesFiltrees =
+    niveauFilter === "all" ? classes : classes.filter((classe) => classe.niveau === niveauFilter);
 
   // Filtrer par recherche
   const filteredPaiements = paiements.filter((p: Paiement) => {
-    if (!p.eleve) return true; // Afficher si pas d'élève (ne devrait pas arriver)
-    if (!search) return true; // Afficher tout si pas de recherche
+    if (!p.eleve) return true;
+    if (niveauFilter !== "all") {
+      const classe = classes.find((item) => item.nom === p.eleve.classe?.nom);
+      if (classe?.niveau && classe.niveau !== niveauFilter) return false;
+    }
+    if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
-      (p.eleve.nom?.toLowerCase() || '').includes(searchLower) ||
-      (p.eleve.prenom?.toLowerCase() || '').includes(searchLower) ||
-      (p.eleve.matricule?.toLowerCase() || '').includes(searchLower)
+      (p.eleve.nom?.toLowerCase() || "").includes(searchLower) ||
+      (p.eleve.prenom?.toLowerCase() || "").includes(searchLower) ||
+      (p.eleve.matricule?.toLowerCase() || "").includes(searchLower)
     );
   });
 
@@ -402,13 +411,30 @@ export default function PaiementsPage() {
                 <SelectItem value="NON_PAYE">Non payé</SelectItem>
               </SelectContent>
             </Select>
+            <Select
+              value={niveauFilter}
+              onValueChange={(value) => {
+                setNiveauFilter(value);
+                setClasseFilter("all");
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Niveau" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les niveaux</SelectItem>
+                {niveaux.map((niveau) => (
+                  <SelectItem key={niveau} value={niveau}>{niveau}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={classeFilter} onValueChange={setClasseFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Classe" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes les classes</SelectItem>
-                {classes.map((c) => (
+                {classesFiltrees.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>
                 ))}
               </SelectContent>

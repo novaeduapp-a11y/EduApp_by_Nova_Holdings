@@ -1,0 +1,33 @@
+export const PARAMETRE_CLES = [
+  "nom_plateforme",
+  "annee_scolaire",
+  "support_email",
+  "support_telephone",
+  "nom_etablissement",
+  "adresse_etablissement",
+  "telephone_etablissement",
+  "email_etablissement",
+  "note_max",
+  "moyenne_passage",
+  "notif_absences",
+  "notif_rappel_notes",
+  "notif_email",
+  "notif_sms",
+] as const;
+
+export const PARAMETRE_DEFAULTS: Record<(typeof PARAMETRE_CLES)[number], string> = {
+  nom_plateforme: "EduApps",
+  annee_scolaire: "2025-2026",
+  support_email: "",
+  support_telephone: "",
+  nom_etablissement: "",
+  adresse_etablissement: "",
+  telephone_etablissement: "",
+  email_etablissement: "",
+  note_max: "20",
+  moyenne_passage: "10",
+  notif_absences: "true",
+  notif_rappel_notes: "true",
+  notif_email: "false",
+  notif_sms: "false",
+};

@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     const [eleves, absences] = await Promise.all([
       prisma.eleve.findMany({
         where: { classeId, deletedAt: null, actif: true },
-        select: { id: true, nom: true, prenom: true, matricule: true },
+        select: { id: true, nom: true, prenom: true, matricule: true, sexe: true },
         orderBy: [{ nom: "asc" }, { prenom: "asc" }],
       }),
       prisma.absence.findMany({
@@ -77,7 +77,9 @@ export async function GET(request: NextRequest) {
             nom: eleve.nom,
             prenom: eleve.prenom,
             matricule: eleve.matricule,
+            sexe: eleve.sexe,
             statut,
+            justifiee: absence?.justifiee ?? false,
           };
         }),
       },
@@ -119,6 +121,8 @@ export async function PUT(request: NextRequest) {
     const { start, end } = dayBounds(date);
     const dateAbsence = start;
 
+    const createdFor: string[] = [];
+
     await prisma.$transaction(async (tx) => {
       for (const ligne of lignes) {
         const existing = await tx.absence.findFirst({
@@ -155,11 +159,46 @@ export async function PUT(request: NextRequest) {
               createdBy: authResult.user.id,
             },
           });
+          createdFor.push(ligne.eleveId);
         }
       }
     });
 
-    return NextResponse.json({ data: { saved: lignes.length } });
+    let parentsNotifies = 0;
+    if (createdFor.length > 0) {
+      const [liens, elevesNotif] = await Promise.all([
+        prisma.parentEleve.findMany({
+          where: { eleveId: { in: createdFor } },
+          select: { parentId: true, eleveId: true },
+        }),
+        prisma.eleve.findMany({
+          where: { id: { in: createdFor } },
+          select: { id: true, prenom: true, nom: true },
+        }),
+      ]);
+      const nomById = new Map(elevesNotif.map((e) => [e.id, `${e.prenom} ${e.nom}`]));
+      if (liens.length > 0) {
+        await prisma.notification.createMany({
+          data: liens.map((lien) => ({
+            userId: lien.parentId,
+            type: "absence",
+            title: `Présence · ${nomById.get(lien.eleveId) ?? "élève"}`,
+            message: "Une absence ou un retard a été saisi aujourd’hui. Consultez l’onglet Absences.",
+            data: { eleveId: lien.eleveId, date },
+          })),
+        });
+        parentsNotifies = liens.length;
+      }
+    }
+
+    return NextResponse.json({
+      data: {
+        saved: lignes.length,
+        absents: lignes.filter((ligne) => ligne.statut === "ABSENT").length,
+        retards: lignes.filter((ligne) => ligne.statut === "RETARD").length,
+        parentsNotifies,
+      },
+    });
   } catch (error) {
     console.error("Erreur enregistrement appel:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

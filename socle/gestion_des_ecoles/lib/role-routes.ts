@@ -19,6 +19,24 @@ export function getHomePathForRole(role: string | undefined): string {
   }
 }
 
+export function getProfilePathForRole(role: string | undefined): string {
+  switch (role) {
+    case "PARENT":
+      return "/parent/profil";
+    case "ELEVE":
+      return "/eleve/profil";
+    case "PREFET":
+      return "/prefet/profil";
+    case "PROFESSEUR":
+      return "/professeur/profil";
+    case "DIRECTEUR":
+      return "/directeur/profil";
+    case "ADMIN":
+    default:
+      return "/dashboard/profil";
+  }
+}
+
 export function isRole(role: string | undefined, expected: Role): boolean {
   return role === expected;
 }

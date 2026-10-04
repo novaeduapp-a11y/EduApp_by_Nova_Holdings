@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Alpine (Docker prod) + machine locale (dev mac/linux)
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -53,6 +55,26 @@ enum TypeAppreciation {
   CONSEIL_CLASSE
 }
 
+enum JourSemaine {
+  LUNDI
+  MARDI
+  MERCREDI
+  JEUDI
+  VENDREDI
+}
+
+enum DestinataireCommunique {
+  PARENTS
+  PROFESSEURS
+  TOUS
+}
+
+enum TypeEvenementJour {
+  ABSENCE_PERSONNEL
+  RETARD_PERSONNEL
+  PERTURBATION
+}
+
 // ============== MODELS ==============
 
 model User {
@@ -88,25 +110,110 @@ model User {
   parentEleves ParentEleve[]
   eleve        Eleve?
   twoFactorChallenges TwoFactorChallenge[]
+  creneauxEdt  CreneauEdt[]
+  communiques  Communique[]
+  evenementsPersonnel EvenementJour[] @relation("EvenementPersonnel")
+  evenementsSaisis    EvenementJour[] @relation("EvenementAuteur")
+  notesAgenda         NoteAgenda[]
+  filsParent          FilMessage[]    @relation("FilParent")
+  filsProfesseur      FilMessage[]    @relation("FilProfesseur")
+  messages            Message[]
+  filsStaffDirecteur  FilStaff[]      @relation("FilStaffDirecteur")
+  filsStaffPrefet     FilStaff[]      @relation("FilStaffPrefet")
+  messagesStaff       MessageStaff[]
+  classesPrincipal    Classe[]        @relation("ClasseProfPrincipal")
+  professeurMatieres  ProfesseurMatiere[]
+  convocationsCreees  Convocation[]   @relation("ConvocationAuteur")
 
   @@index([ecoleId])
   @@map("users")
 }
 
 model Ecole {
-  id     String  @id @default(cuid())
-  nom    String
-  ville  String
-  actif  Boolean @default(true)
+  id               String  @id @default(cuid())
+  nom              String
+  nomOfficiel      String? @map("nom_officiel")
+  sigle            String?
+  ville            String
+  adresse          String?
+  telephone        String?
+  email            String?
+  actif            Boolean @default(true)
+  montantMensuel   Int?    @map("montant_mensuel")
+  montantAnnuel    Int?    @map("montant_annuel")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users   User[]
-  classes Classe[]
-  eleves  Eleve[]
+  users           User[]
+  classes         Classe[]
+  eleves          Eleve[]
+  creneauxEdt     CreneauEdt[]
+  communiques     Communique[]
+  evenementsJour  EvenementJour[]
+  notesAgenda     NoteAgenda[]
+  filsMessages    FilMessage[]
+  filsStaff       FilStaff[]
+  cycles          EcoleCycle[]
+  grillesHoraires GrilleHoraire[]
+  convocations    Convocation[]
 
   @@map("ecoles")
+}
+
+model EcoleCycle {
+  id      String       @id @default(cuid())
+  ecoleId String       @map("ecole_id")
+  famille FamilleCycle
+
+  ecole Ecole @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+
+  @@unique([ecoleId, famille])
+  @@map("ecole_cycles")
+}
+
+model GrilleHoraire {
+  id         String       @id @default(cuid())
+  ecoleId    String       @map("ecole_id")
+  famille    FamilleCycle
+  heureDebut String       @map("heure_debut")
+  heureFin   String       @map("heure_fin")
+  ordre      Int          @default(0)
+
+  ecole Ecole @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+
+  @@unique([ecoleId, famille, heureDebut, heureFin])
+  @@index([ecoleId, famille])
+  @@map("grilles_horaires")
+}
+
+enum ConvocationStatut {
+  ENVOYEE
+  VUE
+}
+
+model Convocation {
+  id               String            @id @default(cuid())
+  ecoleId          String            @map("ecole_id")
+  classeId         String            @map("classe_id")
+  eleveId          String            @map("eleve_id")
+  createdById      String            @map("created_by_id")
+  dateConvocation  DateTime          @map("date_convocation")
+  motif            String            @db.Text
+  nomTuteur        String?           @map("nom_tuteur")
+  telephoneTuteur  String?           @map("telephone_tuteur")
+  emailTuteur      String?           @map("email_tuteur")
+  statut           ConvocationStatut @default(ENVOYEE)
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  ecole     Ecole  @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+  classe    Classe @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  eleve     Eleve  @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("ConvocationAuteur", fields: [createdById], references: [id])
+
+  @@index([ecoleId, dateConvocation])
+  @@index([eleveId])
+  @@map("convocations")
 }
 
 model TwoFactorChallenge {
@@ -182,17 +289,23 @@ model Classe {
   effectifMax   Int    @default(40) @map("effectif_max")
   cycleId       String? @map("cycle_id")
   ecoleId       String  @map("ecole_id")
+  salle         String?
+  professeurPrincipalId String? @map("professeur_principal_id")
 
   createdAt DateTime @default(now())
 
   // Relations
   ecole          Ecole           @relation(fields: [ecoleId], references: [id])
   cycle          Cycle?          @relation(fields: [cycleId], references: [id])
+  professeurPrincipal User?      @relation("ClasseProfPrincipal", fields: [professeurPrincipalId], references: [id], onDelete: SetNull)
   eleves         Eleve[]
   evaluations    Evaluation[]
   classeMatieres ClasseMatiere[]
+  creneauxEdt    CreneauEdt[]
+  convocations   Convocation[]
 
   @@index([ecoleId])
+  @@index([professeurPrincipalId])
   @@map("classes")
 }
 
@@ -222,6 +335,10 @@ model Eleve {
   matricule String  @unique
   adresse   String?
   photo     String?
+  groupeSanguin String? @map("groupe_sanguin")
+  allergies     String?
+  telephoneSecours String? @map("telephone_secours")
+  lienTuteur       String? @map("lien_tuteur")
   actif     Boolean @default(true)
 
   createdAt DateTime  @default(now())
@@ -239,6 +356,8 @@ model Eleve {
   appreciations     Appreciation[]
   parentEleves      ParentEleve[]
   paiements         Paiement[]
+  filsMessages      FilMessage[]
+  convocations      Convocation[]
 
   @@index([ecoleId])
   @@map("eleves")
@@ -288,8 +407,23 @@ model Matiere {
   moyennesMatieres MoyenneMatiere[]
   appreciations    Appreciation[]
   absences         Absence[]
+  creneauxEdt      CreneauEdt[]
+  filsMessages     FilMessage[]
+  professeurMatieres ProfesseurMatiere[]
 
   @@map("matieres")
+}
+
+model ProfesseurMatiere {
+  id           String @id @default(cuid())
+  professeurId String @map("professeur_id")
+  matiereId    String @map("matiere_id")
+
+  professeur User    @relation(fields: [professeurId], references: [id], onDelete: Cascade)
+  matiere    Matiere @relation(fields: [matiereId], references: [id], onDelete: Cascade)
+
+  @@unique([professeurId, matiereId])
+  @@map("professeur_matieres")
 }
 
 model ClasseMatiere {
@@ -501,6 +635,8 @@ model LogActivite {
   // Relations
   user User? @relation(fields: [userId], references: [id])
 
+  @@index([createdAt])
+  @@index([userId, createdAt])
   @@map("logs_activite")
 }
 
@@ -515,7 +651,163 @@ model Notification {
 
   createdAt DateTime @default(now())
 
+  @@index([userId])
   @@map("notifications")
+}
+
+model CreneauEdt {
+  id           String      @id @default(cuid())
+  ecoleId      String      @map("ecole_id")
+  classeId     String      @map("classe_id")
+  jour         JourSemaine
+  heureDebut   String      @map("heure_debut")
+  heureFin     String      @map("heure_fin")
+  matiereId    String      @map("matiere_id")
+  professeurId String?     @map("professeur_id")
+  salle        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ecole      Ecole   @relation(fields: [ecoleId], references: [id])
+  classe     Classe  @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  matiere    Matiere @relation(fields: [matiereId], references: [id])
+  professeur User?   @relation(fields: [professeurId], references: [id])
+
+  @@index([ecoleId])
+  @@index([classeId, jour])
+  @@unique([classeId, jour, heureDebut, heureFin])
+  @@map("creneaux_edt")
+}
+
+model Communique {
+  id            String                 @id @default(cuid())
+  ecoleId       String                 @map("ecole_id")
+  auteurId      String                 @map("auteur_id")
+  titre         String
+  corps         String                 @db.Text
+  urgent        Boolean                @default(false)
+  destinataires DestinataireCommunique
+  familleCycle  FamilleCycle?          @map("famille_cycle")
+
+  createdAt DateTime @default(now())
+
+  ecole  Ecole @relation(fields: [ecoleId], references: [id])
+  auteur User  @relation(fields: [auteurId], references: [id])
+
+  @@index([ecoleId, createdAt])
+  @@map("communiques")
+}
+
+model EvenementJour {
+  id       String             @id @default(cuid())
+  ecoleId  String             @map("ecole_id")
+  date     DateTime
+  type     TypeEvenementJour
+  titre    String?
+  detail   String?
+  userId   String?            @map("user_id")
+  auteurId String             @map("auteur_id")
+
+  createdAt DateTime @default(now())
+
+  ecole  Ecole @relation(fields: [ecoleId], references: [id])
+  user   User? @relation("EvenementPersonnel", fields: [userId], references: [id])
+  auteur User  @relation("EvenementAuteur", fields: [auteurId], references: [id])
+
+  @@index([ecoleId, date])
+  @@map("evenements_jour")
+}
+
+model NoteAgenda {
+  id       String   @id @default(cuid())
+  ecoleId  String   @map("ecole_id")
+  auteurId String   @map("auteur_id")
+  titre    String
+  corps    String   @db.Text
+  date     DateTime
+
+  createdAt DateTime @default(now())
+
+  ecole  Ecole @relation(fields: [ecoleId], references: [id])
+  auteur User  @relation(fields: [auteurId], references: [id])
+
+  @@index([ecoleId, date])
+  @@map("notes_agenda")
+}
+
+model FilMessage {
+  id           String  @id @default(cuid())
+  ecoleId      String  @map("ecole_id")
+  eleveId      String  @map("eleve_id")
+  parentId     String  @map("parent_id")
+  professeurId String  @map("professeur_id")
+  matiereId    String? @map("matiere_id")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ecole      Ecole    @relation(fields: [ecoleId], references: [id])
+  eleve      Eleve    @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  parent     User     @relation("FilParent", fields: [parentId], references: [id])
+  professeur User     @relation("FilProfesseur", fields: [professeurId], references: [id])
+  matiere    Matiere? @relation(fields: [matiereId], references: [id])
+  messages   Message[]
+
+  @@unique([eleveId, parentId, professeurId])
+  @@index([ecoleId])
+  @@map("fils_messages")
+}
+
+model Message {
+  id       String    @id @default(cuid())
+  filId    String    @map("fil_id")
+  auteurId String    @map("auteur_id")
+  corps    String    @db.Text
+  luAt     DateTime? @map("lu_at")
+
+  createdAt DateTime @default(now())
+
+  fil    FilMessage @relation(fields: [filId], references: [id], onDelete: Cascade)
+  auteur User       @relation(fields: [auteurId], references: [id])
+
+  @@index([filId, createdAt])
+  @@map("messages")
+}
+
+model FilStaff {
+  id          String @id @default(cuid())
+  ecoleId     String @map("ecole_id")
+  directeurId String @map("directeur_id")
+  prefetId    String @map("prefet_id")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ecole     Ecole          @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+  directeur User           @relation("FilStaffDirecteur", fields: [directeurId], references: [id])
+  prefet    User           @relation("FilStaffPrefet", fields: [prefetId], references: [id])
+  messages  MessageStaff[]
+
+  @@unique([directeurId, prefetId])
+  @@index([ecoleId])
+  @@map("fils_staff")
+}
+
+model MessageStaff {
+  id       String    @id @default(cuid())
+  filId    String    @map("fil_id")
+  auteurId String    @map("auteur_id")
+  corps    String    @db.Text
+  luAt     DateTime? @map("lu_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  fil    FilStaff @relation(fields: [filId], references: [id], onDelete: Cascade)
+  auteur User     @relation(fields: [auteurId], references: [id])
+
+  @@index([filId, createdAt])
+  @@map("messages_staff")
 }
 
 // ============== PAIEMENTS ==============

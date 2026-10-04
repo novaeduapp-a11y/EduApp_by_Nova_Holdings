@@ -17,6 +17,15 @@ export function parsePortail(value: unknown): Portail | null {
   return null;
 }
 
+export function ecoleMismatch(
+  user: { role: Role; ecoleId?: string | null },
+  ecoleId?: string | null
+) {
+  if (!ecoleId) return false;
+  if (user.role === "ADMIN") return false;
+  return user.ecoleId !== ecoleId;
+}
+
 export function toStaffUser(user: {
   id: string;
   email: string;
@@ -54,6 +63,25 @@ export async function createTwoFactorChallenge(userId: string) {
     },
   });
   return { challengeId: challenge.id, code };
+}
+
+/** Crée le challenge et envoie le code par e-mail (Resend). */
+export async function issueTwoFactorChallenge(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, prenom: true },
+  });
+  if (!user) {
+    throw new Error("Utilisateur introuvable");
+  }
+  const challenge = await createTwoFactorChallenge(user.id);
+  const { sendTwoFactorEmail } = await import("@/lib/email");
+  const mailed = await sendTwoFactorEmail(user.email, challenge.code, user.prenom);
+  return {
+    challengeId: challenge.challengeId,
+    code: challenge.code,
+    emailed: mailed.ok === true,
+  };
 }
 
 export async function verifyTwoFactorCode(challengeId: string, code: string) {

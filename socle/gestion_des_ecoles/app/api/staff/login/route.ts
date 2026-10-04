@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { logActivite } from "@/lib/activity-log";
 import {
-  createTwoFactorChallenge,
+  issueTwoFactorChallenge,
   parsePortail,
   PORTAIL_ROLES,
   signStaffToken,
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      await logActivite({
+        userId: user.id,
+        action: "connexion_refusee",
+        details: { voie: "eduadmins", portail, motif: "mot_de_passe" },
+      });
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
@@ -49,16 +55,23 @@ export async function POST(request: Request) {
 
     const profile = toStaffUser(user);
 
-    if (portail === "DIRECTION" && user.twoFactorEnabled) {
-      const challenge = await createTwoFactorChallenge(user.id);
+    if (user.twoFactorEnabled) {
+      const challenge = await issueTwoFactorChallenge(user.id);
       return NextResponse.json({
         data: {
           requires2fa: true,
           challengeId: challenge.challengeId,
+          emailed: challenge.emailed,
           ...(process.env.NODE_ENV !== "production" ? { debugCode: challenge.code } : {}),
         },
       });
     }
+
+    await logActivite({
+      userId: user.id,
+      action: "connexion",
+      details: { voie: "eduadmins", portail, role: user.role, a2f: false },
+    });
 
     return NextResponse.json({
       data: {

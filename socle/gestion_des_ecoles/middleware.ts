@@ -1,14 +1,43 @@
 import { auth } from "@/lib/auth";
 import { getHomePathForRole } from "@/lib/role-routes";
 import { NextResponse } from "next/server";
+import { adminOrigin, isAdminHostname, isPublicAppHostname } from "@/lib/hosts";
 
-const publicRoutes = ["/", "/login", "/eduadmins", "/api/auth", "/api/mobile", "/api/parent", "/api/staff", "/api/ecoles", "/api/bulletins/verifier", "/bulletins/verifier"];
+const publicRoutes = ["/", "/login", "/eduadmins", "/api/auth", "/api/mobile", "/api/parent", "/api/staff", "/api/admin", "/api/ecoles", "/api/public", "/api/bulletins/verifier", "/bulletins/verifier"];
 const authRoutes = ["/login"];
 
 export default auth((req) => {
   const { nextUrl } = req;
+  const host = (req.headers.get("x-forwarded-host") || req.headers.get("host") || "")
+    .split(",")[0]
+    .trim()
+    .split(":")[0]
+    .toLowerCase();
   const isLoggedIn = !!req.auth;
   const userRole = req.auth?.user?.role;
+
+  if (isAdminHostname(host)) {
+    const path = nextUrl.pathname;
+    const allowed =
+      path === "/login" ||
+      path.startsWith("/dashboard") ||
+      path.startsWith("/api/auth") ||
+      path.startsWith("/api/admin") ||
+      path.startsWith("/api/staff");
+    if (path === "/" || path.startsWith("/eduadmins") || path.startsWith("/prefet") || path.startsWith("/professeur") || path.startsWith("/directeur") || path.startsWith("/parent")) {
+      return NextResponse.redirect(new URL("/login", nextUrl));
+    }
+    if (!allowed && !path.startsWith("/_next")) {
+      return NextResponse.redirect(new URL("/login", nextUrl));
+    }
+    if (isLoggedIn && userRole && userRole !== "ADMIN" && (path.startsWith("/dashboard") || path === "/login")) {
+      return NextResponse.redirect(new URL(`${process.env.NEXT_PUBLIC_APP_URL || "https://eduadmin.net"}/login`));
+    }
+  }
+
+  if (isPublicAppHostname(host) && nextUrl.pathname.startsWith("/dashboard")) {
+    return NextResponse.redirect(new URL(`${adminOrigin()}${nextUrl.pathname}${nextUrl.search}`));
+  }
 
   const isPublicRoute = publicRoutes.some(
     (route) =>
@@ -17,7 +46,10 @@ export default auth((req) => {
       nextUrl.pathname.startsWith("/api/mobile") ||
       nextUrl.pathname.startsWith("/api/parent") ||
       nextUrl.pathname.startsWith("/api/staff") ||
-      nextUrl.pathname.startsWith("/api/ecoles")
+      nextUrl.pathname.startsWith("/api/admin") ||
+      nextUrl.pathname.startsWith("/api/ecoles") ||
+      nextUrl.pathname.startsWith("/api/public") ||
+      nextUrl.pathname.startsWith("/eduadmins")
   );
   const isAuthRoute = authRoutes.includes(nextUrl.pathname);
   const isPrefetRoute = nextUrl.pathname.startsWith("/prefet");
@@ -62,7 +94,7 @@ export default auth((req) => {
       return NextResponse.redirect(new URL("/prefet", nextUrl));
     }
 
-    if (userRole === "DIRECTEUR" && (isParentRoute || isEleveRoute || isProfesseurRoute || isPrefetRoute)) {
+    if (userRole === "DIRECTEUR" && (isDashboardRoute || isParentRoute || isEleveRoute || isProfesseurRoute || isPrefetRoute)) {
       return NextResponse.redirect(new URL("/directeur", nextUrl));
     }
 

@@ -1,395 +1,234 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { PageHeader } from "@/components/shared/page-header";
-import {
-  Users,
-  GraduationCap,
-  BookOpen,
-  FileText,
-  TrendingUp,
-  AlertCircle,
-  Calendar,
-  Award,
-  Loader2,
-  BarChart3,
-  AlertTriangle,
-} from "lucide-react";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useDashboard } from "@/hooks/use-dashboard";
-import { QueryState } from "@/components/shared/query-state";
-import { PageLoading } from "@/components/shared/loading-spinner";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  portalChipClass,
+  portalHeroClass,
+  portalKpiClass,
+  portalMutedClass,
+  portalPanelClass,
+} from "@/components/eduadmins/portal-shell";
 
-export default function DashboardPage() {
-  const { data: session } = useSession();
-  const { data: dashboardData, isLoading, isError, refetch } = useDashboard();
+type Ecole = {
+  id: string;
+  nom: string;
+  ville: string;
+  actif: boolean;
+  eleves: number;
+  classes: number;
+  directeurs: number;
+  prefets: number;
+  professeurs: number;
+};
 
-  const stats = [
-    {
-      title: "Total Élèves",
-      value: dashboardData?.stats.totalEleves || 0,
-      description: "Élèves inscrits",
-      icon: Users,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-    },
-    {
-      title: "Classes",
-      value: dashboardData?.stats.totalClasses || 0,
-      description: "Classes actives",
-      icon: GraduationCap,
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-    },
-    {
-      title: "Matières",
-      value: dashboardData?.stats.totalMatieres || 0,
-      description: "Matières enseignées",
-      icon: BookOpen,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100",
-    },
-    {
-      title: "Évaluations",
-      value: dashboardData?.stats.totalEvaluations || 0,
-      description: "Évaluations créées",
-      icon: FileText,
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
-    },
-  ];
+const PAGE_SIZE = 30;
 
-  const recentActivities = [
-    ...(dashboardData?.activitesRecentes.inscriptions || []).map((a) => ({
-      action: "Inscription",
-      description: a.description,
-      time: new Date(a.date).toLocaleDateString("fr-FR"),
-    })),
-    ...(dashboardData?.activitesRecentes.absences || []).map((a) => ({
-      action: "Absence",
-      description: a.description,
-      time: new Date(a.date).toLocaleDateString("fr-FR"),
-    })),
-  ].slice(0, 5);
+export default function AdminHomePage() {
+  const [ecoles, setEcoles] = useState<Ecole[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+
+  const load = async () => {
+    setStatus("loading");
+    try {
+      const res = await fetch("/api/admin/ecoles");
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      setEcoles(body.data ?? []);
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const totals = ecoles.reduce(
+    (acc, ecole) => ({
+      ecoles: acc.ecoles + 1,
+      actives: acc.actives + (ecole.actif ? 1 : 0),
+      eleves: acc.eleves + ecole.eleves,
+      professeurs: acc.professeurs + ecole.professeurs,
+      prefets: acc.prefets + ecole.prefets,
+      directeurs: acc.directeurs + ecole.directeurs,
+    }),
+    { ecoles: 0, actives: 0, eleves: 0, professeurs: 0, prefets: 0, directeurs: 0 }
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return ecoles;
+    return ecoles.filter((ecole) => `${ecole.nom} ${ecole.ville}`.toLowerCase().includes(q));
+  }, [ecoles, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount);
+  const pageItems = filtered.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const from = filtered.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1;
+  const to = Math.min(pageSafe * PAGE_SIZE, filtered.length);
 
   return (
-    <QueryState
-      isLoading={isLoading}
-      isError={isError}
-      onRetry={() => refetch()}
-      loadingFallback={<PageLoading />}
-    >
     <div className="space-y-6">
-      <PageHeader
-        title="Tableau de bord"
-        description={`Bienvenue ${session?.user?.prenom}, voici un aperçu de votre établissement`}
-      />
+      <section className={portalHeroClass}>
+        <p className="text-sm font-medium text-white/80">NOVA HOLDINGS</p>
+        <h1 className="mt-1 text-balance text-[30px] font-bold leading-9 tracking-tight">Administration</h1>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-white/85">
+          Établissements et comptes Direction, Préfet, Professeur. Le quotidien pédagogique reste dans EduAdmins.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button asChild variant="secondary">
+            <Link href="/dashboard/ecoles?creer=1">Nouvel établissement</Link>
+          </Button>
+          <Button asChild variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
+            <Link href="/dashboard/comptes?creer=1">Nouveau compte</Link>
+          </Button>
+        </div>
+      </section>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <div className={`p-2 rounded-full ${stat.bgColor}`}>
-                <stat.icon className={`h-4 w-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">{stat.description}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {status === "error" ? (
+        <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+          <p className="text-sm leading-6 text-foreground">Impossible de charger les établissements.</p>
+          <Button type="button" onClick={() => load()}>
+            Réessayer
+          </Button>
+        </div>
+      ) : status === "loading" ? (
+        <Skeleton className="h-48" />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Link href="/dashboard/ecoles" className={portalPanelClass}>
+              <p className={portalMutedClass}>Établissements</p>
+              <p className={`${portalKpiClass} mt-1`}>{totals.ecoles}</p>
+              <p className={`${portalMutedClass} mt-1`}>{totals.actives} actif{totals.actives > 1 ? "s" : ""}</p>
+            </Link>
+            <div className={portalPanelClass}>
+              <p className={portalMutedClass}>Élèves</p>
+              <p className={`${portalKpiClass} mt-1`}>{totals.eleves}</p>
+            </div>
+            <Link href="/dashboard/comptes?role=PROFESSEUR" className={portalPanelClass}>
+              <p className={portalMutedClass}>Professeurs</p>
+              <p className={`${portalKpiClass} mt-1`}>{totals.professeurs}</p>
+            </Link>
+            <Link href="/dashboard/comptes?role=PREFET" className={portalPanelClass}>
+              <p className={portalMutedClass}>Préfets</p>
+              <p className={`${portalKpiClass} mt-1`}>{totals.prefets}</p>
+              <p className={`${portalMutedClass} mt-1`}>{totals.directeurs} directeur{totals.directeurs > 1 ? "s" : ""}</p>
+            </Link>
+          </div>
 
-      {/* Main Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {/* Recent Activities */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Activités récentes
-            </CardTitle>
-            <CardDescription>
-              Les dernières actions effectuées sur la plateforme
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
-                >
-                  <div>
-                    <p className="font-medium">{activity.action}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {activity.description}
+          <div className="relative max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher un établissement…"
+              className="pl-9"
+              aria-label="Rechercher un établissement"
+            />
+          </div>
+
+          {ecoles.length === 0 ? (
+            <div className={`${portalPanelClass} py-10 text-center`}>
+              <p className="font-medium text-foreground">Aucun établissement</p>
+              <p className={`${portalMutedClass} mt-1`}>Créez-en un, puis le directeur et les préfets.</p>
+              <Button asChild className="mt-4">
+                <Link href="/dashboard/ecoles?creer=1">Nouvel établissement</Link>
+              </Button>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className={`${portalPanelClass} py-10 text-center`}>
+              <p className={portalMutedClass}>Aucun établissement ne correspond à la recherche.</p>
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Ville</TableHead>
+                    <TableHead className="text-right">Direction</TableHead>
+                    <TableHead className="text-right">Préfets</TableHead>
+                    <TableHead className="text-right">Profs</TableHead>
+                    <TableHead className="text-right">Élèves</TableHead>
+                    <TableHead>Statut</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageItems.map((ecole) => (
+                    <TableRow key={ecole.id}>
+                      <TableCell className="font-medium">
+                        <Link href="/dashboard/ecoles" className="hover:underline">
+                          {ecole.nom}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{ecole.ville}</TableCell>
+                      <TableCell className="text-right tabular-nums">{ecole.directeurs}</TableCell>
+                      <TableCell className="text-right tabular-nums">{ecole.prefets}</TableCell>
+                      <TableCell className="text-right tabular-nums">{ecole.professeurs}</TableCell>
+                      <TableCell className="text-right tabular-nums">{ecole.eleves}</TableCell>
+                      <TableCell>
+                        <span className={portalChipClass}>{ecole.actif ? "Actif" : "Inactif"}</span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className={portalMutedClass}>
+                  {from}–{to} sur {filtered.length} · {PAGE_SIZE} par page
+                </p>
+                {filtered.length > PAGE_SIZE ? (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pageSafe <= 1}
+                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                    >
+                      <ChevronLeft />
+                      Précédent
+                    </Button>
+                    <p className="min-w-16 text-center text-sm tabular-nums">
+                      {pageSafe}/{pageCount}
                     </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pageSafe >= pageCount}
+                      onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                    >
+                      Suivant
+                      <ChevronRight />
+                    </Button>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {activity.time}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions / Alerts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-orange-500" />
-              Alertes
-            </CardTitle>
-            <CardDescription>Points d&apos;attention</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3 bg-orange-50 rounded-lg">
-                <Calendar className="h-5 w-5 text-orange-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">Période active</p>
-                  <p className="text-xs text-muted-foreground">
-                    1er Trimestre 2025-2026
-                  </p>
-                </div>
+                ) : null}
               </div>
-              <div className="flex items-start gap-3 p-3 bg-red-50 rounded-lg">
-                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">Absences non justifiées</p>
-                  <p className="text-xs text-muted-foreground">
-                    {dashboardData?.stats.absencesNonJustifiees || 0} absence(s) à traiter
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                <Award className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-sm">Meilleure moyenne</p>
-                  <p className="text-xs text-muted-foreground">
-                    CM2-A : 14.5/20
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Stats by Cycle */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Répartition par cycle</CardTitle>
-          <CardDescription>
-            Nombre d&apos;élèves par cycle scolaire
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {(dashboardData?.elevesParCycle || []).map((cycle) => (
-                <div
-                  key={cycle.cycle}
-                  className="text-center p-4 bg-gray-50 rounded-lg"
-                >
-                  <p className="text-2xl font-bold text-blue-600">{cycle.count}</p>
-                  <p className="text-sm text-muted-foreground">{cycle.cycle}</p>
-                </div>
-              ))}
-            </div>
+            </>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Taux de réussite par classe */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Taux de réussite par classe
-          </CardTitle>
-          <CardDescription>
-            Pourcentage d&apos;élèves avec une moyenne ≥ 10/20
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {/* Taux global */}
-              <div className="p-4 bg-blue-50 rounded-lg mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">Taux de réussite global</span>
-                  <Badge variant={
-                    (dashboardData?.stats.tauxReussiteGlobal || 0) >= 80 ? "default" :
-                    (dashboardData?.stats.tauxReussiteGlobal || 0) >= 50 ? "secondary" :
-                    "destructive"
-                  }>
-                    {dashboardData?.stats.tauxReussiteGlobal || 0}%
-                  </Badge>
-                </div>
-                <Progress value={dashboardData?.stats.tauxReussiteGlobal || 0} className="h-3" />
-              </div>
-
-              {/* Par classe */}
-              <div className="grid gap-3">
-                {(dashboardData?.tauxReussiteParClasse || []).map((classe) => (
-                  <div key={classe.classeId} className="flex items-center gap-4">
-                    <div className="w-24 font-medium text-sm">{classe.classe}</div>
-                    <div className="flex-1">
-                      <Progress 
-                        value={classe.tauxReussite} 
-                        className={`h-2 ${
-                          classe.tauxReussite >= 80 ? "[&>div]:bg-green-500" :
-                          classe.tauxReussite >= 50 ? "[&>div]:bg-yellow-500" :
-                          "[&>div]:bg-red-500"
-                        }`}
-                      />
-                    </div>
-                    <div className="w-16 text-right text-sm">
-                      <span className={
-                        classe.tauxReussite >= 80 ? "text-green-600 font-bold" :
-                        classe.tauxReussite >= 50 ? "text-yellow-600" :
-                        "text-red-600"
-                      }>
-                        {classe.tauxReussite}%
-                      </span>
-                    </div>
-                    <div className="w-20 text-right text-xs text-muted-foreground">
-                      {classe.elevesReussis}/{classe.elevesEvalues}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Élèves en difficulté par classe */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            📉 Élèves en difficulté par classe
-          </CardTitle>
-          <CardDescription>
-            Nombre d&apos;élèves avec une moyenne inférieure à 10/20
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : (dashboardData?.elevesEnDifficulteParClasse || []).length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Award className="h-12 w-12 mx-auto mb-4 text-green-500" />
-              <p>Aucun élève en difficulté ! 🎉</p>
-              <p className="text-sm">Tous les élèves ont une moyenne ≥ 10/20</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {(dashboardData?.elevesEnDifficulteParClasse || []).map((classe) => (
-                <div 
-                  key={classe.classeId} 
-                  className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-100 rounded-full">
-                      <AlertTriangle className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-red-900">{classe.classe}</p>
-                      <p className="text-sm text-red-700">
-                        {classe.enDifficulte} élève(s) sur {classe.effectif}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant="destructive" className="text-lg px-3 py-1">
-                      {classe.pourcentage}%
-                    </Badge>
-                    <p className="text-xs text-red-600 mt-1">en difficulté</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Liste des élèves en difficulté */}
-      <Card id="eleves-difficulte">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-orange-500" />
-            Liste des élèves à suivre
-          </CardTitle>
-          <CardDescription>
-            Élèves nécessitant un accompagnement particulier
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : (dashboardData?.elevesEnDifficulte || []).length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Award className="h-12 w-12 mx-auto mb-4 text-green-500" />
-              <p>Aucun élève en difficulté ! 🎉</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {(dashboardData?.elevesEnDifficulte || []).map((eleve) => (
-                <Link 
-                  key={eleve.id} 
-                  href={`/eleves/${eleve.id}`}
-                  className="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge variant="destructive" className="bg-red-500">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      À suivre
-                    </Badge>
-                    <div>
-                      <p className="font-medium">{eleve.prenom} {eleve.nom}</p>
-                      <p className="text-sm text-muted-foreground">{eleve.classe}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant="destructive">{eleve.moyenne}/20</Badge>
-                    <p className="text-xs text-muted-foreground mt-1">{eleve.periode}</p>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </>
+      )}
     </div>
-    </QueryState>
   );
 }

@@ -14,7 +14,7 @@ export async function GET() {
     const notifications = await prisma.notification.findMany({
       where: { userId: authResult.user.id },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: 200,
     });
 
     return NextResponse.json({
@@ -25,6 +25,7 @@ export async function GET() {
         message: n.message,
         readAt: n.readAt,
         createdAt: n.createdAt,
+        data: n.data,
       })),
     });
   } catch (error) {

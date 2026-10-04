@@ -121,6 +121,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const { sendWelcomeAccountEmail } = await import("@/lib/email");
+    await sendWelcomeAccountEmail({
+      to: parent.email,
+      prenom: parent.prenom,
+      role: "PARENT",
+      temporaryPassword: validatedData.password,
+    });
+
     return NextResponse.json(
       {
         success: true,

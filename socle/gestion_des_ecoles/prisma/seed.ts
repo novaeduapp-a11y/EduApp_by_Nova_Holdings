@@ -564,6 +564,7 @@ async function main() {
     },
   });
   const enfantsLies = await prisma.eleve.findMany({
+    where: { classeId: "classe-ci-a", ecoleId: "ecole-dakar", deletedAt: null },
     take: 2,
     orderBy: { matricule: "asc" },
   });
@@ -937,6 +938,200 @@ async function main() {
     },
   });
   console.log("✅ Affectations collège / Thiès et élèves de démo");
+
+  const prefetPrimaire = await prisma.user.findUnique({ where: { email: "prefet.primaire@ecole.sn" } });
+  const creneauxCiA = [
+    { id: "edt-cia-lun-0800", jour: "LUNDI" as const, heureDebut: "08:00", heureFin: "09:00", matiereId: francais.id, salle: "A1" },
+    { id: "edt-cia-lun-0900", jour: "LUNDI" as const, heureDebut: "09:00", heureFin: "10:00", matiereId: calcul.id, salle: "A1" },
+    { id: "edt-cia-mar-0800", jour: "MARDI" as const, heureDebut: "08:00", heureFin: "09:00", matiereId: francais.id, salle: "A1" },
+    { id: "edt-cia-mar-0900", jour: "MARDI" as const, heureDebut: "09:00", heureFin: "10:00", matiereId: calcul.id, salle: "A1" },
+    { id: "edt-cia-mer-0800", jour: "MERCREDI" as const, heureDebut: "08:00", heureFin: "09:00", matiereId: francais.id, salle: "A1" },
+    { id: "edt-cia-jeu-0800", jour: "JEUDI" as const, heureDebut: "08:00", heureFin: "09:00", matiereId: calcul.id, salle: "A1" },
+    { id: "edt-cia-ven-0800", jour: "VENDREDI" as const, heureDebut: "08:00", heureFin: "09:00", matiereId: francais.id, salle: "A1" },
+    { id: "edt-cia-ven-1515", jour: "VENDREDI" as const, heureDebut: "15:00", heureFin: "16:00", matiereId: calcul.id, salle: "A1" },
+  ];
+  for (const slot of creneauxCiA) {
+    await prisma.creneauEdt.upsert({
+      where: {
+        classeId_jour_heureDebut_heureFin: {
+          classeId: "classe-ci-a",
+          jour: slot.jour,
+          heureDebut: slot.heureDebut,
+          heureFin: slot.heureFin,
+        },
+      },
+      update: { matiereId: slot.matiereId, professeurId: professeur.id, salle: slot.salle },
+      create: {
+        id: slot.id,
+        ecoleId: "ecole-dakar",
+        classeId: "classe-ci-a",
+        jour: slot.jour,
+        heureDebut: slot.heureDebut,
+        heureFin: slot.heureFin,
+        matiereId: slot.matiereId,
+        professeurId: professeur.id,
+        salle: slot.salle,
+      },
+    });
+  }
+
+  if (profCollege) {
+    await prisma.creneauEdt.upsert({
+      where: {
+        classeId_jour_heureDebut_heureFin: {
+          classeId: "classe-6eme-a",
+          jour: "LUNDI",
+          heureDebut: "08:00",
+          heureFin: "09:00",
+        },
+      },
+      update: { professeurId: profCollege.id },
+      create: {
+        id: "edt-6a-lun-0800",
+        ecoleId: "ecole-dakar",
+        classeId: "classe-6eme-a",
+        jour: "LUNDI",
+        heureDebut: "08:00",
+        heureFin: "09:00",
+        matiereId: francais.id,
+        professeurId: profCollege.id,
+        salle: "B2",
+      },
+    });
+  }
+
+  if (prefetPrimaire) {
+    await prisma.communique.upsert({
+      where: { id: "com-demo-primaire" },
+      update: {},
+      create: {
+        id: "com-demo-primaire",
+        ecoleId: "ecole-dakar",
+        auteurId: prefetPrimaire.id,
+        titre: "Sortie pédagogique CI-CP",
+        corps: "Mardi prochain, les classes de CI et CP visitent le musée. Départ à 8h, retour à 13h. Prévoir un goûter et une casquette.",
+        urgent: false,
+        destinataires: "PARENTS",
+        familleCycle: "PRIMAIRE",
+      },
+    });
+    await prisma.notification.upsert({
+      where: { id: "notif-demo-communique-primaire" },
+      update: {},
+      create: {
+        id: "notif-demo-communique-primaire",
+        userId: parent.id,
+        type: "communique",
+        title: "Sortie pédagogique CI-CP",
+        message: "Mardi prochain, les classes de CI et CP visitent le musée. Départ à 8h, retour à 13h. Prévoir un goûter et une casquette.",
+        data: { communiqueId: "com-demo-primaire" },
+      },
+    });
+  }
+  console.log("✅ EDT CI-A / 6ème A et communiqué primaire");
+
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const enfantDemo = enfantsLies[0];
+
+  if (enfantDemo) {
+    await prisma.absence.upsert({
+      where: { id: "absence-demo-today-bilan" },
+      update: { dateAbsence: todayStart, eleveId: enfantDemo.id },
+      create: {
+        id: "absence-demo-today-bilan",
+        eleveId: enfantDemo.id,
+        dateAbsence: todayStart,
+        periode: "MATIN",
+        justifiee: false,
+        motif: "Absence",
+        createdBy: professeur.id,
+      },
+    });
+  }
+
+  await prisma.evenementJour.upsert({
+    where: { id: "evt-demo-perturbation" },
+    update: { date: todayStart },
+    create: {
+      id: "evt-demo-perturbation",
+      ecoleId: "ecole-dakar",
+      date: todayStart,
+      type: "PERTURBATION",
+      titre: "Coupure d’eau le matin",
+      detail: "Récréation écourtée, cours maintenus.",
+      auteurId: directeur.id,
+    },
+  });
+
+  await prisma.evenementJour.upsert({
+    where: { id: "evt-demo-retard-prof" },
+    update: { date: todayStart, userId: professeur.id },
+    create: {
+      id: "evt-demo-retard-prof",
+      ecoleId: "ecole-dakar",
+      date: todayStart,
+      type: "RETARD_PERSONNEL",
+      userId: professeur.id,
+      detail: "Embouteillage",
+      auteurId: directeur.id,
+    },
+  });
+
+  await prisma.noteAgenda.upsert({
+    where: { id: "agenda-demo-conseil" },
+    update: {},
+    create: {
+      id: "agenda-demo-conseil",
+      ecoleId: "ecole-dakar",
+      auteurId: directeur.id,
+      titre: "Conseil de classe CI",
+      corps: "Vendredi 10h, salle des profs. Prévoir les moyennes du 1er trimestre.",
+      date: todayStart,
+    },
+  });
+
+  if (enfantDemo) {
+    const fil = await prisma.filMessage.upsert({
+      where: {
+        eleveId_parentId_professeurId: {
+          eleveId: enfantDemo.id,
+          parentId: parent.id,
+          professeurId: professeur.id,
+        },
+      },
+      update: { matiereId: francais.id },
+      create: {
+        id: "fil-demo-parent-instituteur",
+        ecoleId: "ecole-dakar",
+        eleveId: enfantDemo.id,
+        parentId: parent.id,
+        professeurId: professeur.id,
+        matiereId: francais.id,
+      },
+    });
+    await prisma.message.upsert({
+      where: { id: "msg-demo-parent-1" },
+      update: {},
+      create: {
+        id: "msg-demo-parent-1",
+        filId: fil.id,
+        auteurId: parent.id,
+        corps: `Bonjour, ${enfantDemo.prenom} a un rendez-vous médical jeudi matin. Merci de noter l’absence.`,
+      },
+    });
+    await prisma.message.upsert({
+      where: { id: "msg-demo-prof-1" },
+      update: {},
+      create: {
+        id: "msg-demo-prof-1",
+        filId: fil.id,
+        auteurId: professeur.id,
+        corps: "Bien noté, bon rétablissement. Je ferai le point à son retour.",
+      },
+    });
+  }
+  console.log("✅ Bilan du jour, agenda et messagerie de démo");
 
   // Créer les paramètres de l'établissement
   const parametres = [

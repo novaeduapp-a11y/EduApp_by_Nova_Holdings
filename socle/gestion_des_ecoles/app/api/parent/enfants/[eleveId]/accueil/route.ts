@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireParent } from "@/lib/request-auth";
+import { jourSemaineAujourdhui, serializeCreneau } from "@/lib/edt";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
@@ -24,9 +25,22 @@ export async function GET(
       return NextResponse.json({ error: "Accès non autorisé à cet élève" }, { status: 403 });
     }
 
-    const [notes, absences, moyenne, unread] = await Promise.all([
+    const eleve = await prisma.eleve.findUnique({
+      where: { id: eleveId },
+      select: { classeId: true },
+    });
+    if (!eleve) {
+      return NextResponse.json({ error: "Élève introuvable" }, { status: 404 });
+    }
+
+    const periodeActive = await prisma.periode.findFirst({
+      where: { actif: true },
+      orderBy: { numero: "desc" },
+    });
+    const jour = jourSemaineAujourdhui();
+    const [notes, absences, moyenne, unread, creneauxJour] = await Promise.all([
       prisma.note.findMany({
-        where: { eleveId },
+        where: { eleveId, deletedAt: null },
         include: {
           evaluation: { include: { matiere: true, periode: true } },
         },
@@ -37,13 +51,26 @@ export async function GET(
         where: { eleveId, deletedAt: null },
       }),
       prisma.moyenneGenerale.findFirst({
-        where: { eleveId },
+        where: {
+          eleveId,
+          ...(periodeActive ? { periodeId: periodeActive.id } : {}),
+        },
         include: { periode: true },
         orderBy: { periode: { numero: "desc" } },
       }),
       prisma.notification.count({
         where: { userId: authResult.user.id, readAt: null },
       }),
+      jour
+        ? prisma.creneauEdt.findMany({
+            where: { classeId: eleve.classeId, jour },
+            include: {
+              matiere: { select: { nom: true } },
+              professeur: { select: { prenom: true, nom: true } },
+            },
+            orderBy: { heureDebut: "asc" },
+          })
+        : Promise.resolve([]),
     ]);
 
     return NextResponse.json({
@@ -55,8 +82,9 @@ export async function GET(
           evaluation: n.evaluation.titre,
         })),
         absences: {
-          total: absences.length,
-          nonJustifiees: absences.filter((a) => !a.justifiee).length,
+          total: absences.filter((a) => !/retard/i.test(a.motif ?? "")).length,
+          retards: absences.filter((a) => /retard/i.test(a.motif ?? "")).length,
+          nonJustifiees: absences.filter((a) => !a.justifiee && !/retard/i.test(a.motif ?? "")).length,
         },
         moyenne: moyenne
           ? {
@@ -66,7 +94,7 @@ export async function GET(
             }
           : null,
         notificationsNonLues: unread,
-        coursDuJour: [] as Array<{ matiere: string; horaire: string; salle: string | null }>,
+        coursDuJour: jour ? creneauxJour.map(serializeCreneau) : [],
       },
     });
   } catch (error) {

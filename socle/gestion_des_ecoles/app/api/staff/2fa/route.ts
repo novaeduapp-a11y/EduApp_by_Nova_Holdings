@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signStaffToken, toStaffUser, verifyTwoFactorCode } from "@/lib/staff-auth";
+import { logActivite } from "@/lib/activity-log";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     const user = await verifyTwoFactorCode(challengeId, code);
-    if (!user?.actif || user.role !== "DIRECTEUR") {
+    if (!user?.actif || !user.twoFactorEnabled) {
       return NextResponse.json({ error: "Code invalide ou expiré" }, { status: 401 });
     }
 
@@ -27,6 +28,12 @@ export async function POST(request: Request) {
     if (!full) {
       return NextResponse.json({ error: "Compte introuvable" }, { status: 404 });
     }
+
+    await logActivite({
+      userId: full.id,
+      action: "connexion",
+      details: { voie: "eduadmins", role: full.role, a2f: true },
+    });
 
     return NextResponse.json({
       data: {

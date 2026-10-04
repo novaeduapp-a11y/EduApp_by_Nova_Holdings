@@ -58,18 +58,20 @@ export default function BulletinsPage() {
   // Initialiser les filtres depuis l'URL
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [classeFilter, setClasseFilter] = useState<string>(searchParams.get("classe") || "all");
+  const [niveauFilter, setNiveauFilter] = useState<string>(searchParams.get("niveau") || "all");
   const [periodeFilter, setPeriodeFilter] = useState<string>(searchParams.get("periode") || "all");
 
   // Mettre à jour l'URL quand les filtres changent
   useEffect(() => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
+    if (niveauFilter !== "all") params.set("niveau", niveauFilter);
     if (classeFilter !== "all") params.set("classe", classeFilter);
     if (periodeFilter !== "all") params.set("periode", periodeFilter);
     
     const queryString = params.toString();
     router.replace(`/bulletins${queryString ? `?${queryString}` : ""}`, { scroll: false });
-  }, [search, classeFilter, periodeFilter, router]);
+  }, [search, niveauFilter, classeFilter, periodeFilter, router]);
 
   const { data: bulletinsData, isLoading } = useBulletins({
     classeId: classeFilter !== "all" ? classeFilter : undefined,
@@ -81,12 +83,21 @@ export default function BulletinsPage() {
   const bulletins = bulletinsData?.data || [];
   const classes = classesData?.data || [];
   const periodes = periodesData?.data || [];
+  const niveaux = [...new Set(classes.map((classe) => classe.niveau).filter(Boolean))];
+  const classesFiltrees =
+    niveauFilter === "all" ? classes : classes.filter((classe) => classe.niveau === niveauFilter);
 
-  // Filtrer par recherche
-  const filteredBulletins = bulletins.filter((b) =>
-    b.eleve.toLowerCase().includes(search.toLowerCase()) ||
-    b.matricule.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredBulletins = bulletins.filter((b) => {
+    const matchSearch =
+      b.eleve.toLowerCase().includes(search.toLowerCase()) ||
+      b.matricule.toLowerCase().includes(search.toLowerCase());
+    if (!matchSearch) return false;
+    if (niveauFilter !== "all") {
+      const classe = classes.find((item) => item.nom === b.classe);
+      if (classe && classe.niveau !== niveauFilter) return false;
+    }
+    return true;
+  });
 
   // Stats
   const stats = {
@@ -186,13 +197,32 @@ export default function BulletinsPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Rechercher un élève..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
+            <Select
+              value={niveauFilter}
+              onValueChange={(value) => {
+                setNiveauFilter(value);
+                setClasseFilter("all");
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Tous les niveaux" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les niveaux</SelectItem>
+                {niveaux.map((niveau) => (
+                  <SelectItem key={niveau} value={niveau}>
+                    {niveau}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={classeFilter} onValueChange={setClasseFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Toutes les classes" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes les classes</SelectItem>
-                {classes.map((c) => (
+                {classesFiltrees.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>
                 ))}
               </SelectContent>

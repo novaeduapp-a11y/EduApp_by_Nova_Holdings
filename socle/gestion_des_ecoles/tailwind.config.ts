@@ -51,10 +51,22 @@ const config: Config = {
   				'5': 'hsl(var(--chart-5))'
   			}
   		},
+  		fontFamily: {
+  			sans: ["var(--font-outfit)", "Outfit", "system-ui", "sans-serif"],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 4px)',
+  			xl: 'calc(var(--radius) + 4px)',
+  			'2xl': '1rem',
+  			'3xl': 'var(--radius-card)'
+  		},
+  		boxShadow: {
+  			card: 'var(--shadow-card)'
+  		},
+  		transitionDuration: {
+  			press: 'var(--duration-press)'
   		}
   	}
   },

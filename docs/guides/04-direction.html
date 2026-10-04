@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guide direction — EduAdmins</title>
+  <link rel="stylesheet" href="./guide.css" />
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Enregistrer en PDF</button>
+  </div>
+  <article class="page">
+    <header class="hero">
+      <p>EduAdmins · Portail Direction · NOVA HOLDINGS</p>
+      <h1>Guide direction</h1>
+      <p class="lead">Bilan du jour de <em>votre</em> établissement. Connexion protégée par un code à 6 chiffres, à chaque fois.</p>
+    </header>
+    <div class="body">
+      <h2>1. Connexion 2FA</h2>
+      <ol>
+        <li>Portail <strong>Direction</strong>.</li>
+        <li>E-mail et mot de passe.</li>
+        <li>Saisissez le code à 6 chiffres (valable 10 minutes). En recette locale, le code s’affiche à l’écran ; en production, il est envoyé selon le paramétrage de l’hébergeur.</li>
+      </ol>
+
+      <h2>2. Bilan du jour (accueil)</h2>
+      <p>C’est le tableau de bord. Les compteurs viennent d’ailleurs :</p>
+      <ul>
+        <li><strong>Absences / retards élèves</strong> — appel professeur</li>
+        <li><strong>Absences / retards profs</strong> — saisie Personnel</li>
+        <li><strong>Communiqués urgents</strong> et <strong>notes d’agenda</strong> du jour</li>
+      </ul>
+      <p>Vous pouvez saisir une <strong>perturbation</strong> (coupure d’eau, etc.) : elle s’enregistre sur le bilan et notifie parents et professeurs. Seules les perturbations se retirent ici, pas les absences du personnel.</p>
+
+      <h2>3. Autres menus</h2>
+      <table>
+        <thead><tr><th>Menu</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr><td>Aperçu</td><td>Effectifs, moyenne de la période active, présence du jour (hors retards)</td></tr>
+          <tr><td>Personnel</td><td>Présent / retard / absent — visible ensuite sur le bilan</td></tr>
+          <tr><td>Communiqués</td><td>Envoi établissement (tous cycles) → EduParent et alertes profs</td></tr>
+          <tr><td>Agenda</td><td>Rappels internes, pas une messagerie. Les notes du jour remontent au bilan</td></tr>
+        </tbody>
+      </table>
+      <div class="note">
+        <strong>Isolation</strong>
+        Vous voyez les trois cycles de votre école, jamais une autre école.
+      </div>
+
+      <h2>4. Compte démo (recette)</h2>
+      <div class="demo">
+        <strong>Directeur</strong> directeur@ecole.sn · 2FA obligatoire.<br />
+        Mot de passe commun de démo (fourni à la formation).
+      </div>
+      <p class="muted">EduAdmins web · Version 1.1 · août 2026</p>
+    </div>
+    <footer>Khidma Service Digital · Prestataire EduApps pour NOVA HOLDINGS</footer>
+  </article>
+</body>
+</html>

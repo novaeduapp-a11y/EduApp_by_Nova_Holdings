@@ -50,6 +50,8 @@ export default function ElevesPage() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [classeFilter, setClasseFilter] = useState<string>("all");
+  const [niveauFilter, setNiveauFilter] = useState<string>("all");
+  const [sexeFilter, setSexeFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -67,6 +69,8 @@ export default function ElevesPage() {
     limit: 10,
     search: search || undefined,
     classeId: classeFilter !== "all" ? classeFilter : undefined,
+    niveau: niveauFilter !== "all" ? niveauFilter : undefined,
+    sexe: sexeFilter !== "all" ? sexeFilter : undefined,
   });
 
   const { data: classesData } = useClasses();
@@ -77,6 +81,9 @@ export default function ElevesPage() {
   const eleves = elevesData?.data || [];
   const meta = elevesData?.meta;
   const classes = classesData?.data || [];
+  const niveaux = [...new Set(classes.map((classe) => classe.niveau).filter(Boolean))];
+  const classesFiltrees =
+    niveauFilter === "all" ? classes : classes.filter((classe) => classe.niveau === niveauFilter);
 
   const handleSubmitEleve = async (data: CreateEleveInput & { createAccount?: boolean }) => {
     try {
@@ -198,21 +205,66 @@ export default function ElevesPage() {
               <Input
                 placeholder="Rechercher par nom, prénom ou matricule..."
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 className="pl-9"
               />
             </div>
-            <Select value={classeFilter} onValueChange={setClasseFilter}>
+            <Select
+              value={niveauFilter}
+              onValueChange={(value) => {
+                setNiveauFilter(value);
+                setClasseFilter("all");
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Tous les niveaux" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les niveaux</SelectItem>
+                {niveaux.map((niveau) => (
+                  <SelectItem key={niveau} value={niveau}>
+                    {niveau}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={classeFilter}
+              onValueChange={(value) => {
+                setClasseFilter(value);
+                setPage(1);
+              }}
+            >
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Toutes les classes" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes les classes</SelectItem>
-                {classes.map((classe) => (
+                {classesFiltrees.map((classe) => (
                   <SelectItem key={classe.id} value={classe.id}>
                     {classe.nom}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={sexeFilter}
+              onValueChange={(value) => {
+                setSexeFilter(value);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-[160px]">
+                <SelectValue placeholder="Filles et garçons" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Filles et garçons</SelectItem>
+                <SelectItem value="M">Garçons</SelectItem>
+                <SelectItem value="F">Filles</SelectItem>
               </SelectContent>
             </Select>
           </div>

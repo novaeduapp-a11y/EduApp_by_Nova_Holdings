@@ -47,6 +47,7 @@ export default function ProfTabs() {
         options={{ title: "Plus", tabBarLabel: ({ focused }) => <TabLabel title="Plus" focused={focused} /> }}
       />
       <Tabs.Screen name="evaluation/[id]" options={{ href: null }} />
+      <Tabs.Screen name="classe/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

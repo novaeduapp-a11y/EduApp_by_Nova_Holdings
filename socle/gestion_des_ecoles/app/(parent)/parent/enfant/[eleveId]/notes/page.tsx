@@ -1,12 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, BookOpen } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -16,9 +13,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { apiGet } from "@/lib/api";
+import { EleveToolbar } from "@/components/shared/eleve-toolbar";
+import { ParentChildHeader } from "@/components/eduadmins/parent-child-nav";
+import {
+  portalChipClass,
+  portalKpiClass,
+  portalMutedClass,
+  portalPanelClass,
+} from "@/components/eduadmins/portal-shell";
 
-interface Note {
+type Enfant = { id: string; nom: string; prenom: string; classe: string };
+
+type Note = {
   id: string;
   valeur: number;
   noteMax: number;
@@ -27,177 +33,228 @@ interface Note {
   date: string;
   matiere: string;
   periode: string;
-}
+};
 
-interface MoyenneMatiere {
-  matiere: string;
-  moyenne: number;
-  periode: string;
-}
+type MoyenneMatiere = { matiere: string; moyenne: number; periode: string };
+type MoyenneGenerale = { moyenne: number; rang: number; mention: string; periode: string };
 
-interface MoyenneGenerale {
-  moyenne: number;
-  rang: number;
-  mention: string;
-  periode: string;
-}
+const PAGE_SIZE = 30;
 
-interface NotesData {
-  notes: Note[];
-  moyennesMatieres: MoyenneMatiere[];
-  moyennesGenerales: MoyenneGenerale[];
+function formatNote(value: number) {
+  return Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 export default function EnfantNotesPage() {
   const params = useParams();
   const eleveId = params.eleveId as string;
+  const [enfant, setEnfant] = useState<Enfant | null>(null);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [moyennesMatieres, setMoyennesMatieres] = useState<MoyenneMatiere[]>([]);
+  const [moyennesGenerales, setMoyennesGenerales] = useState<MoyenneGenerale[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [search, setSearch] = useState("");
+  const [filtrePeriode, setFiltrePeriode] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["parent-enfant-notes", eleveId],
-    queryFn: async () => {
-      const response = await apiGet<NotesData>(`/parent/enfants/${eleveId}/notes`);
-      return response.data;
-    },
-  });
+  const load = async () => {
+    setStatus("loading");
+    try {
+      const [enfantsRes, notesRes] = await Promise.all([
+        fetch("/api/parent/enfants"),
+        fetch(`/api/parent/enfants/${eleveId}/notes`),
+      ]);
+      const enfantsBody = await enfantsRes.json();
+      const notesBody = await notesRes.json();
+      if (!enfantsRes.ok) throw new Error(enfantsBody.error);
+      if (!notesRes.ok) throw new Error(notesBody.error);
+      setEnfant(((enfantsBody.data ?? []) as Enfant[]).find((item) => item.id === eleveId) ?? null);
+      setNotes(notesBody.data?.notes ?? []);
+      setMoyennesMatieres(notesBody.data?.moyennesMatieres ?? []);
+      setMoyennesGenerales(notesBody.data?.moyennesGenerales ?? []);
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+    }
+  };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-64" />
-      </div>
-    );
-  }
+  useEffect(() => {
+    void load();
+  }, [eleveId]);
 
-  const { notes = [], moyennesMatieres = [], moyennesGenerales = [] } = data || {};
+  const periodes = useMemo(
+    () => [...new Set(notes.map((note) => note.periode))].sort((a, b) => a.localeCompare(b, "fr")),
+    [notes]
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return notes.filter((note) => {
+      if (filtrePeriode && note.periode !== filtrePeriode) return false;
+      if (!q) return true;
+      return `${note.matiere} ${note.evaluation} ${note.type}`.toLowerCase().includes(q);
+    });
+  }, [notes, search, filtrePeriode]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filtrePeriode]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount);
+  const pageItems = filtered.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
+  const from = filtered.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1;
+  const to = Math.min(pageSafe * PAGE_SIZE, filtered.length);
+  const derniere = moyennesGenerales[0];
+  const nom = enfant ? `${enfant.prenom} ${enfant.nom}` : "Élève";
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href={`/parent/enfant/${eleveId}`}>
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
+      <ParentChildHeader
+        eleveId={eleveId}
+        nom={enfant ? nom : undefined}
+        classe={enfant?.classe}
+        title="Notes"
+        subtitle={enfant ? nom : "Résultats scolaires"}
+        active="notes"
+      />
+
+      {status === "error" ? (
+        <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+          <p className="text-sm leading-6 text-foreground">Impossible de charger les notes.</p>
+          <Button type="button" onClick={() => load()}>
+            Réessayer
           </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <BookOpen className="h-6 w-6" />
-            Notes et Moyennes
-          </h1>
-          <p className="text-muted-foreground">Résultats scolaires de votre enfant</p>
         </div>
-      </div>
-
-      {/* Moyennes Générales */}
-      {moyennesGenerales.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3">
-          {moyennesGenerales.map((mg, index) => (
-            <Card key={index} className={index === 0 ? "border-primary" : ""}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">{mg.periode}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{Number(mg.moyenne).toFixed(2)}/20</div>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="outline">Rang: {mg.rang}e</Badge>
-                  <Badge variant={
-                    mg.mention === "Très Bien" ? "default" :
-                    mg.mention === "Bien" ? "secondary" :
-                    "outline"
-                  }>
-                    {mg.mention}
-                  </Badge>
+      ) : status === "loading" ? (
+        <Skeleton className="h-72" />
+      ) : (
+        <>
+          {derniere ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              {moyennesGenerales.slice(0, 3).map((item) => (
+                <div key={item.periode} className={portalPanelClass}>
+                  <p className={portalMutedClass}>{item.periode}</p>
+                  <p className={`${portalKpiClass} mt-1 text-3xl`}>{formatNote(Number(item.moyenne))}/20</p>
+                  <p className={`${portalMutedClass} mt-1`}>
+                    Rang {item.rang}
+                    {item.mention ? ` · ${item.mention}` : ""}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              ))}
+            </div>
+          ) : null}
 
-      {/* Moyennes par Matière */}
-      {moyennesMatieres.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Moyennes par Matière</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Matière</TableHead>
-                  <TableHead>Période</TableHead>
-                  <TableHead className="text-right">Moyenne</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {moyennesMatieres.map((mm, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{mm.matiere}</TableCell>
-                    <TableCell>{mm.periode}</TableCell>
-                    <TableCell className="text-right">
-                      <span className={
-                        Number(mm.moyenne) >= 16 ? "text-green-600 font-bold" :
-                        Number(mm.moyenne) >= 10 ? "text-blue-600" :
-                        "text-red-600"
-                      }>
-                        {Number(mm.moyenne).toFixed(2)}/20
+          <EleveToolbar
+            search={search}
+            onSearchChange={setSearch}
+            placeholder="Rechercher une matière ou une évaluation…"
+            extra={
+              periodes.length > 1 ? (
+                <select
+                  className="edu-select"
+                  aria-label="Filtrer par période"
+                  value={filtrePeriode}
+                  onChange={(e) => setFiltrePeriode(e.target.value)}
+                >
+                  <option value="">Toutes les périodes</option>
+                  {periodes.map((periode) => (
+                    <option key={periode} value={periode}>
+                      {periode}
+                    </option>
+                  ))}
+                </select>
+              ) : null
+            }
+          />
+
+          {moyennesMatieres.length > 0 ? (
+            <section className={portalPanelClass}>
+              <h2 className="mb-3 font-bold tracking-tight text-foreground">Moyennes par matière</h2>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {moyennesMatieres
+                  .filter((item) => !filtrePeriode || item.periode === filtrePeriode)
+                  .map((item) => (
+                    <li key={`${item.matiere}-${item.periode}`} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-foreground">
+                        {item.matiere}
+                        <span className="text-muted-foreground"> · {item.periode}</span>
                       </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+                      <span className={portalChipClass}>{formatNote(Number(item.moyenne))}/20</span>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          ) : null}
 
-      {/* Détail des Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Détail des Notes</CardTitle>
-        </CardHeader>
-        <CardContent>
           {notes.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Aucune note enregistrée pour le moment
-            </p>
+            <div className={`${portalPanelClass} py-10 text-center`}>
+              <p className="font-medium text-foreground">Aucune note pour le moment</p>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className={`${portalPanelClass} py-10 text-center`}>
+              <p className={portalMutedClass}>Aucune note ne correspond à la recherche.</p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Matière</TableHead>
-                  <TableHead>Évaluation</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Note</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {notes.map((note) => (
-                  <TableRow key={note.id}>
-                    <TableCell>{new Date(note.date).toLocaleDateString("fr-FR")}</TableCell>
-                    <TableCell className="font-medium">{note.matiere}</TableCell>
-                    <TableCell>{note.evaluation}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{note.type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={
-                        note.valeur >= note.noteMax * 0.8 ? "text-green-600 font-bold" :
-                        note.valeur >= note.noteMax * 0.5 ? "text-blue-600" :
-                        "text-red-600"
-                      }>
-                        {note.valeur}/{note.noteMax}
-                      </span>
-                    </TableCell>
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Matière</TableHead>
+                    <TableHead>Évaluation</TableHead>
+                    <TableHead className="text-right">Note</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {pageItems.map((note) => (
+                    <TableRow key={note.id}>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {new Date(note.date).toLocaleDateString("fr-FR")}
+                      </TableCell>
+                      <TableCell className="font-medium">{note.matiere}</TableCell>
+                      <TableCell>
+                        {note.evaluation}
+                        <span className={`${portalMutedClass} mt-0.5 block`}>{note.type} · {note.periode}</span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {formatNote(Number(note.valeur))}/{note.noteMax}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <p className={portalMutedClass}>
+                {from}–{to} sur {filtered.length} · {PAGE_SIZE} par page
+              </p>
+              {filtered.length > PAGE_SIZE ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pageSafe <= 1}
+                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  >
+                    <ChevronLeft />
+                    Précédent
+                  </Button>
+                  <p className="min-w-16 text-center text-sm tabular-nums">
+                    {pageSafe}/{pageCount}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pageSafe >= pageCount}
+                    onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                  >
+                    Suivant
+                    <ChevronRight />
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
-        </CardContent>
-      </Card>
+        </>
+      )}
     </div>
   );
 }

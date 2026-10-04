@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { FilterChips } from "@/components/FilterChips";
+import { SearchBar } from "@/components/SearchBar";
 import {
   fetchAppel,
   fetchProfClasses,
@@ -8,6 +10,7 @@ import {
   type AppelStatut,
   type ProfClasse,
 } from "@/lib/api";
+import { matchesQuery, uniqueValues } from "@/lib/filter";
 import { todayIso } from "@/lib/format";
 import { colors } from "@/lib/theme";
 
@@ -19,8 +22,9 @@ const STATUTS: { id: AppelStatut; label: string }[] = [
 
 export default function AppelScreen() {
   const date = useMemo(() => todayIso(), []);
+  const params = useLocalSearchParams<{ classeId?: string }>();
   const [classes, setClasses] = useState<ProfClasse[]>([]);
-  const [classeId, setClasseId] = useState<string | null>(null);
+  const [classeId, setClasseId] = useState<string | null>(params.classeId ?? null);
   const [lignes, setLignes] = useState<
     Array<{ eleveId: string; nom: string; prenom: string; matricule: string; statut: AppelStatut }>
   >([]);
@@ -28,11 +32,16 @@ export default function AppelScreen() {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [niveau, setNiveau] = useState("");
 
   const loadClasses = async () => {
     const res = await fetchProfClasses();
     setClasses(res.data);
-    setClasseId((current) => current ?? res.data[0]?.id ?? null);
+    setClasseId((current) => {
+      if (params.classeId && res.data.some((c) => c.id === params.classeId)) return params.classeId;
+      return current ?? res.data[0]?.id ?? null;
+    });
     return res.data;
   };
 
@@ -67,6 +76,24 @@ export default function AppelScreen() {
     }
   };
 
+  const niveaux = useMemo(() => uniqueValues(classes.map((classe) => classe.niveau)), [classes]);
+  const classesVisibles = useMemo(
+    () => (niveau ? classes.filter((classe) => classe.niveau === niveau) : classes),
+    [classes, niveau]
+  );
+  const lignesVisibles = useMemo(
+    () => lignes.filter((ligne) => matchesQuery(query, ligne.prenom, ligne.nom, ligne.matricule, `${ligne.prenom} ${ligne.nom}`)),
+    [lignes, query]
+  );
+
+  const selectNiveau = (next: string) => {
+    setNiveau(next);
+    const pool = next ? classes.filter((classe) => classe.niveau === next) : classes;
+    if (classeId && pool.some((classe) => classe.id === classeId)) return;
+    const first = pool[0]?.id;
+    if (first) void selectClasse(first);
+  };
+
   const onSave = async () => {
     if (!classeId) return;
     setSaving(true);
@@ -89,6 +116,7 @@ export default function AppelScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -107,8 +135,10 @@ export default function AppelScreen() {
     >
       <Text style={styles.title}>Feuille d’appel</Text>
       <Text style={styles.lead}>Aujourd’hui · présent, absent ou retard.</Text>
+      <SearchBar value={query} onChangeText={setQuery} />
+      <FilterChips options={niveaux} value={niveau} onChange={selectNiveau} allLabel="Tous les niveaux" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        {classes.map((classe) => {
+        {classesVisibles.map((classe) => {
           const active = classe.id === classeId;
           return (
             <Pressable
@@ -124,7 +154,10 @@ export default function AppelScreen() {
         })}
       </ScrollView>
       {loading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} /> : null}
-      {lignes.map((ligne) => (
+      {!loading && lignes.length > 0 && lignesVisibles.length === 0 ? (
+        <Text style={styles.muted}>Aucun élève ne correspond à cette recherche.</Text>
+      ) : null}
+      {lignesVisibles.map((ligne) => (
         <View key={ligne.eleveId} style={styles.card}>
           <Text style={styles.name}>
             {ligne.prenom} {ligne.nom}

@@ -78,7 +78,7 @@ npx prisma db seed
 npm run dev
 ```
 
-http://localhost:3000 — comptes démo (`Admin@123`) : `admin@ecole.sn` · `directeur@ecole.sn` · `professeur@ecole.sn` · `parent@ecole.sn`
+http://localhost:3000 — les identifiants de recette sont créés par `npx prisma db seed` (usage développement uniquement).
 
 EduParent (Expo) :
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,8 +11,10 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { SearchBar } from "@/components/SearchBar";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { fetchProfEvaluation, saveProfNotes, type ProfEvaluationDetail } from "@/lib/api";
+import { matchesQuery } from "@/lib/filter";
 import { colors } from "@/lib/theme";
 
 type Draft = Record<string, { note: string; absent: boolean }>;
@@ -24,6 +26,7 @@ export default function EvaluationScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!id) return;
@@ -43,6 +46,14 @@ export default function EvaluationScreen() {
       .catch((err) => setMessage(err instanceof Error ? err.message : "Impossible de charger"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const elevesVisibles = useMemo(
+    () =>
+      (detail?.eleves ?? []).filter((eleve) =>
+        matchesQuery(query, eleve.prenom, eleve.nom, eleve.matricule, `${eleve.prenom} ${eleve.nom}`)
+      ),
+    [detail, query]
+  );
 
   const onSave = async () => {
     if (!id || !detail) return;
@@ -78,8 +89,12 @@ export default function EvaluationScreen() {
             {detail.classe.nom} · note sur {detail.noteSur}
           </Text>
         ) : null}
+        <SearchBar value={query} onChangeText={setQuery} />
         {loading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} /> : null}
-        {detail?.eleves.map((eleve) => {
+        {!loading && detail && elevesVisibles.length === 0 ? (
+          <Text style={styles.muted}>Aucun élève ne correspond à cette recherche.</Text>
+        ) : null}
+        {elevesVisibles.map((eleve) => {
           const row = draft[eleve.eleveId];
           return (
             <View key={eleve.eleveId} style={styles.row}>

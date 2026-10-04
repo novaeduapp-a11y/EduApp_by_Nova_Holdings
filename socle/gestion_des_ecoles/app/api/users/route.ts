@@ -130,6 +130,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const { sendWelcomeAccountEmail } = await import("@/lib/email");
+    await sendWelcomeAccountEmail({
+      to: user.email,
+      prenom: user.prenom,
+      role: user.role,
+      temporaryPassword: validation.data.password,
+    });
+
     return NextResponse.json({ success: true, data: user }, { status: 201 });
   } catch (error) {
     console.error("Erreur POST /api/users:", error);

@@ -1,29 +1,22 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { 
-  User, 
-  BookOpen, 
-  Calendar, 
-  FileText, 
-  ChevronRight, 
-  TrendingUp,
-  AlertCircle,
-  Bell,
-  CreditCard,
-  GraduationCap,
-} from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiGet } from "@/lib/api";
-import { QueryState } from "@/components/shared/query-state";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  portalChipClass,
+  portalHeroClass,
+  portalKpiClass,
+  portalLinkClass,
+  portalMutedClass,
+  portalPanelClass,
+  portalTitleClass,
+} from "@/components/eduadmins/portal-shell";
 
-interface Enfant {
+type Enfant = {
   id: string;
   nom: string;
   prenom: string;
@@ -31,238 +24,238 @@ interface Enfant {
   photo: string | null;
   classe: string;
   cycle: string | null;
-  relation: string;
+};
+
+type Accueil = {
+  notesRecentes: { id: string; valeur: number; matiere: string; evaluation: string }[];
+  absences: { total: number; retards: number; nonJustifiees: number };
+  moyenne: { valeur: number; periode: string; mention: string | null } | null;
+  notificationsNonLues: number;
+  coursDuJour: { id: string; matiere: string; horaire: string; salle: string | null }[];
+};
+
+type Alerte = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  readAt: string | null;
+  createdAt: string;
+};
+
+function initials(prenom: string, nom: string) {
+  return `${prenom.charAt(0)}${nom.charAt(0)}`.toUpperCase();
+}
+
+function formatNote(value: number) {
+  return Number(value).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 }
 
 export default function ParentDashboard() {
   const { data: session } = useSession();
-  
-  const { data: enfantsData, isLoading, isError, refetch } = useQuery({
-    queryKey: ["parent-enfants"],
-    queryFn: async () => {
-      const response = await apiGet<Enfant[]>("/parent/enfants");
-      return response.data;
-    },
-  });
+  const [enfants, setEnfants] = useState<Enfant[]>([]);
+  const [accueils, setAccueils] = useState<Record<string, Accueil>>({});
+  const [alertes, setAlertes] = useState<Alerte[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
-  const enfants = enfantsData || [];
+  const load = async () => {
+    setStatus("loading");
+    try {
+      const [enfantsRes, alertesRes] = await Promise.all([
+        fetch("/api/parent/enfants"),
+        fetch("/api/parent/notifications"),
+      ]);
+      const enfantsBody = await enfantsRes.json();
+      const alertesBody = await alertesRes.json();
+      if (!enfantsRes.ok) throw new Error(enfantsBody.error);
+      if (!alertesRes.ok) throw new Error(alertesBody.error);
+      const list = (enfantsBody.data ?? []) as Enfant[];
+      setEnfants(list);
+      setAlertes(alertesBody.data ?? []);
+
+      const pairs = await Promise.all(
+        list.map(async (enfant) => {
+          const res = await fetch(`/api/parent/enfants/${enfant.id}/accueil`);
+          const body = await res.json();
+          if (!res.ok) throw new Error(body.error);
+          return [enfant.id, body.data as Accueil] as const;
+        })
+      );
+      setAccueils(Object.fromEntries(pairs));
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const absences = Object.values(accueils).reduce((sum, item) => sum + (item.absences?.total ?? 0), 0);
+  const unread = alertes.filter((item) => !item.readAt).length;
+  const moyennes = Object.values(accueils)
+    .map((item) => item.moyenne?.valeur)
+    .filter((value): value is number => typeof value === "number");
+  const moyenneMoyenne =
+    moyennes.length > 0 ? moyennes.reduce((sum, value) => sum + Number(value), 0) / moyennes.length : null;
 
   return (
-    <QueryState
-      isLoading={isLoading}
-      isError={isError}
-      onRetry={() => refetch()}
-      loadingFallback={
-        <div className="space-y-6">
-          <Skeleton className="h-10 w-64" />
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2].map((i) => (
-              <Skeleton key={i} className="h-48" />
-            ))}
-          </div>
+    <div className="space-y-6">
+      <section className={portalHeroClass}>
+        <p className="text-sm font-medium text-white/80">EduParent</p>
+        <h1 className="mt-1 text-balance text-[30px] font-bold leading-9 tracking-tight">
+          Bonjour{session?.user?.prenom ? `, ${session.user.prenom}` : ""}
+        </h1>
+        <p className="mt-2 max-w-xl text-sm leading-6 text-white/85">
+          Notes, absences, bulletins et messages des professeurs de vos enfants.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Button asChild variant="secondary">
+            <Link href="/parent/messages">Messages</Link>
+          </Button>
+          <Button asChild variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
+            <Link href="/parent/paiements">Paiements</Link>
+          </Button>
         </div>
-      }
-    >
-    <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 p-8 text-white">
-        <div className="absolute top-0 right-0 -mt-4 -mr-4 h-32 w-32 rounded-full bg-white/10 blur-2xl"></div>
-        <div className="absolute bottom-0 left-0 -mb-4 -ml-4 h-24 w-24 rounded-full bg-white/10 blur-xl"></div>
-        <div className="relative">
-          <div className="flex items-center gap-2 text-blue-200 mb-2">
-            <GraduationCap className="h-5 w-5" />
-            <span className="text-sm font-medium">Espace Parent</span>
-          </div>
-          <h1 className="text-3xl font-bold">
-            Bonjour, {session?.user?.prenom} ! 👋
-          </h1>
-          <p className="mt-2 text-blue-100 max-w-xl">
-            Bienvenue sur votre espace dédié. Suivez la scolarité de vos enfants, 
-            consultez leurs notes et restez informé de leur progression.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/parent/messages">
-              <Button variant="secondary" size="sm" className="gap-2">
-                <Bell className="h-4 w-4" />
-                2 nouveaux messages
-              </Button>
+      </section>
+
+      {status === "error" ? (
+        <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+          <p className="text-sm leading-6 text-foreground">Impossible de charger l’accueil.</p>
+          <Button type="button" onClick={() => load()}>
+            Réessayer
+          </Button>
+        </div>
+      ) : status === "loading" ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+          <Skeleton className="h-28" />
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Link href="/parent" className={portalPanelClass}>
+              <p className={portalMutedClass}>Enfants</p>
+              <p className={`${portalKpiClass} mt-1`}>{enfants.length}</p>
             </Link>
-            <Link href="/parent/paiements">
-              <Button variant="outline" size="sm" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20">
-                <CreditCard className="h-4 w-4" />
-                Voir les paiements
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-500 rounded-xl">
-                <User className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-green-700">{enfants.length}</p>
-                <p className="text-sm text-green-600">Enfant(s)</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-blue-500 rounded-xl">
-                <TrendingUp className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-blue-700">--</p>
-                <p className="text-sm text-blue-600">Moyenne générale</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-orange-500 rounded-xl">
-                <Calendar className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-orange-700">0</p>
-                <p className="text-sm text-orange-600">Absences</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-purple-500 rounded-xl">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-purple-700">0</p>
-                <p className="text-sm text-purple-600">Bulletins</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Section Enfants */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold">Mes Enfants</h2>
-          <Badge variant="outline">{enfants.length} inscrit(s)</Badge>
-        </div>
-
-        {enfants.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">Aucun enfant associé</h3>
-              <p className="text-muted-foreground mt-1">
-                Contactez l&apos;administration de l&apos;école pour associer vos enfants à votre compte.
+            <div className={portalPanelClass}>
+              <p className={portalMutedClass}>Moyenne</p>
+              <p className={`${portalKpiClass} mt-1`}>
+                {moyenneMoyenne == null ? "—" : `${formatNote(moyenneMoyenne)}/20`}
               </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {enfants.map((enfant) => (
-              <Card key={enfant.id} className="hover:shadow-lg transition-all hover:-translate-y-1 duration-300">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16 ring-2 ring-blue-100">
-                      <AvatarImage src={enfant.photo || undefined} />
-                      <AvatarFallback className="text-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                        {enfant.prenom[0]}{enfant.nom[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <CardTitle className="text-lg">{enfant.prenom} {enfant.nom}</CardTitle>
-                      <CardDescription className="flex items-center gap-2">
-                        <span>{enfant.matricule}</span>
-                      </CardDescription>
-                      <Badge className="mt-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
-                        {enfant.classe}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-3 gap-2">
-                    <Link href={`/parent/enfant/${enfant.id}/notes`}>
-                      <Button variant="outline" className="w-full h-20 flex-col gap-1 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors">
-                        <BookOpen className="h-5 w-5" />
-                        <span className="text-xs font-medium">Notes</span>
-                      </Button>
-                    </Link>
-                    <Link href={`/parent/enfant/${enfant.id}/absences`}>
-                      <Button variant="outline" className="w-full h-20 flex-col gap-1 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700 transition-colors">
-                        <Calendar className="h-5 w-5" />
-                        <span className="text-xs font-medium">Absences</span>
-                      </Button>
-                    </Link>
-                    <Link href={`/parent/enfant/${enfant.id}/bulletins`}>
-                      <Button variant="outline" className="w-full h-20 flex-col gap-1 hover:bg-green-50 hover:border-green-200 hover:text-green-700 transition-colors">
-                        <FileText className="h-5 w-5" />
-                        <span className="text-xs font-medium">Bulletins</span>
-                      </Button>
-                    </Link>
-                  </div>
-                  <Link href={`/parent/enfant/${enfant.id}`}>
-                    <Button variant="ghost" className="w-full justify-between hover:bg-gray-100">
-                      <span>Voir le profil complet</span>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            ))}
+            </div>
+            <Link href={enfants[0] ? `/parent/enfant/${enfants[0].id}/absences` : "/parent"} className={portalPanelClass}>
+              <p className={portalMutedClass}>Absences</p>
+              <p className={`${portalKpiClass} mt-1`}>{absences}</p>
+            </Link>
+            <Link href="/parent/alertes" className={portalPanelClass}>
+              <p className={portalMutedClass}>Alertes non lues</p>
+              <p className={`${portalKpiClass} mt-1`}>{unread}</p>
+            </Link>
           </div>
-        )}
-      </div>
 
-      {/* Alertes et Conseils */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="bg-amber-50 border-amber-200">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 rounded-full">
-                <AlertCircle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <h4 className="font-medium text-amber-900">Rappel important</h4>
-                <p className="text-sm text-amber-700">
-                  La réunion parents-professeurs aura lieu le samedi 15 février 2026 à 9h00.
-                  Votre présence est vivement souhaitée.
-                </p>
-              </div>
+          {enfants.length === 0 ? (
+            <div className={`${portalPanelClass} py-10 text-center`}>
+              <p className="font-medium text-foreground">Aucun enfant associé</p>
+              <p className={`${portalMutedClass} mt-1`}>
+                Contactez l’administration de l’école pour relier vos enfants à ce compte.
+              </p>
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {enfants.map((enfant) => {
+                const accueil = accueils[enfant.id];
+                return (
+                  <article key={enfant.id} className={portalPanelClass}>
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage src={enfant.photo || undefined} alt="" />
+                        <AvatarFallback className="bg-secondary font-bold text-primary">
+                          {initials(enfant.prenom, enfant.nom)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-lg font-bold tracking-tight">
+                          {enfant.prenom} {enfant.nom}
+                        </h2>
+                        <p className={portalMutedClass}>
+                          {enfant.classe}
+                          {enfant.cycle ? ` · ${enfant.cycle}` : ""} · {enfant.matricule}
+                        </p>
+                        {accueil?.moyenne ? (
+                          <p className="mt-1 text-sm font-medium text-foreground">
+                            {formatNote(Number(accueil.moyenne.valeur))}/20
+                            {accueil.moyenne.mention ? ` · ${accueil.moyenne.mention}` : ""}
+                            <span className="font-normal text-muted-foreground"> · {accueil.moyenne.periode}</span>
+                          </p>
+                        ) : (
+                          <p className={`${portalMutedClass} mt-1`}>Aucune moyenne pour le moment.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Link href={`/parent/enfant/${enfant.id}/notes`} className={portalChipClass}>
+                        Notes
+                      </Link>
+                      <Link href={`/parent/enfant/${enfant.id}/absences`} className={portalChipClass}>
+                        Absences{accueil ? ` · ${accueil.absences.total}` : ""}
+                      </Link>
+                      <Link href={`/parent/enfant/${enfant.id}/bulletins`} className={portalChipClass}>
+                        Bulletins
+                      </Link>
+                      <Link href={`/parent/enfant/${enfant.id}/edt`} className={portalChipClass}>
+                        Emploi du temps
+                      </Link>
+                    </div>
+                    {accueil?.coursDuJour && accueil.coursDuJour.length > 0 ? (
+                      <div className="mt-4">
+                        <p className="text-sm font-semibold text-foreground">Cours du jour</p>
+                        <ul className="mt-2 space-y-1">
+                          {accueil.coursDuJour.slice(0, 3).map((cours) => (
+                            <li key={cours.id} className={portalMutedClass}>
+                              {cours.horaire} · {cours.matiere}
+                              {cours.salle ? ` · ${cours.salle}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <p className="mt-4">
+                      <Link href={`/parent/enfant/${enfant.id}`} className={`text-sm ${portalLinkClass}`}>
+                        Voir l’aperçu
+                      </Link>
+                    </p>
+                  </article>
+                );
+              })}
+            </div>
+          )}
 
-        <Card className="bg-blue-50 border-blue-200">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-blue-100 rounded-full">
-                <BookOpen className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <h4 className="font-medium text-blue-900">Conseil</h4>
-                <p className="text-sm text-blue-700">
-                  Consultez régulièrement les notes et absences de vos enfants pour un meilleur suivi scolaire.
-                </p>
-              </div>
+          <section className={portalPanelClass}>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className={portalTitleClass}>Dernières alertes</h2>
+              <Link href="/parent/alertes" className={`text-sm ${portalLinkClass}`}>
+                Toutes
+              </Link>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            {alertes.length === 0 ? (
+              <p className={portalMutedClass}>Aucune alerte pour le moment.</p>
+            ) : (
+              <ul className="space-y-2">
+                {alertes.slice(0, 4).map((alerte) => (
+                  <li key={alerte.id} className="rounded-2xl bg-muted px-3 py-2">
+                    <p className="text-sm font-medium text-foreground">{alerte.title}</p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{alerte.message}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </>
+      )}
     </div>
-    </QueryState>
   );
 }

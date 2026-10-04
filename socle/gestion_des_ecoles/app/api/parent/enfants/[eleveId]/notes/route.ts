@@ -31,7 +31,7 @@ export async function GET(
 
     // Récupérer les notes de l'élève
     const notes = await prisma.note.findMany({
-      where: { eleveId },
+      where: { eleveId, deletedAt: null },
       include: {
         evaluation: {
           include: {

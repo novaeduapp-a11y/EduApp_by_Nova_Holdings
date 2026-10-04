@@ -1,8 +1,11 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { FilterChips } from "@/components/FilterChips";
+import { SearchBar } from "@/components/SearchBar";
 import { useSession } from "@/context/session";
 import { fetchProfAccueil, type ProfAccueil } from "@/lib/api";
+import { matchesQuery, uniqueValues } from "@/lib/filter";
 import { formatDate } from "@/lib/format";
 import { colors, greeting } from "@/lib/theme";
 
@@ -13,11 +16,26 @@ export default function ProfHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [niveau, setNiveau] = useState("");
 
   const load = async () => {
     const res = await fetchProfAccueil();
     setData(res.data);
   };
+
+  const niveaux = useMemo(() => uniqueValues(data?.classes.map((classe) => classe.niveau) ?? []), [data]);
+  const classesVisibles = useMemo(() => {
+    return (data?.classes ?? []).filter((classe) => {
+      if (niveau && classe.niveau !== niveau) return false;
+      return matchesQuery(query, classe.nom, classe.niveau, ...classe.matieres);
+    });
+  }, [data, query, niveau]);
+  const evaluationsVisibles = useMemo(() => {
+    return (data?.evaluations ?? []).filter((evaluation) =>
+      matchesQuery(query, evaluation.titre, evaluation.classe, evaluation.matiere)
+    );
+  }, [data, query]);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,6 +51,7 @@ export default function ProfHome() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -79,27 +98,44 @@ export default function ProfHome() {
             </View>
           </View>
 
+          <SearchBar
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Classe, matière, évaluation…"
+            accessibilityLabel="Rechercher une classe ou une évaluation"
+          />
+          <FilterChips options={niveaux} value={niveau} onChange={setNiveau} allLabel="Tous les niveaux" />
+
           <Text style={styles.section}>Vos classes</Text>
           {data.classes.length === 0 ? (
             <Text style={styles.muted}>Aucune classe affectée pour le moment.</Text>
+          ) : classesVisibles.length === 0 ? (
+            <Text style={styles.muted}>Aucune classe ne correspond à cette recherche.</Text>
           ) : (
-            data.classes.map((classe) => (
-              <View key={classe.id} style={styles.card}>
+            classesVisibles.map((classe) => (
+              <Pressable
+                key={classe.id}
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: "/classe/[id]", params: { id: classe.id } })}
+                style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+              >
                 <Text style={styles.cardTitle}>
                   {classe.nom} · {classe.niveau}
                 </Text>
                 <Text style={styles.muted}>
                   {classe.effectif} élève{classe.effectif > 1 ? "s" : ""} · {classe.matieres.join(", ")}
                 </Text>
-              </View>
+              </Pressable>
             ))
           )}
 
           <Text style={styles.section}>Évaluations récentes</Text>
           {data.evaluations.length === 0 ? (
             <Text style={styles.muted}>Aucune évaluation dans votre périmètre.</Text>
+          ) : evaluationsVisibles.length === 0 ? (
+            <Text style={styles.muted}>Aucune évaluation ne correspond à cette recherche.</Text>
           ) : (
-            data.evaluations.map((evaluation) => (
+            evaluationsVisibles.map((evaluation) => (
               <Pressable
                 key={evaluation.id}
                 accessibilityRole="button"

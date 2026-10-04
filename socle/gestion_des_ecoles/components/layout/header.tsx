@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { Bell, Menu, User } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,15 +12,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { signOut } from "next-auth/react";
 import { useUIStore } from "@/stores/ui-store";
 import { cn } from "@/lib/utils";
+import { getProfilePathForRole } from "@/lib/role-routes";
+import Link from "next/link";
 
 const roleLabels: Record<string, string> = {
-  ADMIN: "Administrateur",
+  ADMIN: "Administration NOVA",
   DIRECTEUR: "Directeur",
   PROFESSEUR: "Professeur",
+  PREFET: "Préfet",
   PARENT: "Parent",
 };
 
@@ -34,7 +36,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        "fixed top-0 right-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 transition-all duration-300",
+        "fixed top-0 right-0 z-30 h-16 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 transition-[left] duration-300 motion-reduce:transition-none",
         sidebarCollapsed ? "left-16" : "left-64"
       )}
     >
@@ -44,14 +46,15 @@ export function Header() {
             variant="ghost"
             size="icon"
             className="md:hidden"
+            aria-label="Ouvrir le menu"
             onClick={toggleSidebarCollapsed}
           >
             <Menu className="h-5 w-5" />
           </Button>
           <div className="hidden md:block">
-            <h2 className="text-lg font-semibold">
-              Bienvenue, {user?.prenom} {user?.nom}
-            </h2>
+            <p className="text-lg font-bold leading-tight tracking-tight">
+              {user?.prenom} {user?.nom}
+            </p>
             <p className="text-sm text-muted-foreground">
               {user?.role && roleLabels[user.role]}
             </p>
@@ -59,24 +62,12 @@ export function Header() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="h-5 w-5" />
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
-            >
-              3
-            </Badge>
-          </Button>
-
-          {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+              <Button variant="ghost" className="relative h-10 w-10 rounded-full" aria-label="Menu du compte">
                 <Avatar className="h-10 w-10">
                   <AvatarImage src={user?.photo || undefined} alt={user?.nom} />
-                  <AvatarFallback className="bg-blue-100 text-blue-700">
+                  <AvatarFallback className="bg-secondary text-primary">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -94,14 +85,14 @@ export function Header() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>Mon profil</span>
+              <DropdownMenuItem asChild>
+                <Link href={getProfilePathForRole(user?.role)} className="cursor-pointer">
+                  Mon profil
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
               <DropdownMenuItem
-                className="text-red-600 focus:text-red-600"
-                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="text-destructive focus:text-destructive"
+                onClick={() => signOut({ callbackUrl: "/eduadmins" })}
               >
                 Déconnexion
               </DropdownMenuItem>

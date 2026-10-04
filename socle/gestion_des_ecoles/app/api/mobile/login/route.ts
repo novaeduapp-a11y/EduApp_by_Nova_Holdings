@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signMobileToken } from "@/lib/mobile-token";
+import { issueTwoFactorChallenge } from "@/lib/staff-auth";
+import { logActivite } from "@/lib/activity-log";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
@@ -30,6 +32,11 @@ export async function POST(request: Request) {
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      await logActivite({
+        userId: user.id,
+        action: "connexion_refusee",
+        details: { voie: "eduparent", motif: "mot_de_passe" },
+      });
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
@@ -40,6 +47,18 @@ export async function POST(request: Request) {
       );
     }
 
+    if (user.twoFactorEnabled) {
+      const challenge = await issueTwoFactorChallenge(user.id);
+      return NextResponse.json({
+        data: {
+          requires2fa: true,
+          challengeId: challenge.challengeId,
+          emailed: challenge.emailed,
+          ...(process.env.NODE_ENV !== "production" ? { debugCode: challenge.code } : {}),
+        },
+      });
+    }
+
     const token = signMobileToken({
       id: user.id,
       email: user.email,
@@ -48,8 +67,15 @@ export async function POST(request: Request) {
       role: user.role,
     });
 
+    await logActivite({
+      userId: user.id,
+      action: "connexion",
+      details: { voie: "eduparent", role: user.role, a2f: false },
+    });
+
     return NextResponse.json({
       data: {
+        requires2fa: false,
         token,
         user: {
           id: user.id,

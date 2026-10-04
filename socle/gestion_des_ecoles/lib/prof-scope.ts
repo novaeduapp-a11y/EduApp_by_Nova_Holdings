@@ -20,7 +20,10 @@ export async function getProfAssignments(userId: string): Promise<Assignment[] |
   const rows = await prisma.classeMatiere.findMany({
     where: {
       professeurId: user.id,
-      ...(user.ecoleId ? { classe: { ecoleId: user.ecoleId } } : {}),
+      classe: {
+        ...(user.ecoleId ? { ecoleId: user.ecoleId } : {}),
+        ...(user.typeProfesseur === "PRIMAIRE" ? { cycle: { famille: "PRIMAIRE" as const } } : {}),
+      },
     },
     include: {
       classe: {

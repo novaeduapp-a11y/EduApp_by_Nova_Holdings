@@ -1,191 +1,214 @@
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useSession } from "@/context/session";
-import { fetchAccueil } from "@/lib/api";
-import { colors, greeting, noteColor } from "@/lib/theme";
-
-type Accueil = Awaited<ReturnType<typeof fetchAccueil>>["data"];
-
-export default function AccueilScreen() {
-  const { user, enfants, selected, selectChild } = useSession();
-  const [accueil, setAccueil] = useState<Accueil | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const hello = greeting();
-
-  useEffect(() => {
-    if (!selected) {
-      setAccueil(null);
-      return;
-    }
-    setLoading(true);
-    fetchAccueil(selected.id)
-      .then((res) => setAccueil(res.data))
-      .catch(() => setAccueil(null))
-      .finally(() => setLoading(false));
-  }, [selected?.id]);
-
-  return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={async () => {
-            if (!selected) return;
-            setRefreshing(true);
-            try {
-              const res = await fetchAccueil(selected.id);
-              setAccueil(res.data);
-            } catch {
-              setAccueil(null);
-            } finally {
-              setRefreshing(false);
-            }
-          }}
-          tintColor={colors.primary}
-        />
-      }
-    >
-      <Text style={styles.hello}>
-        {hello}
-        {user?.prenom ? `, ${user.prenom}` : ""}
-      </Text>
-      <Text style={styles.lead}>
-        {selected
-          ? `Suivi de ${selected.prenom} · ${selected.classe}`
-          : "Aucun enfant lié pour le moment"}
-      </Text>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cards}>
-        {enfants.map((enfant) => {
-          const active = enfant.id === selected?.id;
-          return (
-            <Pressable
-              key={enfant.id}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              onPress={() => selectChild(enfant.id)}
-              style={({ pressed }) => [styles.card, active && styles.cardActive, pressed && styles.pressed]}
-            >
-              <View style={[styles.avatar, active && styles.avatarActive]}>
-                <Text style={[styles.initial, active && styles.initialActive]}>
-                  {enfant.prenom.slice(0, 1)}
-                </Text>
-              </View>
-              <Text style={[styles.cardName, active && styles.cardNameActive]}>{enfant.prenom}</Text>
-              <Text style={styles.cardMeta}>{enfant.classe}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      {loading ? <ActivityIndicator color={colors.primary} /> : null}
-
-      {accueil ? (
-        <View style={styles.kpis}>
-          <View style={styles.kpi}>
-            <Text style={[styles.kpiValue, { color: noteColor(accueil.moyenne?.valeur ?? null) }]}>
-              {accueil.moyenne?.valeur != null ? Number(accueil.moyenne.valeur).toFixed(1) : "—"}
-            </Text>
-            <Text style={styles.kpiLabel}>Moyenne</Text>
-          </View>
-          <View style={styles.kpi}>
-            <Text style={styles.kpiValue}>{accueil.absences.total}</Text>
-            <Text style={styles.kpiLabel}>Absences</Text>
-          </View>
-          <View style={styles.kpi}>
-            <Text style={styles.kpiValue}>{accueil.notificationsNonLues}</Text>
-            <Text style={styles.kpiLabel}>Non lues</Text>
-          </View>
-        </View>
-      ) : null}
-
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>Notes récentes</Text>
-        {(accueil?.notesRecentes ?? []).map((note) => {
-          const value = note.valeur == null ? null : Number(note.valeur);
-          return (
-            <View key={note.id} style={styles.noteRow}>
-              <Text style={styles.row}>{note.matiere} · {note.evaluation}</Text>
-              <Text style={[styles.noteVal, { color: noteColor(value) }]}>
-                {value == null ? "—" : value}
-              </Text>
-            </View>
-          );
-        })}
-        {accueil && accueil.notesRecentes.length === 0 ? (
-          <Text style={styles.row}>Aucune note publiée pour le moment.</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.panel}>
-        <Text style={styles.panelTitle}>Emploi du temps du jour</Text>
-        {accueil?.coursDuJour.length ? (
-          accueil.coursDuJour.map((cours) => (
-            <Text key={`${cours.matiere}-${cours.horaire}`} style={styles.row}>
-              {cours.horaire} · {cours.matiere}
-              {cours.salle ? ` · ${cours.salle}` : ""}
-            </Text>
-          ))
-        ) : (
-          <Text style={styles.row}>Pas encore saisi par l&apos;établissement.</Text>
-        )}
-      </View>
-    </ScrollView>
-  );
-}
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: 20, paddingTop: 56, gap: 12 },
-  hello: { fontSize: 26, fontWeight: "700", color: colors.text },
-  lead: { fontSize: 16, color: colors.muted, marginBottom: 8 },
-  cards: { gap: 12, paddingVertical: 8 },
-  card: {
-    width: 120,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardActive: { borderColor: colors.primary, backgroundColor: "#E8F0FE" },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.background,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-  },
-  avatarActive: { backgroundColor: colors.primary },
-  initial: { fontSize: 18, fontWeight: "700", color: colors.primary },
-  initialActive: { color: colors.white },
-  cardName: { fontSize: 16, fontWeight: "600", color: colors.text },
-  cardNameActive: { color: colors.primary },
-  cardMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
-  kpis: { flexDirection: "row", gap: 10 },
-  kpi: {
-    flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  kpiValue: { fontSize: 22, fontWeight: "700", color: colors.text },
-  kpiLabel: { fontSize: 12, color: colors.muted, marginTop: 4 },
-  panel: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-  },
-  panelTitle: { fontSize: 16, fontWeight: "700", color: colors.text },
-  row: { fontSize: 15, color: colors.muted, lineHeight: 22, flex: 1 },
-  noteRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  noteVal: { fontSize: 16, fontWeight: "700" },
-  pressed: { transform: [{ scale: 0.96 }] },
-});
+import { useCallback, useEffect, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Card } from "@/components/Card";
+import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { EmptyState } from "@/components/EmptyState";
+import { Enter } from "@/components/Enter";
+import { LoadError, loadErrorMessage } from "@/components/LoadError";
+import { Skeleton } from "@/components/Skeleton";
+import { useSession } from "@/context/session";
+import { fetchAccueil } from "@/lib/api";
+import {
+  colors,
+  font,
+  greeting,
+  noteColor,
+  noteLabel,
+  pressStyle,
+  radius,
+  shadow,
+  space,
+  type,
+  useReduceMotion,
+} from "@/lib/theme";
+
+type Accueil = Awaited<ReturnType<typeof fetchAccueil>>["data"];
+const MAX_NOTES = 3;
+
+export default function AccueilScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
+  const { user, enfants, selected } = useSession();
+  const [accueil, setAccueil] = useState<Accueil | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const hello = greeting();
+
+  const load = useCallback(async () => {
+    if (!selected) {
+      setAccueil(null);
+      setError(null);
+      return;
+    }
+    setError(null);
+    const res = await fetchAccueil(selected.id);
+    setAccueil(res.data);
+  }, [selected?.id]);
+
+  const runLoad = useCallback(() => {
+    setLoading(true);
+    load()
+      .catch((err) => setError(loadErrorMessage(err)))
+      .finally(() => setLoading(false));
+  }, [load]);
+
+  useEffect(() => {
+    if (!selected) {
+      setAccueil(null);
+      setError(null);
+      return;
+    }
+    runLoad();
+  }, [runLoad, selected]);
+
+  useFocusEffect(
+    useCallback(() => {
+      runLoad();
+    }, [runLoad])
+  );
+
+  const notesRecentes = accueil?.notesRecentes.slice(0, MAX_NOTES) ?? [];
+
+  return (
+    <View style={styles.screen}>
+      <StatusBar style="light" />
+      <LinearGradient
+        colors={[colors.primaryDeep, colors.primary, "#3D7AE8"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.hero, { paddingTop: insets.top + 12 }]}
+      >
+        <Text style={[styles.kicker, font.medium]}>{hello}</Text>
+        <Text style={[styles.hello, font.bold]}>{user?.prenom ?? "Parent"}</Text>
+        {enfants.length > 0 ? <ChildSwitcher light /> : null}
+      </LinearGradient>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await load();
+              } catch (err) {
+                setError(loadErrorMessage(err));
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor={colors.primary}
+          />
+        }
+      >
+        {loading && !accueil ? <Skeleton count={2} /> : null}
+        {error ? <LoadError message={error} onRetry={runLoad} /> : null}
+
+        {accueil ? (
+          <Enter>
+            <View style={styles.kpis}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Moyenne ${accueil.moyenne?.valeur != null ? Number(accueil.moyenne.valeur).toFixed(1) : "non calculée"}. Voir les notes`}
+                onPress={() => router.push("/notes")}
+                style={({ pressed }) => [styles.kpi, styles.kpiMain, shadow.card, pressStyle(pressed, reduceMotion)]}
+              >
+                <Text style={[styles.kpiEyebrow, font.medium]}>Moyenne</Text>
+                <Text style={[styles.kpiHero, font.bold, { color: noteColor(accueil.moyenne?.valeur ?? null) }]}>
+                  {accueil.moyenne?.valeur != null ? Number(accueil.moyenne.valeur).toFixed(1) : "—"}
+                </Text>
+                <Text style={[styles.kpiHint, font.medium]}>{noteLabel(accueil.moyenne?.valeur ?? null)} / 20</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${accueil.absences.total} absences. Voir les absences`}
+                onPress={() => router.push("/absences")}
+                style={({ pressed }) => [styles.kpi, styles.kpiSide, shadow.card, pressStyle(pressed, reduceMotion)]}
+              >
+                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                <Text style={[styles.kpiValue, font.bold]}>{accueil.absences.total}</Text>
+                <Text style={[styles.kpiLabel, font.medium]}>Absences</Text>
+              </Pressable>
+            </View>
+          </Enter>
+        ) : null}
+
+        <Enter index={1}>
+          <Card accessibilityLabel="Voir les notes récentes" onPress={() => router.push("/notes")}>
+            <View style={styles.panelHead}>
+              <Text style={[styles.panelTitle, font.bold]}>Notes récentes</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </View>
+            {notesRecentes.map((note) => {
+              const value = note.valeur == null ? null : Number(note.valeur);
+              return (
+                <View key={note.id} style={styles.noteRow}>
+                  <View style={[styles.noteMark, { backgroundColor: noteColor(value) }]} />
+                  <Text style={[styles.row, font.regular]} numberOfLines={1}>
+                    {note.matiere} · {note.evaluation}
+                  </Text>
+                  <Text style={[styles.noteVal, font.bold, { color: noteColor(value) }]}>
+                    {value == null ? "—" : value}
+                  </Text>
+                </View>
+              );
+            })}
+            {accueil && accueil.notesRecentes.length === 0 ? (
+              <Text style={[styles.row, font.regular]}>Aucune note publiée pour le moment.</Text>
+            ) : null}
+            {accueil && accueil.notesRecentes.length > MAX_NOTES ? (
+              <Text style={[styles.more, font.medium]}>Voir toutes les notes</Text>
+            ) : null}
+          </Card>
+        </Enter>
+
+        {!selected ? (
+          <EmptyState
+            icon="people-outline"
+            title="Aucun enfant lié"
+            body="Dès que l’établissement associera un élève à ce compte, le suivi apparaîtra ici."
+          />
+        ) : null}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  hero: { paddingHorizontal: 20, paddingBottom: 16, gap: 6 },
+  scroll: { flex: 1 },
+  body: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 96, gap: space.section },
+  kicker: { fontSize: 14, color: "rgba(255,255,255,0.78)", letterSpacing: 0.4 },
+  hello: { fontSize: 32, color: colors.white, lineHeight: 38, letterSpacing: -0.7, marginBottom: 4 },
+  kpis: { flexDirection: "row", gap: 10 },
+  kpi: {
+    backgroundColor: colors.white,
+    borderRadius: radius.card,
+    padding: 14,
+  },
+  kpiMain: { flex: 1.2, justifyContent: "center", minHeight: 132 },
+  kpiSide: { flex: 0.9, alignItems: "flex-start", justifyContent: "center", gap: 4 },
+  kpiEyebrow: { fontSize: 12, color: colors.muted },
+  kpiHero: { fontSize: 36, fontVariant: ["tabular-nums"], letterSpacing: -1, marginVertical: 4 },
+  kpiHint: { fontSize: 13, color: colors.muted },
+  kpiValue: { fontSize: 24, color: colors.text, fontVariant: ["tabular-nums"], marginTop: 4 },
+  kpiLabel: { fontSize: 12, color: colors.muted },
+  panelHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  panelTitle: { fontSize: type.body, color: colors.text },
+  row: { fontSize: 15, color: colors.muted, lineHeight: 22, flex: 1 },
+  noteRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 28 },
+  noteMark: { width: 4, height: 22, borderRadius: 2 },
+  noteVal: { fontSize: type.body, fontVariant: ["tabular-nums"] },
+  more: { fontSize: 13, color: colors.primary, marginTop: 8 },
+});
+

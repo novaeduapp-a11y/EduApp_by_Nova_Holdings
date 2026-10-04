@@ -7,8 +7,8 @@ import { colors } from "@/lib/theme";
 export default function TwoFaScreen() {
   const router = useRouter();
   const { confirm2fa } = useSession();
-  const { challengeId, debugCode } = useLocalSearchParams<{ challengeId: string; debugCode?: string }>();
-  const [code, setCode] = useState(debugCode ?? "");
+  const { challengeId } = useLocalSearchParams<{ challengeId: string }>();
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -31,8 +31,8 @@ export default function TwoFaScreen() {
         <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.back}>
           <Text style={styles.backText}>Retour</Text>
         </Pressable>
-        <Text style={styles.title}>Code direction</Text>
-        <Text style={styles.sub}>Saisissez le code à 6 chiffres. En développement, il est prérempli.</Text>
+        <Text style={styles.title}>Code A2F</Text>
+        <Text style={styles.sub}>Saisissez le code à 6 chiffres reçu pour valider la connexion.</Text>
         <TextInput
           accessibilityLabel="Code à 6 chiffres"
           keyboardType="number-pad"

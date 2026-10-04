@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
+import { logActivite } from "@/lib/activity-log";
 
 declare module "next-auth" {
   interface Session {
@@ -39,11 +40,43 @@ declare module "@auth/core/jwt" {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Derrière Nginx : accepter Host / proto proxyfiés (évite MissingCSRF en prod).
+  trustHost: true,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adapter: PrismaAdapter(prisma) as any,
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 jours
+  },
+  // Éviter le préfixe __Host- (plus fragile derrière reverse-proxy / www).
+  cookies: {
+    sessionToken: {
+      name: "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    csrfToken: {
+      name: "authjs.csrf-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+    callbackUrl: {
+      name: "authjs.callback-url",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
   },
   pages: {
     signIn: "/login",
@@ -57,10 +90,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Mot de passe", type: "password" },
         challengeId: { label: "Challenge 2FA", type: "text" },
         code: { label: "Code 2FA", type: "text" },
+        ecoleId: { label: "Établissement", type: "text" },
       },
       async authorize(credentials) {
         const challengeId = String(credentials?.challengeId ?? "").trim();
         const code = String(credentials?.code ?? "").trim();
+        const ecoleId = String(credentials?.ecoleId ?? "").trim();
 
         if (challengeId && code) {
           const challenge = await prisma.twoFactorChallenge.findUnique({
@@ -71,12 +106,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             throw new Error("Code 2FA invalide ou expiré");
           }
           const codeOk = await bcrypt.compare(code, challenge.codeHash);
-          if (!codeOk || !challenge.user.actif || challenge.user.role !== "DIRECTEUR") {
+          if (!codeOk || !challenge.user.actif || !challenge.user.twoFactorEnabled) {
             throw new Error("Code 2FA invalide ou expiré");
+          }
+          if (ecoleId && challenge.user.role !== "ADMIN" && challenge.user.ecoleId !== ecoleId) {
+            throw new Error("Établissement incorrect");
           }
           await prisma.twoFactorChallenge.update({
             where: { id: challenge.id },
             data: { usedAt: new Date() },
+          });
+          await logActivite({
+            userId: challenge.user.id,
+            action: "connexion",
+            details: { voie: "web", role: challenge.user.role, a2f: true },
           });
           return {
             id: challenge.user.id,
@@ -121,6 +164,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         if (!user || !user.actif) {
+          await logActivite({
+            action: "connexion_refusee",
+            details: { voie: "web", identifiant: identifier.slice(0, 80), motif: "inconnu_ou_inactif" },
+          });
           throw new Error("Identifiants invalides");
         }
 
@@ -130,12 +177,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         );
 
         if (!isPasswordValid) {
+          await logActivite({
+            userId: user.id,
+            action: "connexion_refusee",
+            details: { voie: "web", motif: "mot_de_passe" },
+          });
           throw new Error("Identifiants invalides");
         }
 
-        if (user.role === "DIRECTEUR" && user.twoFactorEnabled) {
+        if (user.twoFactorEnabled) {
           throw new Error("2FA_REQUIRED");
         }
+
+        if (ecoleId && user.role !== "ADMIN" && user.ecoleId !== ecoleId) {
+          throw new Error("Établissement incorrect");
+        }
+
+        await logActivite({
+          userId: user.id,
+          action: "connexion",
+          details: { voie: "web", role: user.role, a2f: false },
+        });
 
         return {
           id: user.id,
@@ -149,7 +211,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.email = user.email!;
@@ -157,6 +219,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.prenom = user.prenom;
         token.role = user.role;
         token.photo = user.photo;
+      }
+      if (trigger === "update" && session) {
+        if (typeof session.nom === "string") token.nom = session.nom;
+        if (typeof session.prenom === "string") token.prenom = session.prenom;
+        if (typeof session.email === "string") token.email = session.email;
       }
       return token;
     },

@@ -5,8 +5,9 @@ export const colors = {
   text: "#12203A",
   muted: "#5B6B86",
   border: "#D7E2F5",
+  tint: "#E8F0FE",
   good: "#1A5FD4",
-  passable: "#6B9AE8",
+  passable: "#3D6FBF",
   fail: "#C62828",
   warn: "#C47B17",
 } as const;
@@ -22,18 +23,15 @@ export const portails = [
     id: "PROFESSEUR" as const,
     title: "Professeurs",
     text: "Notes, présences et classes — votre matière ou votre classe uniquement.",
-    demo: "professeur@ecole.sn",
   },
   {
     id: "PREFET" as const,
     title: "Préfets",
     text: "Inscriptions, bulletins et EDT, isolés par cycle.",
-    demo: "prefet.primaire@ecole.sn",
   },
   {
     id: "DIRECTION" as const,
     title: "Direction",
     text: "Bilan du jour et pilotage. Code à 6 chiffres obligatoire.",
-    demo: "directeur@ecole.sn",
   },
 ];

@@ -31,18 +31,31 @@ export async function GET(
 
     // Récupérer les absences de l'élève
     const absences = await prisma.absence.findMany({
-      where: { eleveId },
+      where: { eleveId, deletedAt: null },
       include: {
         matiere: true,
       },
       orderBy: { dateAbsence: "desc" },
     });
 
-    // Calculer les statistiques
+    const periodes = await prisma.periode.findMany({
+      orderBy: { numero: "desc" },
+      select: { nom: true, dateDebut: true, dateFin: true },
+    });
+
+    const trimestreOf = (date: Date) => {
+      const hit = periodes.find((p) => date >= p.dateDebut && date <= p.dateFin);
+      return hit?.nom ?? "Hors trimestre";
+    };
+
+    const isRetard = (motif: string | null) => /retard/i.test(motif ?? "");
+    const absencesSeules = absences.filter((a) => !isRetard(a.motif));
+    const retards = absences.filter((a) => isRetard(a.motif));
     const stats = {
-      total: absences.length,
-      justifiees: absences.filter((a) => a.justifiee).length,
-      nonJustifiees: absences.filter((a) => !a.justifiee).length,
+      total: absencesSeules.length,
+      retards: retards.length,
+      justifiees: absencesSeules.filter((a) => a.justifiee).length,
+      nonJustifiees: absencesSeules.filter((a) => !a.justifiee).length,
     };
 
     return NextResponse.json({
@@ -53,8 +66,10 @@ export async function GET(
           periode: a.periode,
           heures: a.dureeHeures,
           motif: a.motif,
+          kind: isRetard(a.motif) ? "RETARD" : "ABSENCE",
           justifiee: a.justifiee,
           matiere: a.matiere?.nom,
+          trimestre: trimestreOf(a.dateAbsence),
         })),
         stats,
       },

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { colors, portails } from "@/lib/theme";
 
@@ -7,8 +7,13 @@ export default function PortailsScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <Text style={styles.brand}>EduAdmins</Text>
-      <Text style={styles.sub}>NOVA HOLDINGS · Dakar</Text>
+      <Image
+        source={require("@/assets/eduapps-logo.png")}
+        style={styles.logo}
+        accessibilityLabel="EduApps"
+        resizeMode="contain"
+      />
+      <Text style={styles.sub}>NOVA HOLDINGS · Sénégal</Text>
       <Text style={styles.lead}>Choisissez votre portail pour continuer.</Text>
       {portails.map((portail) => (
         <Pressable
@@ -28,7 +33,7 @@ export default function PortailsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: 24, paddingTop: 72, gap: 14 },
-  brand: { fontSize: 28, fontWeight: "700", color: colors.primary },
+  logo: { width: 180, height: 52, marginBottom: 4 },
   sub: { fontSize: 14, color: colors.muted, marginBottom: 8 },
   lead: { fontSize: 18, color: colors.text, marginBottom: 8, lineHeight: 26 },
   card: {

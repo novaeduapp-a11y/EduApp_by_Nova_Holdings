@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { createTwoFactorChallenge, parsePortail, PORTAIL_ROLES } from "@/lib/staff-auth";
+import { ecoleMismatch, parsePortail, PORTAIL_ROLES, issueTwoFactorChallenge } from "@/lib/staff-auth";
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +9,7 @@ export async function POST(request: Request) {
     const identifier = String(body.identifier ?? "").trim();
     const password = String(body.password ?? "");
     const portail = parsePortail(body.portail);
+    const ecoleId = typeof body.ecoleId === "string" ? body.ecoleId.trim() : "";
 
     if (!identifier || !password) {
       return NextResponse.json({ error: "Identifiants requis" }, { status: 400 });
@@ -33,12 +34,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (user.role === "DIRECTEUR" && user.twoFactorEnabled) {
-      const challenge = await createTwoFactorChallenge(user.id);
+    if (ecoleMismatch(user, ecoleId || null)) {
+      return NextResponse.json(
+        { error: "Ce compte n’appartient pas à cet établissement" },
+        { status: 403 }
+      );
+    }
+
+    if (user.twoFactorEnabled) {
+      const challenge = await issueTwoFactorChallenge(user.id);
       return NextResponse.json({
         data: {
           requires2fa: true,
           challengeId: challenge.challengeId,
+          emailed: challenge.emailed,
           ...(process.env.NODE_ENV !== "production" ? { debugCode: challenge.code } : {}),
         },
       });

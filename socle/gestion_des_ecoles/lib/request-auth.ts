@@ -69,6 +69,10 @@ export async function requireProfesseur() {
   return requireStaff(["PROFESSEUR"]);
 }
 
+export async function requireAdmin() {
+  return requireStaff(["ADMIN"]);
+}
+
 export async function requirePrefet() {
   const authResult = await requireStaff(["PREFET"]);
   if (!authResult.ok) return authResult;
@@ -101,6 +105,40 @@ export async function requirePrefet() {
       ...authResult.user,
       ecoleId: user.ecoleId,
       familleCycle: user.familleCycle,
+    },
+  };
+}
+
+export async function requireDirecteur() {
+  const authResult = await requireStaff(["DIRECTEUR"]);
+  if (!authResult.ok) return authResult;
+
+  const user = await prisma.user.findUnique({
+    where: { id: authResult.user.id },
+    select: {
+      id: true,
+      email: true,
+      nom: true,
+      prenom: true,
+      role: true,
+      ecoleId: true,
+    },
+  });
+  if (!user || user.role !== "DIRECTEUR" || !user.ecoleId) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        { error: "Compte direction incomplet (école manquante)" },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return {
+    ok: true as const,
+    user: {
+      ...authResult.user,
+      ecoleId: user.ecoleId,
     },
   };
 }

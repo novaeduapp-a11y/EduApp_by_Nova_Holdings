@@ -9,14 +9,6 @@ Le dossier Expo ci-dessous est un **prototype hors forfait** (le client a retir�
 ### Web
 
 - Landing : [http://localhost:3000/eduadmins](http://localhost:3000/eduadmins)
-- Portail préfet : `/prefet` (après login `prefet.primaire@ecole.sn`)
-- Prof / direction : espaces socle existants (`/professeur`, `/directeur`)
+- Connexion via les portails professeur, préfet et direction après sélection de l’établissement
 
-### Comptes démo (mot de passe `Admin@123`)
-
-| Portail | E-mail | Isolation |
-|---------|--------|-----------|
-| Instituteur | `professeur@ecole.sn` | Primaire · Dakar |
-| Prof matière | `prof.college@ecole.sn` | Collège · Dakar |
-| Préfet primaire | `prefet.primaire@ecole.sn` | Cycle primaire · Dakar |
-| Direction | `directeur@ecole.sn` | 2FA · Dakar |
+Les identifiants sont fournis par l’établissement ou par NOVA HOLDINGS.

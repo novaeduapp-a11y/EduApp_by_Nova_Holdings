@@ -1,14 +1,32 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Fraunces, Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const inter = Inter({ subsets: ["latin"] });
+const outfit = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-outfit",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-fraunces",
+});
 
 export const metadata: Metadata = {
-  title: "EduApps — NOVA HOLDINGS",
+  title: "EduApps | NOVA HOLDINGS",
   description:
-    "Suite de gestion scolaire pour les établissements partenaires de NOVA HOLDINGS. EduParent et EduAdmins.",
+    "Logiciel de gestion scolaire en ligne pour les établissements partenaires de NOVA HOLDINGS au Sénégal.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/brand/eduapps-logo.png", type: "image/png" },
+    ],
+    apple: "/brand/eduapps-logo.png",
+    shortcut: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
@@ -18,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
-      <body className={`${inter.className} antialiased`}>
+      <body className={`${outfit.variable} ${fraunces.variable} ${outfit.className} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

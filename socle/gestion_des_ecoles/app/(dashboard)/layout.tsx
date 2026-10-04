@@ -1,42 +1,28 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { redirect } from "next/navigation";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
-import { useUIStore, useHydration } from "@/stores/ui-store";
-import { cn } from "@/lib/utils";
-import { PageLoading } from "@/components/shared/loading-spinner";
+import { LayoutDashboard, School, UserCog, Settings, ScrollText } from "lucide-react";
+import { PortalShell } from "@/components/eduadmins/portal-shell";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { data: session, status } = useSession();
-  const { sidebarCollapsed } = useUIStore();
-  const hydrated = useHydration();
+const navigation = [
+  { name: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Établissements", href: "/dashboard/ecoles", icon: School },
+  { name: "Comptes", href: "/dashboard/comptes", icon: UserCog },
+  { name: "Paramètres", href: "/dashboard/parametres", icon: Settings },
+  { name: "Logs et suivi", href: "/dashboard/logs", icon: ScrollText },
+];
 
-  if (status === "loading" || !hydrated) {
-    return <PageLoading />;
-  }
-
-  if (!session) {
-    redirect("/login");
-  }
-
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Sidebar />
-      <Header />
-      <main
-        className={cn(
-          "pt-16 min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "pl-16" : "pl-64"
-        )}
-      >
-        <div className="container mx-auto p-6">{children}</div>
-      </main>
-    </div>
+    <PortalShell
+      title="Administration"
+      subtitle="NOVA HOLDINGS"
+      homeHref="/dashboard"
+      allowedRole="ADMIN"
+      navigation={navigation}
+      brand="NOVA"
+      signOutHref="/login"
+    >
+      {children}
+    </PortalShell>
   );
 }

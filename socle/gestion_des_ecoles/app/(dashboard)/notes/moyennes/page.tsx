@@ -47,6 +47,7 @@ const getMention = (moyenne: number) => {
 export default function MoyennesPage() {
   const router = useRouter();
   const [classeId, setClasseId] = useState<string>("");
+  const [niveau, setNiveau] = useState<string>("");
   const [periodeId, setPeriodeId] = useState<string>("");
   const [search, setSearch] = useState("");
 
@@ -55,6 +56,8 @@ export default function MoyennesPage() {
 
   const classes = classesData?.data || [];
   const periodes = periodesData?.data || [];
+  const niveaux = [...new Set(classes.map((classe) => classe.niveau).filter(Boolean))];
+  const classesFiltrees = niveau ? classes.filter((classe) => classe.niveau === niveau) : classes;
 
   const filteredMoyennes = moyennesDemo.filter((m) =>
     m.eleve.toLowerCase().includes(search.toLowerCase()) ||
@@ -89,13 +92,30 @@ export default function MoyennesPage() {
                 className="pl-9"
               />
             </div>
+            <Select
+              value={niveau}
+              onValueChange={(value) => {
+                setNiveau(value === "all" ? "" : value);
+                setClasseId("");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les niveaux" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les niveaux</SelectItem>
+                {niveaux.map((item) => (
+                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={classeId} onValueChange={setClasseId}>
               <SelectTrigger>
                 <SelectValue placeholder="Toutes les classes" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Toutes les classes</SelectItem>
-                {classes.map((c) => (
+                {classesFiltrees.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>
                 ))}
               </SelectContent>

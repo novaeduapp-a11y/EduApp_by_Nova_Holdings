@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const search = searchParams.get("search") || "";
     const classeId = searchParams.get("classeId") || "";
+    const niveau = searchParams.get("niveau") || "";
+    const sexe = searchParams.get("sexe") || "";
     const actif = searchParams.get("actif");
 
     const skip = (page - 1) * limit;
@@ -35,6 +37,14 @@ export async function GET(request: NextRequest) {
 
     if (classeId) {
       where.classeId = classeId;
+    }
+
+    if (niveau) {
+      where.classe = { ...(where.classe ?? {}), niveau };
+    }
+
+    if (sexe === "M" || sexe === "F") {
+      where.sexe = sexe;
     }
 
     if (actif !== null && actif !== "") {

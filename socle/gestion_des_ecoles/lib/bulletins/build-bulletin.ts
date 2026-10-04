@@ -43,11 +43,19 @@ export async function buildBulletinData(bulletinId: string): Promise<BulletinDat
   const verificationUrl = `${APP_URL}/bulletins/verifier?code=${encodeURIComponent(bulletin.tokenQr)}`;
   const qrCodeUrl = await QRCode.toDataURL(verificationUrl, { width: 100, margin: 1 });
 
-  const [nomEcole, adresse, telephone, email] = await Promise.all([
+  const [nomEcole, adresse, telephone, email, appreciationSaisie] = await Promise.all([
     prisma.parametre.findUnique({ where: { cle: "nom_etablissement" } }),
     prisma.parametre.findUnique({ where: { cle: "adresse_etablissement" } }),
     prisma.parametre.findUnique({ where: { cle: "telephone_etablissement" } }),
     prisma.parametre.findUnique({ where: { cle: "email_etablissement" } }),
+    prisma.appreciation.findFirst({
+      where: {
+        eleveId: bulletin.eleveId,
+        periodeId: bulletin.periodeId,
+        type: "GENERALE",
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   return {
@@ -73,7 +81,8 @@ export async function buildBulletinData(bulletinId: string): Promise<BulletinDat
     moyenneGenerale,
     rang: moyenne?.rangClasse || 1,
     mention: moyenne?.mention || "—",
-    appreciationGenerale: appreciationGenerale(moyenneGenerale),
+    appreciationGenerale:
+      appreciationSaisie?.appreciation.trim() || appreciationGenerale(moyenneGenerale),
     qrCodeUrl,
     dateGeneration: new Date(bulletin.createdAt).toLocaleDateString("fr-FR"),
   };

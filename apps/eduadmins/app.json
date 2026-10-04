@@ -7,7 +7,10 @@
     "scheme": "eduadmins",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#F4F7FF"
     },
     "ios": {
@@ -17,6 +20,7 @@
     "android": {
       "package": "sn.novaholdings.eduadmins",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A5FD4"
       }
     },

@@ -7,9 +7,16 @@ build/
 *.log
 .env
 .env.local
+.env.production
 **/.env
+**/.env.production
+!**/.env.example
+!**/.env.production.example
 **/uploads/
 .idea/
 *.tsbuildinfo
 .expo/
 **/.expo/
+tmp/
+**/*.zip
+CONTEXT.md

@@ -3,11 +3,11 @@ import { auth } from "@/lib/auth";
 import type { Role } from "@prisma/client";
 import type { Session } from "next-auth";
 
-/** Rôles avec accès au back-office scolaire (hors espaces parent/élève). */
-export const STAFF_ROLES: Role[] = ["ADMIN", "DIRECTEUR", "PROFESSEUR"];
+/** Back-office socle (admin) + APIs notes héritées du professeur. Direction / préfet ont leurs propres APIs. */
+export const STAFF_ROLES: Role[] = ["ADMIN", "PROFESSEUR"];
 
-/** Rôles pouvant gérer inscriptions, finances, imports et bulletins. */
-export const MANAGEMENT_ROLES: Role[] = ["ADMIN", "DIRECTEUR"];
+/** Inscriptions, finances, imports : réservé à l’admin socle. */
+export const MANAGEMENT_ROLES: Role[] = ["ADMIN"];
 
 export const ADMIN_ROLES: Role[] = ["ADMIN"];
 

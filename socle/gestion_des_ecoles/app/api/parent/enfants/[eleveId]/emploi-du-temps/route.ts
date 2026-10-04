@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { requireParentOfEleve } from "@/lib/request-auth";
-
-const JOURS = [
-  { jour: "LUNDI", label: "Lundi" },
-  { jour: "MARDI", label: "Mardi" },
-  { jour: "MERCREDI", label: "Mercredi" },
-  { jour: "JEUDI", label: "Jeudi" },
-  { jour: "VENDREDI", label: "Vendredi" },
-] as const;
+import { JOURS_SEMAINE, serializeCreneau } from "@/lib/edt";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
@@ -21,18 +15,29 @@ export async function GET(
     const authResult = await requireParentOfEleve(params.eleveId);
     if (!authResult.ok) return authResult.response;
 
-    // Créneaux réels = Lot C / V1.1. L’écran parent affiche déjà la grille.
+    const eleve = await prisma.eleve.findUnique({
+      where: { id: params.eleveId },
+      select: { classeId: true },
+    });
+    if (!eleve) {
+      return NextResponse.json({ error: "Élève introuvable" }, { status: 404 });
+    }
+
+    const creneaux = await prisma.creneauEdt.findMany({
+      where: { classeId: eleve.classeId },
+      include: {
+        matiere: { select: { nom: true } },
+        professeur: { select: { prenom: true, nom: true } },
+      },
+      orderBy: [{ heureDebut: "asc" }],
+    });
+
     return NextResponse.json({
       data: {
-        semaine: JOURS.map((jour) => ({
+        semaine: JOURS_SEMAINE.map((jour) => ({
           jour: jour.jour,
           label: jour.label,
-          cours: [] as Array<{
-            matiere: string;
-            horaire: string;
-            salle: string | null;
-            professeur: string | null;
-          }>,
+          cours: creneaux.filter((c) => c.jour === jour.jour).map(serializeCreneau),
         })),
       },
     });

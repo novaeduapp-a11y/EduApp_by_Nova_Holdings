@@ -3,88 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  GraduationCap,
-  BookOpen,
-  ClipboardList,
-  Calendar,
-  FileText,
-  Settings,
-  ChevronLeft,
-  LogOut,
-  UserCog,
-  MessageSquare,
-  Wallet,
-  UserCheck,
-} from "lucide-react";
+import { LayoutDashboard, School, UserCog, ChevronLeft, LogOut, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { signOut } from "next-auth/react";
 import { useUIStore } from "@/stores/ui-store";
 
 const menuItems = [
-  {
-    title: "Tableau de bord",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Élèves",
-    href: "/eleves",
-    icon: Users,
-  },
-  {
-    title: "Classes",
-    href: "/classes",
-    icon: GraduationCap,
-  },
-  {
-    title: "Matières",
-    href: "/matieres",
-    icon: BookOpen,
-  },
-  {
-    title: "Notes",
-    href: "/notes",
-    icon: ClipboardList,
-  },
-  {
-    title: "Absences",
-    href: "/absences",
-    icon: Calendar,
-  },
-  {
-    title: "Bulletins",
-    href: "/bulletins",
-    icon: FileText,
-  },
-  {
-    title: "Appréciations",
-    href: "/appreciations",
-    icon: MessageSquare,
-  },
-  {
-    title: "Paiements",
-    href: "/paiements",
-    icon: Wallet,
-  },
-  {
-    title: "Comptes Parents",
-    href: "/parents",
-    icon: UserCheck,
-  },
-  {
-    title: "Utilisateurs",
-    href: "/utilisateurs",
-    icon: UserCog,
-  },
-  {
-    title: "Paramètres",
-    href: "/parametres",
-    icon: Settings,
-  },
+  { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Établissements", href: "/dashboard/ecoles", icon: School },
+  { title: "Comptes", href: "/dashboard/comptes", icon: UserCog },
 ];
 
 export function Sidebar() {
@@ -94,53 +22,47 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 h-screen border-r bg-background transition-all duration-300",
+        "fixed left-0 top-0 z-40 h-screen bg-gradient-to-b from-[#0B2F7A] to-primary transition-[width] duration-300 motion-reduce:transition-none",
         sidebarCollapsed ? "w-16" : "w-64"
       )}
     >
       <div className="flex h-full flex-col">
-        {/* Header */}
-        <div className="flex h-16 items-center justify-between border-b px-4">
+        <div className="flex h-16 items-center justify-between border-b border-white/20 px-4">
           {!sidebarCollapsed && (
-            <Link href="/dashboard" className="flex items-center gap-2">
-              <GraduationCap className="h-8 w-8 text-[#1A5FD4]" />
-              <span className="font-bold text-lg">EduApps</span>
+            <Link href="/dashboard" className="min-w-0">
+              <p className="font-bold text-white leading-tight">Administration</p>
+              <p className="text-[11px] text-white/70">NOVA HOLDINGS</p>
             </Link>
           )}
           {sidebarCollapsed && (
-            <Link href="/dashboard" className="mx-auto">
-              <GraduationCap className="h-8 w-8 text-[#1A5FD4]" />
+            <Link href="/dashboard" className="mx-auto" aria-label="Administration NOVA">
+              <GraduationCap className="h-7 w-7 text-white" />
             </Link>
           )}
           <Button
             variant="ghost"
             size="icon"
+            aria-label={sidebarCollapsed ? "Déplier le menu" : "Replier le menu"}
             onClick={toggleSidebarCollapsed}
-            className={cn(sidebarCollapsed && "mx-auto")}
+            className={cn("text-white hover:bg-white/10", sidebarCollapsed && "mx-auto")}
           >
-            <ChevronLeft
-              className={cn(
-                "h-4 w-4 transition-transform",
-                sidebarCollapsed && "rotate-180"
-              )}
-            />
+            <ChevronLeft className={cn("h-4 w-4 transition-transform", sidebarCollapsed && "rotate-180")} />
           </Button>
         </div>
 
-        {/* Navigation */}
         <ScrollArea className="flex-1 py-4 overflow-y-auto">
-          <nav className="space-y-1 px-2">
+          <nav className="space-y-1 px-2" aria-label="Administration NOVA">
             {menuItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const isActive =
+                item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-blue-100 text-blue-700"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    "flex min-h-11 items-center gap-3 rounded-full px-3 py-2.5 text-sm font-medium transition-[color,background-color,transform] duration-press ease-out active:scale-[0.96] motion-reduce:active:scale-100",
+                    isActive ? "bg-white text-primary" : "text-white/90 hover:bg-white/10",
                     sidebarCollapsed && "justify-center px-2"
                   )}
                   title={sidebarCollapsed ? item.title : undefined}
@@ -153,15 +75,15 @@ export function Sidebar() {
           </nav>
         </ScrollArea>
 
-        {/* Footer */}
-        <div className="border-t p-4">
+        <div className="border-t border-white/20 p-4">
           <Button
             variant="ghost"
             className={cn(
-              "w-full justify-start gap-3 text-muted-foreground hover:text-red-600",
+              "w-full justify-start gap-3 text-white/80 hover:bg-white/10 hover:text-white",
               sidebarCollapsed && "justify-center px-2"
             )}
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            aria-label="Déconnexion"
+            onClick={() => signOut({ callbackUrl: "/eduadmins" })}
           >
             <LogOut className="h-5 w-5" />
             {!sidebarCollapsed && <span>Déconnexion</span>}

@@ -12,7 +12,7 @@ export async function GET() {
     if (!authResult.ok) return authResult.response;
 
     const parentEleves = await prisma.parentEleve.findMany({
-      where: { parentId: authResult.user.id },
+      where: { parentId: authResult.user.id, eleve: { deletedAt: null } },
       include: {
         eleve: {
           include: {

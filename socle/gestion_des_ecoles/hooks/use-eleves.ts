@@ -12,20 +12,24 @@ interface ElevesMeta {
 
 interface ElevesFilters extends PaginationParams {
   classeId?: string;
+  niveau?: string;
+  sexe?: string;
   actif?: boolean | null;
 }
 
 export function useEleves(filters: ElevesFilters = {}) {
-  const { page = 1, limit = 10, search, classeId, actif } = filters;
+  const { page = 1, limit = 10, search, classeId, niveau, sexe, actif } = filters;
 
   return useQuery({
-    queryKey: ["eleves", { page, limit, search, classeId, actif }],
+    queryKey: ["eleves", { page, limit, search, classeId, niveau, sexe, actif }],
     queryFn: async () => {
       const response = await apiGet<EleveWithClasse[]>("/eleves", {
         page,
         limit,
         search,
         classeId,
+        niveau,
+        sexe,
         actif: actif !== null ? actif : undefined,
       });
       return {
