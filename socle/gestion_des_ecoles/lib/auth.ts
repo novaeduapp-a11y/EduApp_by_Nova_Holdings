@@ -153,14 +153,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           });
           user = eleve?.user || null;
         } else {
-          // Connexion par téléphone - normaliser le numéro
-          const phoneNormalized = identifier.replace(/\s/g, "");
-          user = await prisma.user.findFirst({
-            where: { 
-              telephone: { contains: phoneNormalized.slice(-9) },
+          // Connexion par téléphone - normaliser et matcher exactement
+          // Format Sénégal: +221 77 123 45 67 ou 77 123 45 67 ou 771234567
+          const phoneNormalized = identifier.replace(/[\s\-\.]/g, "").replace(/^\+221/, "");
+          
+          // Chercher avec correspondance exacte du numéro normalisé
+          const users = await prisma.user.findMany({
+            where: {
+              telephone: { not: null },
               actif: true,
             },
+            select: {
+              id: true,
+              telephone: true,
+              email: true,
+              nom: true,
+              prenom: true,
+              password: true,
+              role: true,
+              photo: true,
+              actif: true,
+              twoFactorEnabled: true,
+              ecoleId: true,
+            },
           });
+
+          // Trouver le user dont le téléphone normalisé correspond exactement
+          user = users.find((u) => {
+            if (!u.telephone) return false;
+            const dbPhoneNormalized = u.telephone.replace(/[\s\-\.]/g, "").replace(/^\+221/, "");
+            return dbPhoneNormalized === phoneNormalized;
+          }) || null;
         }
 
         if (!user || !user.actif) {
@@ -191,6 +214,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (ecoleId && user.role !== "ADMIN" && user.ecoleId !== ecoleId) {
           throw new Error("Établissement incorrect");
+        }
+
+        // Vérifier si un changement de mot de passe est requis
+        if (user.mustChangePassword) {
+          throw new Error("PASSWORD_CHANGE_REQUIRED");
         }
 
         await logActivite({

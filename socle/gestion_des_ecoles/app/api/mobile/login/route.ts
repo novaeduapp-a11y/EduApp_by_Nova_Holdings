@@ -4,12 +4,20 @@ import { prisma } from "@/lib/prisma";
 import { signMobileToken } from "@/lib/mobile-token";
 import { issueTwoFactorChallenge } from "@/lib/staff-auth";
 import { logActivite } from "@/lib/activity-log";
+import {
+  recordLoginAttempt,
+  isIpBlocked,
+  isIdentifierBlocked,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
 }
 
 export async function POST(request: Request) {
+  const clientIp = getClientIp(request);
+
   try {
     const body = await request.json();
     const identifier = String(body.identifier ?? body.email ?? "").trim();
@@ -22,16 +30,44 @@ export async function POST(request: Request) {
       );
     }
 
+    // Vérifier le rate limiting
+    if (await isIpBlocked(clientIp)) {
+      return NextResponse.json(
+        { error: "Trop de tentatives échouées. Réessayez dans 15 minutes." },
+        { status: 429 }
+      );
+    }
+
+    if (await isIdentifierBlocked(identifier)) {
+      return NextResponse.json(
+        { error: "Trop de tentatives échouées. Réessayez dans 15 minutes." },
+        { status: 429 }
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { email: identifier },
     });
 
     if (!user?.actif) {
+      await recordLoginAttempt({
+        identifier,
+        ipAddress: clientIp,
+        success: false,
+        reason: "compte_introuvable",
+      });
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      await recordLoginAttempt({
+        userId: user.id,
+        identifier,
+        ipAddress: clientIp,
+        success: false,
+        reason: "mot_de_passe",
+      });
       await logActivite({
         userId: user.id,
         action: "connexion_refusee",
@@ -43,6 +79,18 @@ export async function POST(request: Request) {
     if (user.role !== "PARENT") {
       return NextResponse.json(
         { error: "Cet espace est réservé aux parents" },
+        { status: 403 }
+      );
+    }
+
+    // Vérifier si changement de mot de passe requis
+    if (user.mustChangePassword) {
+      return NextResponse.json(
+        {
+          error: "Changement de mot de passe requis",
+          code: "PASSWORD_CHANGE_REQUIRED",
+          userId: user.id,
+        },
         { status: 403 }
       );
     }
@@ -73,6 +121,13 @@ export async function POST(request: Request) {
       details: { voie: "eduparent", role: user.role, a2f: false },
     });
 
+    await recordLoginAttempt({
+      userId: user.id,
+      identifier,
+      ipAddress: clientIp,
+      success: true,
+    });
+
     return NextResponse.json({
       data: {
         requires2fa: false,
@@ -86,7 +141,8 @@ export async function POST(request: Request) {
         },
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Erreur mobile login:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

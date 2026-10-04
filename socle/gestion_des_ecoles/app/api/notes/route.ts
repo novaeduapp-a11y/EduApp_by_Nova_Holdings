@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/permissions";
+import { requireProfesseur, requireAdmin, checkProfesseurMatiere } from "@/lib/unified-auth";
 import { z } from "zod";
 
 const createNotesSchema = z.object({
@@ -13,10 +13,10 @@ const createNotesSchema = z.object({
   })),
 });
 
-// GET /api/notes - Liste des notes
+// GET /api/notes - Liste des notes (avec isolation école/classe)
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireProfesseur();
     if (!authResult.ok) return authResult.response;
 
     const { searchParams } = new URL(request.url);
@@ -27,6 +27,31 @@ export async function GET(request: NextRequest) {
     const where: any = {};
     if (evaluationId) where.evaluationId = evaluationId;
     if (eleveId) where.eleveId = eleveId;
+
+    // Isolation par école
+    if (!authResult.user.isAdmin && authResult.user.ecoleId) {
+      where.eleve = { ecoleId: authResult.user.ecoleId };
+    }
+
+    // Pour les professeurs, filtrer par évaluations de leurs classes/matières
+    if (!authResult.user.isAdmin && authResult.user.affectations) {
+      const evaluationIds = await prisma.evaluation.findMany({
+        where: {
+          deletedAt: null,
+          OR: authResult.user.affectations.map((a: { classeId: string; matiereId: string }) => ({
+            classeId: a.classeId,
+            matiereId: a.matiereId,
+          })),
+        },
+        select: { id: true },
+      });
+      
+      if (evaluationIds.length > 0) {
+        where.evaluationId = { in: evaluationIds.map((e) => e.id) };
+      } else {
+        where.id = { in: [] }; // Aucune évaluation accessible
+      }
+    }
 
     const notes = await prisma.note.findMany({
       where,
@@ -47,12 +72,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/notes - Saisir les notes (batch)
+// POST /api/notes - Saisir les notes (batch) avec validation stricte
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireProfesseur();
     if (!authResult.ok) return authResult.response;
-    const session = authResult.session;
 
     const body = await request.json();
     const validation = createNotesSchema.safeParse(body);
@@ -68,7 +92,10 @@ export async function POST(request: NextRequest) {
 
     // Vérifier que l'évaluation existe
     const evaluation = await prisma.evaluation.findUnique({
-      where: { id: evaluationId },
+      where: { id: evaluationId, deletedAt: null },
+      include: {
+        classe: { select: { ecoleId: true } },
+      },
     });
 
     if (!evaluation) {
@@ -78,7 +105,89 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Upsert des notes (créer ou mettre à jour)
+    // Vérifier l'accès à cette évaluation
+    if (!authResult.user.isAdmin) {
+      // Vérifier l'école
+      if (authResult.user.ecoleId !== evaluation.classe.ecoleId) {
+        return NextResponse.json(
+          { success: false, error: { code: "FORBIDDEN", message: "Accès refusé à cette évaluation (école différente)" } },
+          { status: 403 }
+        );
+      }
+
+      // Vérifier que le professeur enseigne cette matière dans cette classe
+      const canAccess = await checkProfesseurMatiere(
+        authResult.user.id,
+        evaluation.classeId,
+        evaluation.matiereId
+      );
+
+      if (!canAccess) {
+        return NextResponse.json(
+          { success: false, error: { code: "FORBIDDEN", message: "Vous n'enseignez pas cette matière dans cette classe" } },
+          { status: 403 }
+        );
+      }
+    }
+
+    const noteSur = Number(evaluation.noteSur);
+
+    // Valider que toutes les notes sont <= noteSur
+    for (const noteData of notes) {
+      if (noteData.note !== null && noteData.note !== undefined && !noteData.absent) {
+        if (noteData.note > noteSur) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "VALIDATION_ERROR",
+                message: `Note invalide: ${noteData.note} dépasse le maximum de ${noteSur}`,
+              },
+            },
+            { status: 400 }
+          );
+        }
+        if (noteData.note < 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "VALIDATION_ERROR",
+                message: `Note invalide: ${noteData.note} est négative`,
+              },
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Vérifier que tous les élèves appartiennent à la classe de l'évaluation
+    const elevesIds = notes.map((n) => n.eleveId);
+    const elevesInClasse = await prisma.eleve.findMany({
+      where: {
+        id: { in: elevesIds },
+        classeId: evaluation.classeId,
+        deletedAt: null,
+        actif: true,
+      },
+      select: { id: true },
+    });
+
+    if (elevesInClasse.length !== elevesIds.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Certains élèves n'appartiennent pas à cette classe",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // Upsert des notes
     const results = await Promise.all(
       notes.map(async (noteData) => {
         return prisma.note.upsert({
@@ -99,7 +208,7 @@ export async function POST(request: NextRequest) {
             note: noteData.absent ? null : noteData.note,
             absent: noteData.absent,
             commentaire: noteData.commentaire,
-            saisiPar: session.user.id,
+            saisiPar: authResult.user.id,
           },
         });
       })

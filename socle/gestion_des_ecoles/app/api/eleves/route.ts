@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireManagement, requireStaff } from "@/lib/permissions";
+import { requireAdmin, requireProfesseur, requirePrefet, requireDirecteur } from "@/lib/unified-auth";
 import { createEleveSchema } from "@/lib/validations/eleve";
 import { generateMatricule } from "@/lib/constants";
 import bcrypt from "bcryptjs";
 
 // GET /api/eleves - Liste des élèves avec pagination et filtres
+// Maintenant avec isolation école/classe pour professeurs
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireStaff();
+    const { searchParams } = new URL(request.url);
+    const role = searchParams.get("role"); // Pour déterminer quel check faire
+    
+    // Déterminer l'utilisateur et ses permissions
+    let authResult;
+    if (role === "PROFESSEUR") {
+      authResult = await requireProfesseur();
+    } else if (role === "PREFET") {
+      authResult = await requirePrefet();
+    } else if (role === "DIRECTEUR") {
+      authResult = await requireDirecteur();
+    } else {
+      authResult = await requireAdmin();
+    }
+
     if (!authResult.ok) return authResult.response;
 
-    const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const search = searchParams.get("search") || "";
@@ -26,6 +40,30 @@ export async function GET(request: NextRequest) {
     const where: any = {
       deletedAt: null,
     };
+
+    // Isolation par école (sauf ADMIN)
+    if (!authResult.user.isAdmin && authResult.user.ecoleId) {
+      where.ecoleId = authResult.user.ecoleId;
+    }
+
+    // Pour les préfets, filtrer par cycle
+    if ("familleCycle" in authResult.user && authResult.user.familleCycle && !authResult.user.isAdmin) {
+      where.classe = {
+        ...(where.classe ?? {}),
+        cycle: { famille: authResult.user.familleCycle },
+      };
+    }
+
+    // Pour les professeurs, filtrer par classes enseignées
+    if ("affectations" in authResult.user && authResult.user.affectations && !authResult.user.isAdmin) {
+      const classeIds = [...new Set(authResult.user.affectations.map((a: { classeId: string }) => a.classeId))];
+      if (classeIds.length > 0) {
+        where.classeId = { in: classeIds };
+      } else {
+        // Aucune classe assignée
+        where.id = { in: [] };
+      }
+    }
 
     if (search) {
       where.OR = [
@@ -75,7 +113,6 @@ export async function GET(request: NextRequest) {
       prisma.eleve.count({ where }),
     ]);
 
-    // Ajouter le statut "en difficulté" pour chaque élève
     const elevesWithStatus = eleves.map((eleve) => {
       const derniereMoyenne = eleve.moyennesGenerales[0];
       const moyenne = derniereMoyenne?.moyenneGenerale ? Number(derniereMoyenne.moyenneGenerale) : null;
@@ -108,10 +145,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/eleves - Créer un élève
+// POST /api/eleves - Créer un élève (réservé ADMIN)
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireManagement();
+    const authResult = await requireAdmin();
     if (!authResult.ok) return authResult.response;
 
     const body = await request.json();
@@ -136,7 +173,6 @@ export async function POST(request: NextRequest) {
 
     const data = validation.data;
 
-    // Récupérer la classe pour générer le matricule
     const classe = await prisma.classe.findUnique({
       where: { id: data.classeId },
     });
@@ -148,7 +184,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Compter les élèves pour générer le matricule
+    // Vérifier que l'ADMIN peut créer dans cette école (ou est ADMIN global)
+    if (!authResult.user.isAdmin && authResult.user.ecoleId !== classe.ecoleId) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Permission refusée pour cette école" } },
+        { status: 403 }
+      );
+    }
+
     const count = await prisma.eleve.count({
       where: {
         matricule: {
@@ -159,12 +202,10 @@ export async function POST(request: NextRequest) {
 
     const matricule = generateMatricule(classe.niveau, count + 1);
 
-    // Créer le compte utilisateur si demandé
     let userId: string | null = null;
     let generatedPassword: string | null = null;
 
     if (body.createAccount) {
-      // Générer un mot de passe aléatoire
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
       generatedPassword = "";
       for (let i = 0; i < 8; i++) {
@@ -174,7 +215,6 @@ export async function POST(request: NextRequest) {
       const hashedPassword = await bcrypt.hash(generatedPassword, 10);
       const email = `${matricule.toLowerCase()}@eleve.ecole.sn`;
 
-      // Créer le compte utilisateur
       const user = await prisma.user.create({
         data: {
           nom: data.nom,
@@ -182,6 +222,7 @@ export async function POST(request: NextRequest) {
           email,
           password: hashedPassword,
           role: "ELEVE",
+          mustChangePassword: true, // Force password change at first login
         },
       });
       userId = user.id;

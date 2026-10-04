@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireStaff } from "@/lib/permissions";
+import { requireAdmin, checkEleveAccess } from "@/lib/unified-auth";
+import { requireAuth } from "@/lib/unified-auth";
 import { updateEleveSchema } from "@/lib/validations/eleve";
 
-// GET /api/eleves/[id] - Détail d'un élève
+// GET /api/eleves/[id] - Détail d'un élève (avec isolation école)
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
 
     const eleve = await prisma.eleve.findUnique({
@@ -47,6 +48,21 @@ export async function GET(
       );
     }
 
+    // Vérifier l'accès à cet élève
+    const hasAccess = await checkEleveAccess(
+      authResult.user.id,
+      authResult.user.role,
+      authResult.user.ecoleId,
+      params.id
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Accès refusé à cet élève" } },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({ success: true, data: eleve });
   } catch (error) {
     console.error("Erreur GET /api/eleves/[id]:", error);
@@ -57,14 +73,29 @@ export async function GET(
   }
 }
 
-// PUT /api/eleves/[id] - Modifier un élève
+// PUT /api/eleves/[id] - Modifier un élève (avec isolation école)
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireAuth(["ADMIN", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
+
+    // Vérifier l'accès à cet élève
+    const hasAccess = await checkEleveAccess(
+      authResult.user.id,
+      authResult.user.role,
+      authResult.user.ecoleId,
+      params.id
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Accès refusé à cet élève" } },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const validation = updateEleveSchema.safeParse(body);
@@ -120,7 +151,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/eleves/[id] - Supprimer un élève (soft delete)
+// DELETE /api/eleves/[id] - Supprimer un élève (soft delete, ADMIN only)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -140,7 +171,21 @@ export async function DELETE(
       );
     }
 
-    // Soft delete
+    // Vérifier l'accès à cet élève
+    const hasAccess = await checkEleveAccess(
+      authResult.user.id,
+      authResult.user.role,
+      authResult.user.ecoleId,
+      params.id
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Accès refusé à cet élève" } },
+        { status: 403 }
+      );
+    }
+
     await prisma.eleve.update({
       where: { id: params.id },
       data: { deletedAt: new Date(), actif: false },

@@ -93,6 +93,7 @@ model User {
   typeProfesseur TypeProfesseur? @map("type_professeur")
   familleCycle  FamilleCycle?    @map("famille_cycle")
   twoFactorEnabled Boolean       @default(false) @map("two_factor_enabled")
+  mustChangePassword Boolean     @default(false) @map("must_change_password")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -124,8 +125,11 @@ model User {
   classesPrincipal    Classe[]        @relation("ClasseProfPrincipal")
   professeurMatieres  ProfesseurMatiere[]
   convocationsCreees  Convocation[]   @relation("ConvocationAuteur")
+  tokenRevocations    TokenRevocation[]
+  loginAttempts       LoginAttempt[]
 
   @@index([ecoleId])
+  @@index([telephone])
   @@map("users")
 }
 
@@ -808,6 +812,35 @@ model MessageStaff {
 
   @@index([filId, createdAt])
   @@map("messages_staff")
+}
+
+model TokenRevocation {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("token_revocations")
+}
+
+model LoginAttempt {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  identifier String
+  ipAddress  String   @map("ip_address")
+  success    Boolean
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ipAddress, createdAt])
+  @@index([userId, createdAt])
+  @@index([identifier, createdAt])
+  @@map("login_attempts")
 }
 
 // ============== PAIEMENTS ==============

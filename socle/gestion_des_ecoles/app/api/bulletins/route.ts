@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/permissions";
+import { requireAuth } from "@/lib/unified-auth";
 
-// GET /api/bulletins - Récupérer les bulletins
+// GET /api/bulletins - Récupérer les bulletins (avec isolation école/classe)
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
 
     const { searchParams } = new URL(request.url);
@@ -17,8 +17,34 @@ export async function GET(request: NextRequest) {
       deletedAt: null,
     };
 
+    // Isolation par école
+    if (authResult.user.role !== "ADMIN" && authResult.user.ecoleId) {
+      where.eleve = { ecoleId: authResult.user.ecoleId };
+    }
+
+    // Pour les préfets, filtrer par cycle
+    if (authResult.user.role === "PREFET" && "familleCycle" in authResult.user && authResult.user.familleCycle) {
+      where.eleve = {
+        ...(where.eleve as object || {}),
+        classe: { cycle: { famille: authResult.user.familleCycle } },
+      };
+    }
+
+    // Pour les professeurs, filtrer par leurs classes
+    if (authResult.user.role === "PROFESSEUR" && "affectations" in authResult.user && authResult.user.affectations) {
+      const classeIds = [...new Set(authResult.user.affectations.map((a: { classeId: string }) => a.classeId))];
+      if (classeIds.length > 0) {
+        where.eleve = {
+          ...(where.eleve as object || {}),
+          classeId: { in: classeIds },
+        };
+      } else {
+        where.id = { in: [] }; // Aucune classe accessible
+      }
+    }
+
     if (classeId) {
-      where.eleve = { classeId };
+      where.eleve = { ...(where.eleve as object || {}), classeId };
     }
 
     if (periodeId) {
@@ -27,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     if (search) {
       where.eleve = {
-        ...((where.eleve as object) || {}),
+        ...(where.eleve as object || {}),
         OR: [
           { nom: { contains: search, mode: "insensitive" } },
           { prenom: { contains: search, mode: "insensitive" } },
@@ -56,7 +82,6 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    // Transformer les données pour l'affichage
     const bulletinsFormatted = bulletins.map((b) => {
       const moyenneGenerale = b.eleve.moyennesGenerales[0];
       return {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireStaff } from "@/lib/permissions";
+import { requireAuth, checkEleveAccess, requireProfesseur } from "@/lib/unified-auth";
 import { z } from "zod";
 
 const createAbsenceSchema = z.object({
@@ -14,10 +14,10 @@ const createAbsenceSchema = z.object({
   document: z.string().optional(),
 });
 
-// GET /api/absences - Liste des absences
+// GET /api/absences - Liste des absences (avec isolation école/classe)
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
 
     const { searchParams } = new URL(request.url);
@@ -31,9 +31,35 @@ export async function GET(request: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = {};
+
+    // Isolation par école
+    if (authResult.user.role !== "ADMIN" && authResult.user.ecoleId) {
+      where.eleve = { ecoleId: authResult.user.ecoleId };
+    }
+
+    // Pour les préfets, filtrer par cycle
+    if (authResult.user.role === "PREFET" && "familleCycle" in authResult.user && authResult.user.familleCycle) {
+      where.eleve = {
+        ...(where.eleve ?? {}),
+        classe: { cycle: { famille: authResult.user.familleCycle } },
+      };
+    }
+
+    // Pour les professeurs, filtrer par leurs classes
+    if (authResult.user.role === "PROFESSEUR" && "affectations" in authResult.user && authResult.user.affectations) {
+      const classeIds = [...new Set(authResult.user.affectations.map((a: { classeId: string }) => a.classeId))];
+      if (classeIds.length > 0) {
+        where.eleve = {
+          ...(where.eleve ?? {}),
+          classeId: { in: classeIds },
+        };
+      } else {
+        where.id = { in: [] }; // Aucune classe accessible
+      }
+    }
     
     if (eleveId) where.eleveId = eleveId;
-    if (classeId) where.eleve = { classeId };
+    if (classeId) where.eleve = { ...(where.eleve ?? {}), classeId };
     if (justifiee !== null && justifiee !== "") where.justifiee = justifiee === "true";
     if (dateDebut || dateFin) {
       where.dateAbsence = {};
@@ -71,12 +97,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/absences - Créer une absence
+// POST /api/absences - Créer une absence (avec validation accès élève)
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireStaff();
+    const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
-    const session = authResult.session;
 
     const body = await request.json();
     const validation = createAbsenceSchema.safeParse(body);
@@ -90,6 +115,21 @@ export async function POST(request: NextRequest) {
 
     const data = validation.data;
 
+    // Vérifier l'accès à cet élève
+    const hasAccess = await checkEleveAccess(
+      authResult.user.id,
+      authResult.user.role,
+      authResult.user.ecoleId,
+      data.eleveId
+    );
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Accès refusé à cet élève" } },
+        { status: 403 }
+      );
+    }
+
     const absence = await prisma.absence.create({
       data: {
         eleveId: data.eleveId,
@@ -100,7 +140,7 @@ export async function POST(request: NextRequest) {
         justifiee: data.justifiee,
         motif: data.motif,
         document: data.document,
-        createdBy: session.user.id,
+        createdBy: authResult.user.id,
       },
       include: {
         eleve: { select: { id: true, nom: true, prenom: true, matricule: true, classe: { select: { id: true, nom: true } } } },

@@ -13,7 +13,13 @@ export type MobileUser = {
 };
 
 function secret(): string {
-  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "";
+  const sec = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "";
+  if (!sec) {
+    throw new Error(
+      "AUTH_SECRET manquant. Veuillez définir AUTH_SECRET ou NEXTAUTH_SECRET dans les variables d'environnement."
+    );
+  }
+  return sec;
 }
 
 export function signMobileToken(user: MobileUser): string {
