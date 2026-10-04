@@ -19,7 +19,7 @@ export async function resetTestDatabase() {
   await prisma.filMessage.deleteMany({});
   await prisma.communique.deleteMany({});
   await prisma.creneauEdt.deleteMany({});
-  await prisma.logsActivite.deleteMany({});
+  await prisma.logActivite.deleteMany({});
   await prisma.convocation.deleteMany({});
   await prisma.professeurMatiere.deleteMany({});
   await prisma.session.deleteMany({});
