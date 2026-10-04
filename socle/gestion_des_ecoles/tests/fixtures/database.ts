@@ -10,15 +10,36 @@ const prisma = new PrismaClient();
  */
 export async function resetTestDatabase() {
   // Clean all data - order matters for FK constraints
+  // Delete tables that reference User first
+  await prisma.noteAgenda.deleteMany({});
+  await prisma.evenementJour.deleteMany({});
+  await prisma.messageStaff.deleteMany({});
+  await prisma.filStaff.deleteMany({});
+  await prisma.message.deleteMany({});
+  await prisma.filMessage.deleteMany({});
+  await prisma.communique.deleteMany({});
+  await prisma.creneauEdt.deleteMany({});
+  await prisma.logsActivite.deleteMany({});
+  await prisma.convocation.deleteMany({});
+  await prisma.professeurMatiere.deleteMany({});
+  await prisma.session.deleteMany({});
+  await prisma.account.deleteMany({});
+  
+  // Delete tables that reference Eleve
   await prisma.note.deleteMany({});
   await prisma.appreciation.deleteMany({});
   await prisma.bulletin.deleteMany({});
-  await prisma.moyenneMatiere.deleteMany({}); // Delete before eleve (FK constraint)
-  await prisma.moyenneGenerale.deleteMany({}); // Delete before eleve (FK constraint)
+  await prisma.moyenneMatiere.deleteMany({});
+  await prisma.moyenneGenerale.deleteMany({});
   await prisma.absence.deleteMany({});
+  await prisma.paiement.deleteMany({});
+  await prisma.parentEleve.deleteMany({});
+  
+  // Delete evaluations (references User via professeur)
   await prisma.evaluation.deleteMany({});
   await prisma.classeMatiere.deleteMany({});
-  await prisma.parentEleve.deleteMany({});
+  
+  // Now safe to delete core entities
   await prisma.eleve.deleteMany({});
   await prisma.classe.deleteMany({});
   await prisma.matiere.deleteMany({});
