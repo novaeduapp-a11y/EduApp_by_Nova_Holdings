@@ -3,18 +3,25 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
-const changePasswordSchema = z.object({
-  userId: z.string().min(1),
-  currentPassword: z.string().optional(), // Optional si c'est un premier changement forcé
-  newPassword: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
-  confirmPassword: z.string().min(1),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "Les mots de passe ne correspondent pas",
-  path: ["confirmPassword"],
-});
+const changePasswordSchema = z
+  .object({
+    userId: z.string().min(1),
+    currentPassword: z.string().min(1, "Mot de passe actuel requis"),
+    newPassword: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+    confirmPassword: z.string().min(1),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Les mots de passe ne correspondent pas",
+    path: ["confirmPassword"],
+  })
+  .refine((data) => data.newPassword !== data.currentPassword, {
+    message: "Le nouveau mot de passe doit être différent de l'actuel",
+    path: ["newPassword"],
+  });
 
 /**
- * POST /api/auth/change-password - Changer le mot de passe (pour changement forcé ou volontaire)
+ * POST /api/auth/change-password - Changement forcé ou volontaire.
+ * Le mot de passe actuel est toujours exigé (y compris après login temporaire).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -49,21 +56,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Si ce n'est pas un changement forcé, vérifier le mot de passe actuel
-    if (!user.mustChangePassword && currentPassword) {
-      const isValid = await bcrypt.compare(currentPassword, user.password);
-      if (!isValid) {
-        return NextResponse.json(
-          { success: false, error: { code: "INVALID_PASSWORD", message: "Mot de passe actuel incorrect" } },
-          { status: 401 }
-        );
-      }
+    const isValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isValid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: "INVALID_PASSWORD", message: "Mot de passe actuel incorrect" },
+        },
+        { status: 401 }
+      );
     }
 
-    // Hasher le nouveau mot de passe
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    // Mettre à jour le mot de passe et retirer le flag mustChangePassword
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -72,7 +77,6 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Révoquer tous les tokens existants pour forcer une reconnexion
     await prisma.tokenRevocation.create({
       data: {
         userId: user.id,
