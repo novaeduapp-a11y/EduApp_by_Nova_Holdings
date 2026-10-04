@@ -15,7 +15,7 @@ const createNotesSchema = z.object({
 
 // GET /api/notes - Liste des notes (avec isolation école/classe)
 export async function GET(request: NextRequest) {
-  try:
+  try {
     const authResult = await requireProfesseur();
     if (isAuthFailure(authResult)) return authResult.response;
     const { user } = authResult;
@@ -24,10 +24,19 @@ export async function GET(request: NextRequest) {
     const evaluationId = searchParams.get("evaluationId");
     const eleveId = searchParams.get("eleveId");
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: any = {};
+    if (evaluationId) where.evaluationId = evaluationId;
+    if (eleveId) where.eleveId = eleveId;
+
+    // Isolation par école
+    if (!user.isAdmin && user.ecoleId) {
+      where.eleve = { ecoleId: user.ecoleId };
+    }
+
     // Pour les professeurs, filtrer par évaluations de leurs classes/matières
-    let accessibleEvaluationIds: string[] = [];
     if (!user.isAdmin && user.affectations) {
-      const evaluations = await prisma.evaluation.findMany({
+      const evaluationIds = await prisma.evaluation.findMany({
         where: {
           deletedAt: null,
           OR: user.affectations.map((a) => ({
@@ -37,33 +46,12 @@ export async function GET(request: NextRequest) {
         },
         select: { id: true },
       });
-      accessibleEvaluationIds = evaluations.map((e) => e.id);
-    }
-
-    // Build the where clause
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const where: any = {};
-
-    // If evaluationId is requested, check access
-    if (evaluationId) {
-      if (!user.isAdmin && !accessibleEvaluationIds.includes(evaluationId)) {
-        // Teacher requested an evaluation they can't access - return empty
-        return NextResponse.json({ success: true, data: [] });
+      
+      if (evaluationIds.length > 0) {
+        where.evaluationId = { in: evaluationIds.map((e) => e.id) };
+      } else {
+        where.id = { in: [] }; // Aucune évaluation accessible
       }
-      where.evaluationId = evaluationId;
-    } else if (!user.isAdmin && accessibleEvaluationIds.length > 0) {
-      // No specific evaluation requested, filter to accessible ones
-      where.evaluationId = { in: accessibleEvaluationIds };
-    } else if (!user.isAdmin) {
-      // Teacher has no accessible evaluations
-      return NextResponse.json({ success: true, data: [] });
-    }
-
-    if (eleveId) where.eleveId = eleveId;
-
-    // Isolation par école
-    if (!user.isAdmin && user.ecoleId) {
-      where.eleve = { ecoleId: user.ecoleId };
     }
 
     const notes = await prisma.note.findMany({
