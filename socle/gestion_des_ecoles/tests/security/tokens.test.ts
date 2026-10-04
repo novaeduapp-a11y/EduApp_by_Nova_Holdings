@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { prisma } from "../setup";
 import { resetTestDatabase } from "../fixtures/database";
-import { mobileLogin, tokenRequest, login } from "../helpers/request";
+import { mobileLogin, tokenRequest, login, authRequest } from "../helpers/request";
 
 describe("Token Security", () => {
   let testData: Awaited<ReturnType<typeof resetTestDatabase>>;
