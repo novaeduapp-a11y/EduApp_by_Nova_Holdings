@@ -10,6 +10,8 @@ export type MobileUser = {
   ecoleId?: string | null;
   typeProfesseur?: string | null;
   familleCycle?: string | null;
+  /** Expiration du token en millisecondes (epoch). */
+  exp?: number;
 };
 
 function secret(): string {
@@ -61,6 +63,7 @@ export function verifyMobileToken(token: string): MobileUser | null {
       ecoleId: data.ecoleId ?? null,
       typeProfesseur: data.typeProfesseur ?? null,
       familleCycle: data.familleCycle ?? null,
+      exp: data.exp,
     };
   } catch {
     return null;
