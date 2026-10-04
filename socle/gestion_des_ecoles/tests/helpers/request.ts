@@ -16,7 +16,12 @@ export async function request(
   path: string,
   options: RequestOptions = {}
 ): Promise<{ status: number; headers: Record<string, string | string[]>; data: unknown }> {
-  const url = new URL(`${BASE_URL}${path}`);
+  // Ensure path starts with /
+  if (!path.startsWith("/")) {
+    path = "/" + path;
+  }
+
+  const url = new URL(path, BASE_URL);
   const { method = "GET", headers = {}, body } = options;
 
   return new Promise((resolve, reject) => {

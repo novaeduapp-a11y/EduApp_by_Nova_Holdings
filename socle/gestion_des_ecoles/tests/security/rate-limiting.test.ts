@@ -144,16 +144,27 @@ describe("Rate Limiting and Login Security", () => {
 
   describe("2FA code rate limiting", () => {
     it("should block after 3 failed 2FA attempts", async () => {
-      // This test requires 2FA to be enabled
-      // For now, we test the rate limiting logic by checking the database
+      // Create a real user for the test
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash("TestPassword123", 10);
+
+      const testUser = await prisma.user.create({
+        data: {
+          email: "test-2fa-user@test.sn",
+          nom: "Test",
+          prenom: "User",
+          password: hashedPassword,
+          role: "PROFESSEUR",
+          actif: true,
+        },
+      });
 
       // Create a test 2FA challenge with hashed code
-      const bcrypt = await import("bcryptjs");
       const codeHash = await bcrypt.hash("123456", 10);
 
       const challenge = await prisma.twoFactorChallenge.create({
         data: {
-          userId: "test-user-id",
+          userId: testUser.id,
           codeHash,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000),
         },
@@ -163,7 +174,7 @@ describe("Rate Limiting and Login Security", () => {
       for (let i = 0; i < 3; i++) {
         await prisma.loginAttempt.create({
           data: {
-            userId: "test-user-id",
+            userId: testUser.id,
             identifier: challenge.id,
             ipAddress: "127.0.0.1",
             success: false,
@@ -185,6 +196,11 @@ describe("Rate Limiting and Login Security", () => {
       expect(res.status).toBe(429);
       const data = res.data as { error?: string };
       expect(data.error).toContain("tentatives");
+
+      // Clean up
+      await prisma.loginAttempt.deleteMany({ where: { userId: testUser.id } });
+      await prisma.twoFactorChallenge.delete({ where: { id: challenge.id } });
+      await prisma.user.delete({ where: { id: testUser.id } });
     });
   });
 
