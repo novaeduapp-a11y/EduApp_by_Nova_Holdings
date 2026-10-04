@@ -8,6 +8,7 @@ const createClasseSchema = z.object({
   niveau: z.string().min(1, "Le niveau est requis"),
   effectifMax: z.number().min(1).max(100).default(30),
   cycleId: z.string().min(1, "Le cycle est requis"),
+  ecoleId: z.string().min(1, "L'école est requise"),
   anneeScolaire: z.string().default("2025-2026"),
 });
 

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  lint-and-build:
+    name: Lint, typecheck & build
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: eduapps_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: socle/gestion_des_ecoles/package-lock.json
+
+      - name: Install dependencies
+        working-directory: socle/gestion_des_ecoles
+        run: npm ci
+
+      - name: Prisma validate
+        working-directory: socle/gestion_des_ecoles
+        run: npx prisma validate
+
+      - name: Prisma generate
+        working-directory: socle/gestion_des_ecoles
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+        run: npx prisma generate
+
+      - name: Run lint
+        working-directory: socle/gestion_des_ecoles
+        run: npm run lint
+
+      - name: Run typecheck
+        working-directory: socle/gestion_des_ecoles
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: socle/gestion_des_ecoles
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+        run: npm run build

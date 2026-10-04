@@ -1,13 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Warnings ESLint (hooks deps) ne doivent pas bloquer la build production.
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-
   output: "standalone",
   // Optimisation pour connexions faibles
   images: {

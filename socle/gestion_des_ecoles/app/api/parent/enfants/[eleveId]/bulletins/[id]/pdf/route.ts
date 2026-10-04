@@ -44,7 +44,8 @@ export async function GET(
       return NextResponse.json({ error: "Impossible de composer le bulletin" }, { status: 500 });
     }
 
-    const buffer = await renderToBuffer(createElement(BulletinPDF, { data }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buffer = await renderToBuffer(createElement(BulletinPDF, { data }) as any);
     const filename = `Bulletin_${data.eleve.prenom}_${data.periode.nom.replace(/\s+/g, "_")}.pdf`;
 
     return new NextResponse(new Uint8Array(buffer), {

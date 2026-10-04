@@ -515,7 +515,7 @@ function ProfesseurNotesForm() {
       {status === "error" ? (
         <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
           <p className="text-sm leading-6 text-foreground">Impossible de charger les évaluations.</p>
-          <Button type="button" onClick={load}>
+          <Button type="button" onClick={() => load()}>
             Réessayer
           </Button>
         </div>

@@ -87,7 +87,9 @@ export async function requireParent(): Promise<AuthOk | AuthFail> {
   return authResult;
 }
 
-export async function requireStaff(roles: MobileUser["role"][] = ["PROFESSEUR", "PREFET", "DIRECTEUR"]) {
+export async function requireStaff(
+  roles: MobileUser["role"][] = ["PROFESSEUR", "PREFET", "DIRECTEUR"]
+): Promise<AuthOk | AuthFail> {
   const authResult = await resolveUser();
   if (!authResult.ok) return authResult;
   if (!roles.includes(authResult.user.role)) {
@@ -99,15 +101,18 @@ export async function requireStaff(roles: MobileUser["role"][] = ["PROFESSEUR", 
   return authResult;
 }
 
-export async function requireProfesseur() {
+export async function requireProfesseur(): Promise<AuthOk | AuthFail> {
   return requireStaff(["PROFESSEUR"]);
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<AuthOk | AuthFail> {
   return requireStaff(["ADMIN"]);
 }
 
-export async function requirePrefet() {
+export async function requirePrefet(): Promise<
+  | { ok: false; response: NextResponse }
+  | { ok: true; user: MobileUser & { ecoleId: string; familleCycle: "PRIMAIRE" | "COLLEGE" | "SECONDAIRE" } }
+> {
   const authResult = await requireStaff(["PREFET"]);
   if (!authResult.ok) return authResult;
 
@@ -125,7 +130,7 @@ export async function requirePrefet() {
   });
   if (!user || user.role !== "PREFET" || !user.ecoleId || !user.familleCycle) {
     return {
-      ok: false as const,
+      ok: false,
       response: NextResponse.json(
         { error: "Compte préfet incomplet (école ou cycle manquant)" },
         { status: 403 }
@@ -134,7 +139,7 @@ export async function requirePrefet() {
   }
 
   return {
-    ok: true as const,
+    ok: true,
     user: {
       ...authResult.user,
       ecoleId: user.ecoleId,
@@ -143,7 +148,10 @@ export async function requirePrefet() {
   };
 }
 
-export async function requireDirecteur() {
+export async function requireDirecteur(): Promise<
+  | { ok: false; response: NextResponse }
+  | { ok: true; user: MobileUser & { ecoleId: string } }
+> {
   const authResult = await requireStaff(["DIRECTEUR"]);
   if (!authResult.ok) return authResult;
 
@@ -160,7 +168,7 @@ export async function requireDirecteur() {
   });
   if (!user || user.role !== "DIRECTEUR" || !user.ecoleId) {
     return {
-      ok: false as const,
+      ok: false,
       response: NextResponse.json(
         { error: "Compte direction incomplet (école manquante)" },
         { status: 403 }
@@ -169,7 +177,7 @@ export async function requireDirecteur() {
   }
 
   return {
-    ok: true as const,
+    ok: true,
     user: {
       ...authResult.user,
       ecoleId: user.ecoleId,
