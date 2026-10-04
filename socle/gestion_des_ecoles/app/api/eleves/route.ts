@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin, requireProfesseur, requirePrefet, requireDirecteur } from "@/lib/unified-auth";
+import { requireAdmin, requireProfesseur, requirePrefet, requireDirecteur, isAuthFailure } from "@/lib/unified-auth";
 import { createEleveSchema } from "@/lib/validations/eleve";
 import { generateMatricule } from "@/lib/constants";
 import bcrypt from "bcryptjs";
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       authResult = await requireAdmin();
     }
 
-    if (!authResult.ok) return authResult.response;
+    if (isAuthFailure(authResult)) return authResult.response;
     const { user } = authResult;
 
     const page = parseInt(searchParams.get("page") || "1");
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const authResult = await requireAdmin();
-    if (!authResult.ok) return authResult.response;
+    if (isAuthFailure(authResult)) return authResult.response;
     const { user } = authResult;
 
     const body = await request.json();

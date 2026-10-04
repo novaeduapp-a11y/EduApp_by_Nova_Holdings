@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireProfesseur, requireAdmin, checkProfesseurMatiere } from "@/lib/unified-auth";
+import { requireProfesseur, checkProfesseurMatiere, isAuthFailure } from "@/lib/unified-auth";
 import { z } from "zod";
 
 const createNotesSchema = z.object({
@@ -17,7 +17,7 @@ const createNotesSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const authResult = await requireProfesseur();
-    if (!authResult.ok) return authResult.response;
+    if (isAuthFailure(authResult)) return authResult.response;
     const { user } = authResult;
 
     const { searchParams } = new URL(request.url);
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const authResult = await requireProfesseur();
-    if (!authResult.ok) return authResult.response;
+    if (isAuthFailure(authResult)) return authResult.response;
     const { user } = authResult;
 
     const body = await request.json();

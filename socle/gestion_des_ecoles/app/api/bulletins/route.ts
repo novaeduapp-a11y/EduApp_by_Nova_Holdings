@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/unified-auth";
+import { requireAuth, isAuthFailure } from "@/lib/unified-auth";
 
 // GET /api/bulletins - Récupérer les bulletins (avec isolation école/classe)
 export async function GET(request: NextRequest) {
   try {
     const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
-    if (!authResult.ok) return authResult.response;
+    if (isAuthFailure(authResult)) return authResult.response;
     const { user } = authResult;
 
     const { searchParams } = new URL(request.url);
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Pour les professeurs, filtrer par leurs classes
-    if (user.role === "PROFESSEUR" && "affectations" in user && user.affectations) {
-      const classeIds = [...new Set(user.affectations.map((a: { classeId: string }) => a.classeId))];
+    if (user.role === "PROFESSEUR" && "affectations" in user && Array.isArray(user.affectations)) {
+      const classeIds = [...new Set(user.affectations.map((a) => a.classeId))];
       if (classeIds.length > 0) {
         where.eleve = {
           ...(where.eleve as object || {}),

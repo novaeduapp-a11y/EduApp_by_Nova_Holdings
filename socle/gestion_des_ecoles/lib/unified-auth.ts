@@ -19,7 +19,7 @@ export function isAuthFailure<T>(result: AuthResult<T>): result is AuthFailure {
 
 function unauthorized(message = "Non autorisé"): AuthFailure {
   return {
-    ok: false,
+    ok: false as const,
     response: NextResponse.json(
       { success: false, error: { code: "UNAUTHORIZED", message } },
       { status: 401 }
@@ -29,7 +29,7 @@ function unauthorized(message = "Non autorisé"): AuthFailure {
 
 function forbidden(message = "Permission refusée"): AuthFailure {
   return {
-    ok: false,
+    ok: false as const,
     response: NextResponse.json(
       { success: false, error: { code: "FORBIDDEN", message } },
       { status: 403 }
@@ -55,7 +55,7 @@ async function resolveUser(): Promise<
       return unauthorized("Compte désactivé");
     }
     return {
-      ok: true,
+      ok: true as const,
       user: { ...session.user, ecoleId: user.ecoleId },
     };
   }
@@ -99,7 +99,7 @@ async function resolveUser(): Promise<
   }
 
   return {
-    ok: true,
+    ok: true as const,
     user: {
       id: mobileUser.id,
       email: mobileUser.email,
@@ -150,7 +150,7 @@ export async function requireProfesseur(ecoleId?: string): Promise<
     }
 > {
   const result = await requireAuth(["PROFESSEUR", "ADMIN"]);
-  if (!result.ok) return result;
+  if (!result.ok) return result as AuthFailure;
 
   const user = await prisma.user.findUnique({
     where: { id: result.user.id },
@@ -229,7 +229,7 @@ export async function requirePrefet(ecoleId?: string): Promise<
     }
 > {
   const result = await requireAuth(["PREFET", "ADMIN"]);
-  if (!result.ok) return result;
+  if (!result.ok) return result as AuthFailure;
 
   const user = await prisma.user.findUnique({
     where: { id: result.user.id },
@@ -292,7 +292,7 @@ export async function requireDirecteur(ecoleId?: string): Promise<
     }
 > {
   const result = await requireAuth(["DIRECTEUR", "ADMIN"]);
-  if (!result.ok) return result;
+  if (!result.ok) return result as AuthFailure;
 
   const user = await prisma.user.findUnique({
     where: { id: result.user.id },

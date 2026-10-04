@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/unified-auth";
+import { requireAuth, isAuthFailure } from "@/lib/unified-auth";
 
 /**
  * POST /api/auth/revoke-tokens - Révoquer tous les tokens mobiles de l'utilisateur
@@ -9,7 +9,7 @@ import { requireAuth } from "@/lib/unified-auth";
 export async function POST() {
   try {
     const authResult = await requireAuth();
-    if (!authResult.ok) return authResult.response;
+    if (isAuthFailure(authResult)) return authResult.response;
 
     // Créer une entrée de révocation
     await prisma.tokenRevocation.create({
