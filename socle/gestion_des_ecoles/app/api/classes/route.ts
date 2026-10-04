@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireManagement, requireStaff } from "@/lib/permissions";
+import { requireAdmin, isAuthFailure } from "@/lib/unified-auth";
+import { requireStaff } from "@/lib/permissions";
 import { z } from "zod";
 
 const createClasseSchema = z.object({
@@ -43,8 +44,9 @@ export async function GET(request: NextRequest) {
 // POST /api/classes - Créer une classe
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await requireManagement();
-    if (!authResult.ok) return authResult.response;
+    const authResult = await requireAdmin();
+    if (isAuthFailure(authResult)) return authResult.response;
+    const { user } = authResult;
 
     const body = await request.json();
     const validation = createClasseSchema.safeParse(body);
@@ -53,6 +55,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: { code: "VALIDATION_ERROR", message: validation.error.issues[0].message } },
         { status: 400 }
+      );
+    }
+
+    // Vérifier que l'ADMIN peut créer dans cette école (ou est ADMIN global)
+    const isGlobalAdmin = !user.ecoleId;
+    if (!isGlobalAdmin && user.ecoleId !== validation.data.ecoleId) {
+      return NextResponse.json(
+        { success: false, error: { code: "FORBIDDEN", message: "Permission refusée pour cette école" } },
+        { status: 403 }
       );
     }
 

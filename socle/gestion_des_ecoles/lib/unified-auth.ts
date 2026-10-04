@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import type { Session } from "next-auth";
-import { verifyMobileToken, type MobileUser } from "@/lib/mobile-token";
+import { verifyMobileToken } from "@/lib/mobile-token";
 import { headers } from "next/headers";
 
 export type AuthSuccess<T = Session["user"]> = { ok: true; user: T };
