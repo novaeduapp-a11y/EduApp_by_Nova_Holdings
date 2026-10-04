@@ -10,14 +10,32 @@ describe("Token Security", () => {
     testData = await resetTestDatabase();
   });
 
+  describe("Diagnostic", () => {
+    it("should verify /api/parent/enfants endpoint exists and works", async () => {
+      // This is a diagnostic test to verify the endpoint is accessible
+      const token = await mobileLogin("parent@test.sn", "Admin@123");
+      const res = await tokenRequest(token, "/api/parent/enfants");
+      
+      console.log("Endpoint response:", {
+        status: res.status,
+        data: res.data,
+        headers: res.headers
+      });
+      
+      // The endpoint should return 200 with data structure
+      expect(res.status).toBe(200);
+      expect(res.data).toHaveProperty("data");
+    });
+  });
+
   describe("Token revocation", () => {
     it("should reject revoked mobile token with 401", async () => {
       // Login as parent (mobile)
       const token = await mobileLogin("parent@test.sn", "Admin@123");
 
-      // Verify token works
+      // Verify token works - endpoint MUST exist and return 200
       const res1 = await tokenRequest(token, "/api/parent/enfants");
-      expect([200, 404]).toContain(res1.status); // 404 is ok if endpoint doesn't exist yet
+      expect(res1.status).toBe(200); // Endpoint must exist
 
       // Revoke tokens
       const revokeRes = await tokenRequest(token, "/api/auth/revoke-tokens", {
