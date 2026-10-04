@@ -48,6 +48,7 @@ beforeEach(async () => {
   await prisma.loginAttempt.deleteMany({});
   await prisma.tokenRevocation.deleteMany({});
   await prisma.twoFactorChallenge.deleteMany({});
+  await prisma.session.deleteMany({}); // Clean sessions to prevent interference with mobile token tests
   
   console.log("✓ Reset rate limiting and auth tables");
 });
