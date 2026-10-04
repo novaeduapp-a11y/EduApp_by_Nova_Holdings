@@ -9,10 +9,12 @@ const prisma = new PrismaClient();
  * to test cross-school isolation.
  */
 export async function resetTestDatabase() {
-  // Clean all data
+  // Clean all data - order matters for FK constraints
   await prisma.note.deleteMany({});
   await prisma.appreciation.deleteMany({});
   await prisma.bulletin.deleteMany({});
+  await prisma.moyenneMatiere.deleteMany({}); // Delete before eleve (FK constraint)
+  await prisma.moyenneGenerale.deleteMany({}); // Delete before eleve (FK constraint)
   await prisma.absence.deleteMany({});
   await prisma.evaluation.deleteMany({});
   await prisma.classeMatiere.deleteMany({});
