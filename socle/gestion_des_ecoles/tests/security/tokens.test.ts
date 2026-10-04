@@ -66,8 +66,9 @@ describe("Token Security", () => {
       console.log("After revocation - status:", res2.status, "data:", JSON.stringify(res2.data).substring(0, 100));
       expect(res2.status).toBe(401);
       
-      const data = res2.data as { success?: boolean; error?: { code?: string; message?: string } };
-      expect(data.error?.message).toContain("révoquée");
+      const data = res2.data as { error?: string | { message?: string } };
+      const errorMessage = typeof data.error === 'string' ? data.error : data.error?.message;
+      expect(errorMessage).toContain("révoquée");
     });
 
     it("should allow fresh login after token revocation (exp preserved)", async () => {
