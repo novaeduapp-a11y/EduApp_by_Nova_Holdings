@@ -253,12 +253,12 @@ describe("Token Security", () => {
     it("should reject request when session cookie is removed", async () => {
       const cookie = await login("prof-dakar@test.sn", "Admin@123");
 
-      // First request should work
-      const res1 = await tokenRequest(cookie, "/api/eleves?role=PROFESSEUR");
+      // First request should work (using session cookie)
+      const res1 = await authRequest(cookie, "/api/eleves?role=PROFESSEUR");
       expect(res1.status).toBe(200);
 
       // Request without cookie should fail with 401 or 307 redirect (to login)
-      const res2 = await tokenRequest("", "/api/eleves?role=PROFESSEUR");
+      const res2 = await authRequest("", "/api/eleves?role=PROFESSEUR");
       expect([401, 307]).toContain(res2.status); // 307 is redirect to login, which is acceptable
     });
   });
