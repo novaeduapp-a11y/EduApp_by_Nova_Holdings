@@ -35,7 +35,7 @@ export function signMobileToken(user: MobileUser): string {
       ecoleId: user.ecoleId ?? null,
       typeProfesseur: user.typeProfesseur ?? null,
       familleCycle: user.familleCycle ?? null,
-      exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      exp: user.exp ?? (Date.now() + 30 * 24 * 60 * 60 * 1000), // Use provided exp or default to 30 days
     })
   ).toString("base64url");
   const sig = createHmac("sha256", secret()).update(payload).digest("base64url");
