@@ -97,7 +97,7 @@ async function resolveUser(): Promise<
   const tokenIssuedAt = tokenExp - (30 * 24 * 60 * 60 * 1000); // 30 jours avant expiration
   
   const latestRevocation = user.tokenRevocations[0];
-  if (latestRevocation && latestRevocation.createdAt.getTime() > tokenIssuedAt) {
+  if (latestRevocation && latestRevocation.createdAt.getTime() >= tokenIssuedAt) {
     return unauthorized("Session révoquée. Reconnectez-vous.");
   }
 

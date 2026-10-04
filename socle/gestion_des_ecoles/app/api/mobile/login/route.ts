@@ -76,14 +76,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Identifiants invalides" }, { status: 401 });
     }
 
-    if (user.role !== "PARENT") {
-      return NextResponse.json(
-        { error: "Cet espace est réservé aux parents" },
-        { status: 403 }
-      );
-    }
-
-    // Vérifier si changement de mot de passe requis
+    // Vérifier si changement de mot de passe requis (avant vérification du rôle)
     if (user.mustChangePassword) {
       return NextResponse.json(
         {
@@ -91,6 +84,13 @@ export async function POST(request: Request) {
           code: "PASSWORD_CHANGE_REQUIRED",
           userId: user.id,
         },
+        { status: 403 }
+      );
+    }
+
+    if (user.role !== "PARENT") {
+      return NextResponse.json(
+        { error: "Cet espace est réservé aux parents" },
         { status: 403 }
       );
     }

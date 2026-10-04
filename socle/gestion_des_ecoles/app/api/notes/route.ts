@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
               success: false,
               error: {
                 code: "VALIDATION_ERROR",
-                message: `Note invalide: ${noteData.note} dépasse le maximum de ${noteSur}`,
+                message: `La note ne peut pas dépasser ${noteSur}`,
               },
             },
             { status: 400 }

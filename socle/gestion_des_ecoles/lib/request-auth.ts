@@ -65,7 +65,7 @@ async function resolveUser(): Promise<AuthOk | AuthFail> {
   const tokenIssuedAt = tokenExp - (30 * 24 * 60 * 60 * 1000);
   
   const latestRevocation = dbUser.tokenRevocations[0];
-  if (latestRevocation && latestRevocation.createdAt.getTime() > tokenIssuedAt) {
+  if (latestRevocation && latestRevocation.createdAt.getTime() >= tokenIssuedAt) {
     return {
       ok: false,
       response: NextResponse.json({ error: "Session révoquée. Reconnectez-vous." }, { status: 401 }),
