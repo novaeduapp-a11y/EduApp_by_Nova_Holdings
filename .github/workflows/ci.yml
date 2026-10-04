@@ -45,6 +45,8 @@ jobs:
 
       - name: Prisma validate
         working-directory: socle/gestion_des_ecoles
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/eduapps_test
         run: npx prisma validate
 
       - name: Prisma generate
