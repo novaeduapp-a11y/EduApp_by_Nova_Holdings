@@ -32,22 +32,38 @@ describe("Token Security", () => {
     it("should reject revoked mobile token with 401", async () => {
       // Login as parent (mobile)
       const token = await mobileLogin("parent@test.sn", "Admin@123");
+      console.log("Token obtained:", token.substring(0, 50) + "...");
 
       // Verify token works - endpoint MUST exist and return 200
       const res1 = await tokenRequest(token, "/api/parent/enfants");
+      console.log("Before revocation - status:", res1.status, "data:", JSON.stringify(res1.data).substring(0, 100));
       expect(res1.status).toBe(200); // Endpoint must exist
 
       // Revoke tokens
       const revokeRes = await tokenRequest(token, "/api/auth/revoke-tokens", {
         method: "POST",
       });
+      console.log("Revoke response - status:", revokeRes.status, "data:", revokeRes.data);
       expect(revokeRes.status).toBe(200);
+      
+      // Verify revocation was created in DB
+      const { verifyMobileToken } = await import("@/lib/mobile-token");
+      const decoded = verifyMobileToken(token);
+      const revocations = await prisma.tokenRevocation.findMany({
+        where: { userId: decoded!.id },
+        orderBy: { createdAt: "desc" },
+      });
+      console.log("Revocations in DB:", revocations.length, revocations.map(r => ({ 
+        createdAt: r.createdAt.toISOString(),
+        userId: r.userId 
+      })));
       
       // Wait a moment for DB to commit the revocation
       await new Promise(resolve => setTimeout(resolve, 100));
 
       // Try to use revoked token
       const res2 = await tokenRequest(token, "/api/parent/enfants");
+      console.log("After revocation - status:", res2.status, "data:", JSON.stringify(res2.data).substring(0, 100));
       expect(res2.status).toBe(401);
       
       const data = res2.data as { success?: boolean; error?: { code?: string; message?: string } };
