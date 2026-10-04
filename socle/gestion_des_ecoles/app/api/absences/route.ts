@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const { searchParams } = new URL(request.url);
     const eleveId = searchParams.get("eleveId");
@@ -33,21 +34,21 @@ export async function GET(request: NextRequest) {
     const where: any = {};
 
     // Isolation par école
-    if (authResult.user.role !== "ADMIN" && authResult.user.ecoleId) {
-      where.eleve = { ecoleId: authResult.user.ecoleId };
+    if (user.role !== "ADMIN" && user.ecoleId) {
+      where.eleve = { ecoleId: user.ecoleId };
     }
 
     // Pour les préfets, filtrer par cycle
-    if (authResult.user.role === "PREFET" && "familleCycle" in authResult.user && authResult.user.familleCycle) {
+    if (user.role === "PREFET" && "familleCycle" in user && user.familleCycle) {
       where.eleve = {
         ...(where.eleve ?? {}),
-        classe: { cycle: { famille: authResult.user.familleCycle } },
+        classe: { cycle: { famille: user.familleCycle } },
       };
     }
 
     // Pour les professeurs, filtrer par leurs classes
-    if (authResult.user.role === "PROFESSEUR" && "affectations" in authResult.user && authResult.user.affectations) {
-      const classeIds = [...new Set(authResult.user.affectations.map((a: { classeId: string }) => a.classeId))];
+    if (user.role === "PROFESSEUR" && "affectations" in user && user.affectations) {
+      const classeIds = [...new Set(user.affectations.map((a: { classeId: string }) => a.classeId))];
       if (classeIds.length > 0) {
         where.eleve = {
           ...(where.eleve ?? {}),
@@ -102,6 +103,7 @@ export async function POST(request: NextRequest) {
   try {
     const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const body = await request.json();
     const validation = createAbsenceSchema.safeParse(body);
@@ -117,9 +119,9 @@ export async function POST(request: NextRequest) {
 
     // Vérifier l'accès à cet élève
     const hasAccess = await checkEleveAccess(
-      authResult.user.id,
-      authResult.user.role,
-      authResult.user.ecoleId,
+      user.id,
+      user.role,
+      user.ecoleId,
       data.eleveId
     );
 
@@ -140,7 +142,7 @@ export async function POST(request: NextRequest) {
         justifiee: data.justifiee,
         motif: data.motif,
         document: data.document,
-        createdBy: authResult.user.id,
+        createdBy: user.id,
       },
       include: {
         eleve: { select: { id: true, nom: true, prenom: true, matricule: true, classe: { select: { id: true, nom: true } } } },

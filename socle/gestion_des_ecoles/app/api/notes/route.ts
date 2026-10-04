@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const authResult = await requireProfesseur();
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const { searchParams } = new URL(request.url);
     const evaluationId = searchParams.get("evaluationId");
@@ -29,16 +30,16 @@ export async function GET(request: NextRequest) {
     if (eleveId) where.eleveId = eleveId;
 
     // Isolation par école
-    if (!authResult.user.isAdmin && authResult.user.ecoleId) {
-      where.eleve = { ecoleId: authResult.user.ecoleId };
+    if (!user.isAdmin && user.ecoleId) {
+      where.eleve = { ecoleId: user.ecoleId };
     }
 
     // Pour les professeurs, filtrer par évaluations de leurs classes/matières
-    if (!authResult.user.isAdmin && authResult.user.affectations) {
+    if (!user.isAdmin && user.affectations) {
       const evaluationIds = await prisma.evaluation.findMany({
         where: {
           deletedAt: null,
-          OR: authResult.user.affectations.map((a: { classeId: string; matiereId: string }) => ({
+          OR: user.affectations.map((a) => ({
             classeId: a.classeId,
             matiereId: a.matiereId,
           })),
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
   try {
     const authResult = await requireProfesseur();
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const body = await request.json();
     const validation = createNotesSchema.safeParse(body);
@@ -106,9 +108,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier l'accès à cette évaluation
-    if (!authResult.user.isAdmin) {
+    if (!user.isAdmin) {
       // Vérifier l'école
-      if (authResult.user.ecoleId !== evaluation.classe.ecoleId) {
+      if (user.ecoleId !== evaluation.classe.ecoleId) {
         return NextResponse.json(
           { success: false, error: { code: "FORBIDDEN", message: "Accès refusé à cette évaluation (école différente)" } },
           { status: 403 }
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
 
       // Vérifier que le professeur enseigne cette matière dans cette classe
       const canAccess = await checkProfesseurMatiere(
-        authResult.user.id,
+        user.id,
         evaluation.classeId,
         evaluation.matiereId
       );
@@ -208,7 +210,7 @@ export async function POST(request: NextRequest) {
             note: noteData.absent ? null : noteData.note,
             absent: noteData.absent,
             commentaire: noteData.commentaire,
-            saisiPar: authResult.user.id,
+            saisiPar: user.id,
           },
         });
       })

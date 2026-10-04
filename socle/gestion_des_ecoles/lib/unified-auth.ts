@@ -6,9 +6,16 @@ import type { Session } from "next-auth";
 import { verifyMobileToken, type MobileUser } from "@/lib/mobile-token";
 import { headers } from "next/headers";
 
-type AuthSuccess<T = Session["user"]> = { ok: true; user: T };
-type AuthFailure = { ok: false; response: NextResponse };
+export type AuthSuccess<T = Session["user"]> = { ok: true; user: T };
+export type AuthFailure = { ok: false; response: NextResponse };
 export type AuthResult<T = Session["user"]> = AuthSuccess<T> | AuthFailure;
+
+/**
+ * Type guard pour vérifier si le résultat est un échec d'auth
+ */
+export function isAuthFailure<T>(result: AuthResult<T>): result is AuthFailure {
+  return !result.ok;
+}
 
 function unauthorized(message = "Non autorisé"): AuthFailure {
   return {
@@ -131,7 +138,17 @@ export async function requireAdmin() {
  * Exige PROFESSEUR et retourne ses affectations (classes + matières).
  * Vérifie que le professeur appartient à l'école spécifiée si ecoleId fourni.
  */
-export async function requireProfesseur(ecoleId?: string) {
+export async function requireProfesseur(ecoleId?: string): Promise<
+  | AuthFailure
+  | {
+      ok: true;
+      user: Session["user"] & {
+        ecoleId: string | null | undefined;
+        affectations: { classeId: string; matiereId: string }[];
+        isAdmin: boolean;
+      };
+    }
+> {
   const result = await requireAuth(["PROFESSEUR", "ADMIN"]);
   if (!result.ok) return result;
 
@@ -200,7 +217,17 @@ export async function requireProfesseur(ecoleId?: string) {
 /**
  * Exige PREFET et retourne son école + cycle.
  */
-export async function requirePrefet(ecoleId?: string) {
+export async function requirePrefet(ecoleId?: string): Promise<
+  | AuthFailure
+  | {
+      ok: true;
+      user: Session["user"] & {
+        ecoleId: string | null | undefined;
+        familleCycle: string | null | undefined;
+        isAdmin: boolean;
+      };
+    }
+> {
   const result = await requireAuth(["PREFET", "ADMIN"]);
   if (!result.ok) return result;
 
@@ -254,7 +281,16 @@ export async function requirePrefet(ecoleId?: string) {
 /**
  * Exige DIRECTEUR et retourne son école.
  */
-export async function requireDirecteur(ecoleId?: string) {
+export async function requireDirecteur(ecoleId?: string): Promise<
+  | AuthFailure
+  | {
+      ok: true;
+      user: Session["user"] & {
+        ecoleId: string | null | undefined;
+        isAdmin: boolean;
+      };
+    }
+> {
   const result = await requireAuth(["DIRECTEUR", "ADMIN"]);
   if (!result.ok) return result;
 

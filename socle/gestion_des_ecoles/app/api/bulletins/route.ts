@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const authResult = await requireAuth(["ADMIN", "PROFESSEUR", "PREFET", "DIRECTEUR"]);
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const { searchParams } = new URL(request.url);
     const classeId = searchParams.get("classeId");
@@ -18,21 +19,21 @@ export async function GET(request: NextRequest) {
     };
 
     // Isolation par école
-    if (authResult.user.role !== "ADMIN" && authResult.user.ecoleId) {
-      where.eleve = { ecoleId: authResult.user.ecoleId };
+    if (user.role !== "ADMIN" && user.ecoleId) {
+      where.eleve = { ecoleId: user.ecoleId };
     }
 
     // Pour les préfets, filtrer par cycle
-    if (authResult.user.role === "PREFET" && "familleCycle" in authResult.user && authResult.user.familleCycle) {
+    if (user.role === "PREFET" && "familleCycle" in user && user.familleCycle) {
       where.eleve = {
         ...(where.eleve as object || {}),
-        classe: { cycle: { famille: authResult.user.familleCycle } },
+        classe: { cycle: { famille: user.familleCycle } },
       };
     }
 
     // Pour les professeurs, filtrer par leurs classes
-    if (authResult.user.role === "PROFESSEUR" && "affectations" in authResult.user && authResult.user.affectations) {
-      const classeIds = [...new Set(authResult.user.affectations.map((a: { classeId: string }) => a.classeId))];
+    if (user.role === "PROFESSEUR" && "affectations" in user && user.affectations) {
+      const classeIds = [...new Set(user.affectations.map((a: { classeId: string }) => a.classeId))];
       if (classeIds.length > 0) {
         where.eleve = {
           ...(where.eleve as object || {}),

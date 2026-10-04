@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
@@ -42,21 +43,22 @@ export async function GET(request: NextRequest) {
     };
 
     // Isolation par école (sauf ADMIN)
-    if (!authResult.user.isAdmin && authResult.user.ecoleId) {
-      where.ecoleId = authResult.user.ecoleId;
+    const isAdmin = user.role === "ADMIN";
+    if (!isAdmin && user.ecoleId) {
+      where.ecoleId = user.ecoleId;
     }
 
     // Pour les préfets, filtrer par cycle
-    if ("familleCycle" in authResult.user && authResult.user.familleCycle && !authResult.user.isAdmin) {
+    if ("familleCycle" in user && user.familleCycle && !isAdmin) {
       where.classe = {
         ...(where.classe ?? {}),
-        cycle: { famille: authResult.user.familleCycle },
+        cycle: { famille: user.familleCycle },
       };
     }
 
     // Pour les professeurs, filtrer par classes enseignées
-    if ("affectations" in authResult.user && authResult.user.affectations && !authResult.user.isAdmin) {
-      const classeIds = [...new Set(authResult.user.affectations.map((a: { classeId: string }) => a.classeId))];
+    if ("affectations" in user && user.affectations && !isAdmin) {
+      const classeIds = [...new Set(user.affectations.map((a: { classeId: string }) => a.classeId))];
       if (classeIds.length > 0) {
         where.classeId = { in: classeIds };
       } else {
@@ -150,6 +152,7 @@ export async function POST(request: NextRequest) {
   try {
     const authResult = await requireAdmin();
     if (!authResult.ok) return authResult.response;
+    const { user } = authResult;
 
     const body = await request.json();
     const validation = createEleveSchema.safeParse(body);
@@ -185,7 +188,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier que l'ADMIN peut créer dans cette école (ou est ADMIN global)
-    if (!authResult.user.isAdmin && authResult.user.ecoleId !== classe.ecoleId) {
+    const isAdmin = user.role === "ADMIN";
+    if (!isAdmin && user.ecoleId !== classe.ecoleId) {
       return NextResponse.json(
         { success: false, error: { code: "FORBIDDEN", message: "Permission refusée pour cette école" } },
         { status: 403 }
@@ -230,10 +234,23 @@ export async function POST(request: NextRequest) {
 
     const eleve = await prisma.eleve.create({
       data: {
-        ...data,
+        nom: data.nom,
+        prenom: data.prenom,
+        sexe: data.sexe,
+        classeId: data.classeId,
         matricule,
         dateNaissance: new Date(data.dateNaissance),
         emailParent: data.emailParent || null,
+        lieuNaissance: data.lieuNaissance,
+        nomPere: data.nomPere,
+        telephonePere: data.telephonePere,
+        nomMere: data.nomMere,
+        telephoneMere: data.telephoneMere,
+        nomTuteur: data.nomTuteur,
+        telephoneTuteur: data.telephoneTuteur,
+        adresse: data.adresse,
+        photo: data.photo,
+        ecoleId: classe.ecoleId,
         userId,
       },
       include: {
