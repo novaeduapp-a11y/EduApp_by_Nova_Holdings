@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
       role && ACCOUNT_ROLES.includes(role as (typeof ACCOUNT_ROLES)[number])
         ? (role as (typeof ACCOUNT_ROLES)[number])
         : ecoleId
-          ? { in: ["DIRECTEUR", "PREFET", "PROFESSEUR", "PARENT"] as const }
-          : { in: [...STAFF_ROLES] };
+          ? { in: ["DIRECTEUR", "PREFET", "PROFESSEUR", "PARENT"] as Array<(typeof ACCOUNT_ROLES)[number]> }
+          : { in: [...STAFF_ROLES] as Array<(typeof STAFF_ROLES)[number]> };
 
     const baseSelect = {
       id: true,
