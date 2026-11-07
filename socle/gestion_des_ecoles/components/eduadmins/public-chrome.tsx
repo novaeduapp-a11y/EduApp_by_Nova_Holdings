@@ -6,18 +6,25 @@ type Brand = "EduApps" | "EduAdmins";
 
 type NavItem = { href: string; label: string };
 
-/** Contact placeholder — à remplacer par les coordonnées NOVA officielles. */
+/** Coordonnées publiques EduApps / NOVA. */
 export const PUBLIC_CONTACT = {
-  phone: "+221 33 000 00 00",
-  phoneHref: "tel:+221330000000",
-  email: "contact@nova-holdings.sn",
-  emailHref: "mailto:contact@nova-holdings.sn",
+  phones: [
+    { label: "+221 76 796 85 61", href: "tel:+221767968561" },
+    { label: "+1 (901) 292-3422", href: "tel:+19012923422" },
+  ],
+  phone: "+221 76 796 85 61",
+  phoneHref: "tel:+221767968561",
+  email: "contact@eduadmin.net",
+  emailHref: "mailto:contact@eduadmin.net",
+  novaEmail: "contact@novaholdings.net",
+  novaEmailHref: "mailto:contact@novaholdings.net",
   address: "Sénégal",
 } as const;
 
 const DEFAULT_NAV: Record<Brand, NavItem[]> = {
   EduApps: [
     { href: "#produit", label: "Produit" },
+    { href: "#application", label: "Application" },
     { href: "#espaces", label: "Espaces" },
     { href: "#contact", label: "Contact" },
   ],
@@ -117,6 +124,11 @@ export function PublicFooter({ brand }: { brand?: Brand } = {}) {
               </Link>
             </li>
             <li>
+              <Link href="/#application" className="hover:text-primary">
+                Application
+              </Link>
+            </li>
+            <li>
               <Link href="/login" className="hover:text-primary">
                 Se connecter
               </Link>
@@ -126,11 +138,13 @@ export function PublicFooter({ brand }: { brand?: Brand } = {}) {
         <div>
           <p className="text-sm font-semibold text-foreground">Contact</p>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>
-              <a href={PUBLIC_CONTACT.phoneHref} className="hover:text-primary">
-                {PUBLIC_CONTACT.phone}
-              </a>
-            </li>
+            {PUBLIC_CONTACT.phones.map((phone) => (
+              <li key={phone.href}>
+                <a href={phone.href} className="hover:text-primary">
+                  {phone.label}
+                </a>
+              </li>
+            ))}
             <li>
               <a href={PUBLIC_CONTACT.emailHref} className="hover:text-primary">
                 {PUBLIC_CONTACT.email}

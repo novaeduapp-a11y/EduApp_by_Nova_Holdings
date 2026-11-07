@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/table";
 import {
   portalChipClass,
-  portalHeroClass,
   portalKpiClass,
   portalMutedClass,
   portalPanelClass,
@@ -89,21 +88,32 @@ export default function AdminHomePage() {
 
   return (
     <div className="space-y-6">
-      <section className={portalHeroClass}>
-        <p className="text-sm font-medium text-white/80">NOVA HOLDINGS</p>
-        <h1 className="mt-1 text-balance text-[30px] font-bold leading-9 tracking-tight">Administration</h1>
-        <p className="mt-2 max-w-xl text-sm leading-6 text-white/85">
-          Établissements et comptes Direction, Préfet, Professeur. Le quotidien pédagogique reste dans EduAdmins.
-        </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button asChild variant="secondary">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-muted-foreground">NOVA HOLDINGS</p>
+          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Administration</h1>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild>
             <Link href="/dashboard/ecoles?creer=1">Nouvel établissement</Link>
           </Button>
-          <Button asChild variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
+          <Button asChild variant="outline">
             <Link href="/dashboard/comptes?creer=1">Nouveau compte</Link>
           </Button>
         </div>
-      </section>
+      </div>
+
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher un établissement…"
+          className="pl-9"
+          aria-label="Rechercher un établissement"
+        />
+      </div>
 
       {status === "error" ? (
         <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
@@ -123,30 +133,20 @@ export default function AdminHomePage() {
               <p className={`${portalMutedClass} mt-1`}>{totals.actives} actif{totals.actives > 1 ? "s" : ""}</p>
             </Link>
             <div className={portalPanelClass}>
-              <p className={portalMutedClass}>Élèves</p>
+              <p className={portalMutedClass}>Élèves sous gestion</p>
               <p className={`${portalKpiClass} mt-1`}>{totals.eleves}</p>
             </div>
             <Link href="/dashboard/comptes?role=PROFESSEUR" className={portalPanelClass}>
-              <p className={portalMutedClass}>Professeurs</p>
+              <p className={portalMutedClass}>Comptes enseignant</p>
               <p className={`${portalKpiClass} mt-1`}>{totals.professeurs}</p>
             </Link>
-            <Link href="/dashboard/comptes?role=PREFET" className={portalPanelClass}>
-              <p className={portalMutedClass}>Préfets</p>
-              <p className={`${portalKpiClass} mt-1`}>{totals.prefets}</p>
-              <p className={`${portalMutedClass} mt-1`}>{totals.directeurs} directeur{totals.directeurs > 1 ? "s" : ""}</p>
+            <Link href="/dashboard/comptes" className={portalPanelClass}>
+              <p className={portalMutedClass}>Comptes Direction et préfecture</p>
+              <p className={`${portalKpiClass} mt-1`}>{totals.directeurs + totals.prefets}</p>
+              <p className={`${portalMutedClass} mt-1`}>
+                {totals.directeurs} direction · {totals.prefets} préfecture
+              </p>
             </Link>
-          </div>
-
-          <div className="relative max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un établissement…"
-              className="pl-9"
-              aria-label="Rechercher un établissement"
-            />
           </div>
 
           {ecoles.length === 0 ? (
@@ -199,31 +199,31 @@ export default function AdminHomePage() {
                 <p className={portalMutedClass}>
                   {from}–{to} sur {filtered.length} · {PAGE_SIZE} par page
                 </p>
-                {filtered.length > PAGE_SIZE ? (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={pageSafe <= 1}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    >
-                      <ChevronLeft />
-                      Précédent
-                    </Button>
-                    <p className="min-w-16 text-center text-sm tabular-nums">
-                      {pageSafe}/{pageCount}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={pageSafe >= pageCount}
-                      onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
-                    >
-                      Suivant
-                      <ChevronRight />
-                    </Button>
-                  </div>
-                ) : null}
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={pageSafe <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    aria-label="Page précédente"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm tabular-nums">
+                    {pageSafe} / {pageCount}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={pageSafe >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                    aria-label="Page suivante"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </>
           )}

@@ -104,6 +104,7 @@ export function StaffProfil({
   const [me, setMe] = useState<Me | null>(null);
   const [form, setForm] = useState({ prenom: "", nom: "", email: "", telephone: "", adresse: "" });
   const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [editing, setEditing] = useState(false);
   const [enableOpen, setEnableOpen] = useState(false);
   const [disableOpen, setDisableOpen] = useState(false);
   const [challengeId, setChallengeId] = useState<string | null>(null);
@@ -165,6 +166,7 @@ export function StaffProfil({
       if (!res.ok) throw new Error(body.error);
       await update?.({ prenom: form.prenom, nom: form.nom, email: form.email });
       toast({ title: "Profil enregistré" });
+      setEditing(false);
       await load();
       setStatus("ready");
     } catch (error) {
@@ -176,6 +178,18 @@ export function StaffProfil({
     } finally {
       setBusy(false);
     }
+  };
+
+  const cancelEdit = () => {
+    if (!me) return;
+    setForm({
+      prenom: me.prenom ?? "",
+      nom: me.nom ?? "",
+      email: me.email ?? "",
+      telephone: me.telephone ?? "",
+      adresse: me.adresse ?? "",
+    });
+    setEditing(false);
   };
 
   const savePassword = async () => {
@@ -224,7 +238,7 @@ export function StaffProfil({
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Impossible d’activer l’A2F",
+        title: "Impossible d’activer la sécurité",
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -243,7 +257,7 @@ export function StaffProfil({
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
-      toast({ title: "A2F activée", description: "Un code sera demandé à chaque connexion." });
+      toast({ title: "Sécurité activée", description: "Un code sera demandé à chaque connexion." });
       setEnableOpen(false);
       setChallengeId(null);
       setCode("");
@@ -270,7 +284,7 @@ export function StaffProfil({
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
-      toast({ title: "A2F désactivée" });
+      toast({ title: "Sécurité désactivée" });
       setDisableOpen(false);
       setDisablePassword("");
       await load();
@@ -291,7 +305,7 @@ export function StaffProfil({
       <div>
         <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Mon profil</h1>
         <p className={`${portalMutedClass} mt-1`}>
-          Identité, mot de passe et authentification à deux facteurs. Accessible depuis chaque page, menu du compte.
+          Identité, mot de passe et sécurité du compte. Accessible depuis chaque page, menu du compte.
         </p>
       </div>
 
@@ -307,48 +321,95 @@ export function StaffProfil({
       ) : (
         <>
           <section className={`${portalPanelClass} space-y-4`}>
-            <div>
-              <h2 className="text-lg font-bold tracking-tight">Identité</h2>
-              <p className={portalMutedClass}>
-                {ROLE_LABEL[me?.role ?? ""] ?? me?.role}
-                {me?.ecole?.nom ? ` · ${me.ecole.nom}` : ""}
-                {me?.familleCycle ? ` · ${me.familleCycle.toLowerCase()}` : ""}
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Prénom" htmlFor="prenom">
-                <Input id="prenom" value={form.prenom} autoComplete="given-name" onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
-              </Field>
-              <Field label="Nom" htmlFor="nom">
-                <Input id="nom" value={form.nom} autoComplete="family-name" onChange={(e) => setForm({ ...form, nom: e.target.value })} />
-              </Field>
-              <Field label="Email" htmlFor="email">
-                <Input id="email" type="email" value={form.email} autoComplete="email" onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              </Field>
-              <Field label="Téléphone" htmlFor="telephone">
-                <Input
-                  id="telephone"
-                  type="tel"
-                  value={form.telephone}
-                  autoComplete="tel"
-                  placeholder="77 000 00 00"
-                  onChange={(e) => setForm({ ...form, telephone: e.target.value })}
-                />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Adresse" htmlFor="adresse">
-                  <Input
-                    id="adresse"
-                    value={form.adresse}
-                    autoComplete="street-address"
-                    onChange={(e) => setForm({ ...form, adresse: e.target.value })}
-                  />
-                </Field>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight">Identité</h2>
+                <p className={portalMutedClass}>
+                  {ROLE_LABEL[me?.role ?? ""] ?? me?.role}
+                  {me?.ecole?.nom ? ` · ${me.ecole.nom}` : ""}
+                  {me?.familleCycle ? ` · ${me.familleCycle.toLowerCase()}` : ""}
+                </p>
               </div>
+              {!editing ? (
+                <Button type="button" variant="outline" onClick={() => setEditing(true)}>
+                  Modifier
+                </Button>
+              ) : null}
             </div>
-            <Button type="button" onClick={saveProfile} disabled={busy || form.prenom.trim().length < 2 || form.nom.trim().length < 2}>
-              {busy ? "Enregistrement…" : "Enregistrer le profil"}
-            </Button>
+            {editing ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Prénom" htmlFor="prenom">
+                    <Input
+                      id="prenom"
+                      value={form.prenom}
+                      autoComplete="given-name"
+                      onChange={(e) => setForm({ ...form, prenom: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Nom" htmlFor="nom">
+                    <Input
+                      id="nom"
+                      value={form.nom}
+                      autoComplete="family-name"
+                      onChange={(e) => setForm({ ...form, nom: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Téléphone" htmlFor="telephone">
+                    <Input
+                      id="telephone"
+                      type="tel"
+                      value={form.telephone}
+                      autoComplete="tel"
+                      placeholder="77 000 00 00"
+                      onChange={(e) => setForm({ ...form, telephone: e.target.value })}
+                    />
+                  </Field>
+                  <div className="sm:col-span-2">
+                    <Field label="Adresse" htmlFor="adresse">
+                      <Input
+                        id="adresse"
+                        value={form.adresse}
+                        autoComplete="street-address"
+                        placeholder="Quartier, rue…"
+                        onChange={(e) => setForm({ ...form, adresse: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={saveProfile}
+                    disabled={busy || form.prenom.trim().length < 2 || form.nom.trim().length < 2}
+                  >
+                    {busy ? "Enregistrement…" : "Enregistrer"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={cancelEdit} disabled={busy}>
+                    Annuler
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <dt className={portalMutedClass}>Prénom</dt>
+                  <dd className="mt-1 font-medium text-foreground">{form.prenom || "—"}</dd>
+                </div>
+                <div>
+                  <dt className={portalMutedClass}>Nom</dt>
+                  <dd className="mt-1 font-medium text-foreground">{form.nom || "—"}</dd>
+                </div>
+                <div>
+                  <dt className={portalMutedClass}>Téléphone</dt>
+                  <dd className="mt-1 font-medium text-foreground">{form.telephone || "—"}</dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className={portalMutedClass}>Adresse</dt>
+                  <dd className="mt-1 font-medium text-foreground">{form.adresse || "—"}</dd>
+                </div>
+              </dl>
+            )}
           </section>
 
           <section className={`${portalPanelClass} space-y-4`}>
@@ -392,7 +453,7 @@ export function StaffProfil({
 
           <section className={`${portalPanelClass} space-y-4`}>
             <div>
-              <h2 className="text-lg font-bold tracking-tight">Authentification à deux facteurs</h2>
+              <h2 className="text-lg font-bold tracking-tight">Sécurité du compte</h2>
               <p className={portalMutedClass}>
                 Un code à 6 chiffres est demandé après le mot de passe. Il est envoyé par e-mail.
               </p>
@@ -410,7 +471,7 @@ export function StaffProfil({
                   }}
                   disabled={busy}
                 />
-                {me?.twoFactorEnabled ? "A2F activée" : "A2F désactivée"}
+                {me?.twoFactorEnabled ? "Protection activée" : "Protection désactivée"}
               </label>
             </div>
           </section>
@@ -429,14 +490,14 @@ export function StaffProfil({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Activer l’A2F</DialogTitle>
+            <DialogTitle>Activer la sécurité du compte</DialogTitle>
             <DialogDescription>
               Saisissez le code à 6 chiffres reçu par e-mail pour confirmer l’activation.
             </DialogDescription>
           </DialogHeader>
-          <Field label="Code" htmlFor="a2f-code">
+          <Field label="Code" htmlFor="security-code">
             <Input
-              id="a2f-code"
+              id="security-code"
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
@@ -450,7 +511,7 @@ export function StaffProfil({
               Annuler
             </Button>
             <Button type="button" onClick={confirmEnable} disabled={busy || code.length !== 6}>
-              {busy ? "Vérification…" : "Activer l’A2F"}
+              {busy ? "Vérification…" : "Activer"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -465,11 +526,11 @@ export function StaffProfil({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Désactiver l’A2F ?</DialogTitle>
+            <DialogTitle>Désactiver la sécurité du compte ?</DialogTitle>
             <DialogDescription>Saisissez votre mot de passe pour confirmer.</DialogDescription>
           </DialogHeader>
           <PasswordField
-            id="disable-a2f-password"
+            id="disable-security-password"
             label="Mot de passe"
             value={disablePassword}
             autoComplete="current-password"
@@ -480,7 +541,7 @@ export function StaffProfil({
               Annuler
             </Button>
             <Button type="button" variant="destructive" onClick={confirmDisable} disabled={busy || !disablePassword}>
-              {busy ? "Désactivation…" : "Désactiver l’A2F"}
+              {busy ? "Désactivation…" : "Désactiver"}
             </Button>
           </DialogFooter>
         </DialogContent>

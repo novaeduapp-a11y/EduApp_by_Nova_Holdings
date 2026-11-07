@@ -4,14 +4,27 @@ import { prisma } from "@/lib/prisma";
 import { requireProfesseur } from "@/lib/request-auth";
 import {
   canAccessClasse,
+  canAccessMatiere,
   dayBounds,
   forbiddenClasse,
   getProfAssignments,
 } from "@/lib/prof-scope";
+import {
+  dureeHeuresFromCreneau,
+  jourSemaineFromDate,
+  motifFromStatut,
+  pickDefaultCreneau,
+  statutFromMotif,
+  type AppelStatut,
+} from "@/lib/appel-creneau";
+import { notifyUsers } from "@/lib/notify";
 
 const saveSchema = z.object({
   classeId: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  heureDebut: z.string().regex(/^\d{2}:\d{2}$/),
+  heureFin: z.string().regex(/^\d{2}:\d{2}$/),
+  matiereId: z.string().min(1).optional(),
   lignes: z.array(
     z.object({
       eleveId: z.string().min(1),
@@ -37,14 +50,97 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const classeId = searchParams.get("classeId");
     const date = searchParams.get("date") ?? new Date().toISOString().slice(0, 10);
+    let heureDebut = searchParams.get("heureDebut");
+    let heureFin = searchParams.get("heureFin");
+
     if (!classeId) {
       return NextResponse.json({ error: "Classe requise" }, { status: 400 });
     }
     if (!canAccessClasse(assignments, classeId)) return forbiddenClasse();
 
     const classe = assignments.find((item) => item.classeId === classeId);
+    const jour = jourSemaineFromDate(date);
+    const matiereIds = new Set(
+      assignments.filter((a) => a.classeId === classeId).map((a) => a.matiereId)
+    );
+
+    const creneauxJour = jour
+      ? await prisma.creneauEdt.findMany({
+          where: { classeId, jour },
+          include: {
+            matiere: { select: { id: true, nom: true } },
+            professeur: { select: { id: true, nom: true, prenom: true } },
+          },
+          orderBy: { heureDebut: "asc" },
+        })
+      : [];
+
+    const mesCreneaux = creneauxJour
+      .filter(
+        (c) =>
+          (c.professeurId && c.professeurId === authResult.user.id) || matiereIds.has(c.matiereId)
+      )
+      .map((c) => ({
+        id: c.id,
+        heureDebut: c.heureDebut,
+        heureFin: c.heureFin,
+        matiereId: c.matiereId,
+        matiereNom: c.matiere.nom,
+        salle: c.salle,
+      }));
+
+    if (mesCreneaux.length === 0) {
+      const eleves = jour
+        ? await prisma.eleve.findMany({
+            where: { classeId, deletedAt: null, actif: true },
+            select: { id: true, nom: true, prenom: true, matricule: true, sexe: true },
+            orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+          })
+        : [];
+      return NextResponse.json({
+        data: {
+          classeId,
+          classeNom: classe?.classeNom ?? "",
+          date,
+          jour,
+          creneaux: [],
+          creneau: null,
+          precedent: null,
+          verrouille: false,
+          eleves: eleves.map((eleve) => ({
+            eleveId: eleve.id,
+            nom: eleve.nom,
+            prenom: eleve.prenom,
+            matricule: eleve.matricule,
+            sexe: eleve.sexe,
+            statut: "PRESENT",
+          })),
+          message: jour
+            ? "Aucun cours prévu à votre emploi du temps ce jour. Les élèves sont affichés, mais l'enregistrement de l'appel nécessite un créneau établi par le préfet"
+            : "Pas de cours aujourd’hui",
+        },
+      });
+    }
+
+    if (!heureDebut || !heureFin) {
+      const def = pickDefaultCreneau(mesCreneaux);
+      heureDebut = def?.heureDebut ?? mesCreneaux[0].heureDebut;
+      heureFin = def?.heureFin ?? mesCreneaux[0].heureFin;
+    }
+
+    const creneau =
+      mesCreneaux.find((c) => c.heureDebut === heureDebut && c.heureFin === heureFin) ?? null;
+    if (!creneau) {
+      return NextResponse.json({ error: "Créneau non autorisé pour ce professeur" }, { status: 403 });
+    }
+
+    const index = creneauxJour.findIndex(
+      (c) => c.heureDebut === creneau.heureDebut && c.heureFin === creneau.heureFin
+    );
+    const creneauPrecedent = index > 0 ? creneauxJour[index - 1] : null;
+
     const { start, end } = dayBounds(date);
-    const [eleves, absences] = await Promise.all([
+    const [eleves, absencesCreneau, absencesPrecedent, feuille] = await Promise.all([
       prisma.eleve.findMany({
         where: { classeId, deletedAt: null, actif: true },
         select: { id: true, nom: true, prenom: true, matricule: true, sexe: true },
@@ -54,23 +150,66 @@ export async function GET(request: NextRequest) {
         where: {
           deletedAt: null,
           dateAbsence: { gte: start, lte: end },
+          heureDebut: creneau.heureDebut,
+          heureFin: creneau.heureFin,
           eleve: { classeId },
+        },
+      }),
+      creneauPrecedent
+        ? prisma.absence.findMany({
+            where: {
+              deletedAt: null,
+              dateAbsence: { gte: start, lte: end },
+              heureDebut: creneauPrecedent.heureDebut,
+              heureFin: creneauPrecedent.heureFin,
+              eleve: { classeId },
+            },
+          })
+        : Promise.resolve([]),
+      prisma.feuillePresence.findFirst({
+        where: {
+          classeId,
+          dateAppel: start,
+          heureDebut: creneau.heureDebut,
+          heureFin: creneau.heureFin,
         },
       }),
     ]);
 
-    const byEleve = new Map(absences.map((item) => [item.eleveId, item]));
+    const byEleve = new Map(absencesCreneau.map((item) => [item.eleveId, item]));
+    const prevByEleve = new Map(absencesPrecedent.map((item) => [item.eleveId, item]));
+    const verrouille = Boolean(feuille);
 
     return NextResponse.json({
       data: {
         classeId,
         classeNom: classe?.classeNom ?? "",
         date,
+        jour,
+        creneaux: mesCreneaux,
+        creneau,
+        precedent: creneauPrecedent
+          ? {
+              heureDebut: creneauPrecedent.heureDebut,
+              heureFin: creneauPrecedent.heureFin,
+              matiereNom: creneauPrecedent.matiere.nom,
+              professeurNom: creneauPrecedent.professeur
+                ? `${creneauPrecedent.professeur.prenom} ${creneauPrecedent.professeur.nom}`
+                : null,
+            }
+          : null,
+        verrouille,
         eleves: eleves.map((eleve) => {
           const absence = byEleve.get(eleve.id);
-          let statut: "PRESENT" | "ABSENT" | "RETARD" = "PRESENT";
-          if (absence) {
-            statut = /retard/i.test(absence.motif ?? "") ? "RETARD" : "ABSENT";
+          const prev = prevByEleve.get(eleve.id);
+          let statut: AppelStatut = "PRESENT";
+          if (verrouille || absence) {
+            statut = absence ? statutFromMotif(absence.motif) : "PRESENT";
+          } else if (prev) {
+            const prevStatut = statutFromMotif(prev.motif);
+            if (prevStatut === "ABSENT" || prevStatut === "ABSENT_RETARD") {
+              statut = "RETARD";
+            }
           }
           return {
             eleveId: eleve.id,
@@ -80,6 +219,7 @@ export async function GET(request: NextRequest) {
             sexe: eleve.sexe,
             statut,
             justifiee: absence?.justifiee ?? false,
+            statutPrecedent: prev ? statutFromMotif(prev.motif) : ("PRESENT" as AppelStatut),
           };
         }),
       },
@@ -104,8 +244,29 @@ export async function PUT(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Données invalides" }, { status: 400 });
     }
-    const { classeId, date, lignes } = parsed.data;
+    const { classeId, date, heureDebut, heureFin, lignes } = parsed.data;
+    let matiereId = parsed.data.matiereId;
     if (!canAccessClasse(assignments, classeId)) return forbiddenClasse();
+
+    const jour = jourSemaineFromDate(date);
+    if (!jour) {
+      return NextResponse.json({ error: "Pas de cours aujourd’hui" }, { status: 400 });
+    }
+
+    const creneau = await prisma.creneauEdt.findFirst({
+      where: { classeId, jour, heureDebut, heureFin },
+      select: { matiereId: true, professeurId: true },
+    });
+    if (!creneau) {
+      return NextResponse.json({ error: "Créneau introuvable dans l’EDT" }, { status: 404 });
+    }
+    matiereId = matiereId ?? creneau.matiereId;
+    const allowedSlot =
+      creneau.professeurId === authResult.user.id ||
+      canAccessMatiere(assignments, classeId, creneau.matiereId);
+    if (!allowedSlot) {
+      return NextResponse.json({ error: "Créneau non autorisé" }, { status: 403 });
+    }
 
     const eleves = await prisma.eleve.findMany({
       where: { classeId, deletedAt: null, actif: true },
@@ -120,15 +281,39 @@ export async function PUT(request: NextRequest) {
 
     const { start, end } = dayBounds(date);
     const dateAbsence = start;
+    const duree = dureeHeuresFromCreneau(heureDebut, heureFin);
 
-    const createdFor: string[] = [];
+    const deja = await prisma.feuillePresence.findFirst({
+      where: { classeId, dateAppel: start, heureDebut, heureFin },
+    });
+    if (deja) {
+      return NextResponse.json(
+        { error: "Cette liste de présence (créneau) est déjà enregistrée et ne peut plus être modifiée." },
+        { status: 409 }
+      );
+    }
+
+    const createdFor: Array<{ eleveId: string; statut: "ABSENT" | "RETARD" }> = [];
 
     await prisma.$transaction(async (tx) => {
+      await tx.feuillePresence.create({
+        data: {
+          classeId,
+          dateAppel: start,
+          heureDebut,
+          heureFin,
+          matiereId,
+          createdBy: authResult.user.id,
+        },
+      });
+
       for (const ligne of lignes) {
         const existing = await tx.absence.findFirst({
           where: {
             eleveId: ligne.eleveId,
             dateAbsence: { gte: start, lte: end },
+            heureDebut,
+            heureFin,
             deletedAt: null,
           },
         });
@@ -143,11 +328,18 @@ export async function PUT(request: NextRequest) {
           continue;
         }
 
-        const motif = ligne.statut === "RETARD" ? "Retard" : "Absence";
+        const motif = motifFromStatut(ligne.statut);
         if (existing) {
           await tx.absence.update({
             where: { id: existing.id },
-            data: { motif, periode: "JOURNEE" },
+            data: {
+              motif,
+              periode: "JOURNEE",
+              matiereId,
+              dureeHeures: duree,
+              heureDebut,
+              heureFin,
+            },
           });
         } else {
           await tx.absence.create({
@@ -156,37 +348,62 @@ export async function PUT(request: NextRequest) {
               dateAbsence,
               periode: "JOURNEE",
               motif,
+              matiereId,
+              dureeHeures: duree,
+              heureDebut,
+              heureFin,
               createdBy: authResult.user.id,
             },
           });
-          createdFor.push(ligne.eleveId);
+          if (ligne.statut === "ABSENT" || ligne.statut === "RETARD") {
+            createdFor.push({ eleveId: ligne.eleveId, statut: ligne.statut });
+          }
         }
       }
     });
 
     let parentsNotifies = 0;
     if (createdFor.length > 0) {
+      const eleveIds = createdFor.map((item) => item.eleveId);
+      const statutByEleve = new Map(createdFor.map((item) => [item.eleveId, item.statut]));
       const [liens, elevesNotif] = await Promise.all([
         prisma.parentEleve.findMany({
-          where: { eleveId: { in: createdFor } },
+          where: { eleveId: { in: eleveIds } },
           select: { parentId: true, eleveId: true },
         }),
         prisma.eleve.findMany({
-          where: { id: { in: createdFor } },
+          where: { id: { in: eleveIds } },
           select: { id: true, prenom: true, nom: true },
         }),
       ]);
       const nomById = new Map(elevesNotif.map((e) => [e.id, `${e.prenom} ${e.nom}`]));
+      const matiereNom = matiereId
+        ? (await prisma.matiere.findUnique({ where: { id: matiereId }, select: { nom: true } }))?.nom
+        : null;
+      const cours = matiereNom ? ` au cours de ${matiereNom}` : "";
       if (liens.length > 0) {
-        await prisma.notification.createMany({
-          data: liens.map((lien) => ({
-            userId: lien.parentId,
-            type: "absence",
-            title: `Présence · ${nomById.get(lien.eleveId) ?? "élève"}`,
-            message: "Une absence ou un retard a été saisi aujourd’hui. Consultez l’onglet Absences.",
-            data: { eleveId: lien.eleveId, date },
-          })),
-        });
+        await notifyUsers(
+          liens.map((lien) => {
+            const retard = statutByEleve.get(lien.eleveId) === "RETARD";
+            const enfant = nomById.get(lien.eleveId) ?? "votre enfant";
+            const label = retard ? "Retard" : "Absence";
+            return {
+              userId: lien.parentId,
+              type: retard ? "retard" : "absence",
+              title: `${label} · ${enfant}`,
+              message: retard
+                ? `Votre enfant ${enfant} a un retard${cours} de ${heureDebut} à ${heureFin}.`
+                : `Votre enfant ${enfant} est absent${cours} de ${heureDebut} à ${heureFin}.`,
+              data: {
+                eleveId: lien.eleveId,
+                date,
+                heureDebut,
+                heureFin,
+                statut: statutByEleve.get(lien.eleveId) ?? "ABSENT",
+              },
+            };
+          })
+        );
         parentsNotifies = liens.length;
       }
     }
@@ -197,6 +414,7 @@ export async function PUT(request: NextRequest) {
         absents: lignes.filter((ligne) => ligne.statut === "ABSENT").length,
         retards: lignes.filter((ligne) => ligne.statut === "RETARD").length,
         parentsNotifies,
+        creneau: { heureDebut, heureFin, matiereId },
       },
     });
   } catch (error) {

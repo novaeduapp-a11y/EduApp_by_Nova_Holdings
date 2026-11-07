@@ -28,11 +28,13 @@ export function ContactBand() {
                 Écrivez-nous ou appelez-nous pour en savoir plus.
               </p>
               <ul className="mt-8 space-y-2 text-sm text-[color:var(--color-ink)]">
-                <li>
-                  <a className="font-medium transition-colors hover:text-primary" href={PUBLIC_CONTACT.phoneHref}>
-                    {PUBLIC_CONTACT.phone}
-                  </a>
-                </li>
+                {PUBLIC_CONTACT.phones.map((phone) => (
+                  <li key={phone.href}>
+                    <a className="font-medium transition-colors hover:text-primary" href={phone.href}>
+                      {phone.label}
+                    </a>
+                  </li>
+                ))}
                 <li>
                   <a className="font-medium transition-colors hover:text-primary" href={PUBLIC_CONTACT.emailHref}>
                     {PUBLIC_CONTACT.email}

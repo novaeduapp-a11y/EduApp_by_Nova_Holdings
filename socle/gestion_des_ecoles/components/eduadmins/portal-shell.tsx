@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { LogOut, Menu, User, X } from "lucide-react";
@@ -17,7 +17,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { TERMS_TEXT, TERMS_TITLE } from "@/lib/legal";
 import { getHomePathForRole } from "@/lib/role-routes";
+import { NOTIFICATIONS_CHANGED_EVENT } from "@/lib/notifications-client";
 
 export const portalCardClass =
   "rounded-3xl bg-card p-4 shadow-card transition-[box-shadow,transform] duration-150 ease-out hover:shadow-[0_16px_40px_rgb(11_47_122_/_0.16)] active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100";
@@ -58,7 +60,7 @@ export function PortalShell({
   mePath = "/api/staff/me",
   brand = "EduAdmins",
   signOutHref = "/eduadmins",
-  accountLinks = [],
+  accountLinks: _accountLinks = [],
 }: {
   title: string;
   subtitle: string;
@@ -71,12 +73,15 @@ export function PortalShell({
   signOutHref?: string;
   accountLinks?: { name: string; href: string }[];
 }) {
+  void _accountLinks;
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ecoleNom, setEcoleNom] = useState("");
   const [unread, setUnread] = useState(0);
+  const [needsTerms, setNeedsTerms] = useState(false);
+  const [acceptingTerms, setAcceptingTerms] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -86,16 +91,59 @@ export function PortalShell({
     }
   }, [status, session, router, allowedRole]);
 
-  useEffect(() => {
+  const refreshUnread = useCallback(() => {
     if (status !== "authenticated") return;
     fetch(mePath)
       .then((res) => res.json())
       .then((body) => {
-        setEcoleNom(body.data?.ecole?.nom ?? body.data?.etablissement?.nom ?? "");
+        setEcoleNom((current) => current || body.data?.ecole?.nom || body.data?.etablissement?.nom || "");
         setUnread(Number(body.data?.unread ?? body.data?.notificationsNonLues ?? 0));
       })
       .catch(() => {});
   }, [status, mePath]);
+
+  useEffect(() => {
+    refreshUnread();
+  }, [refreshUnread, pathname]);
+
+  useEffect(() => {
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ unread?: number }>).detail;
+      if (typeof detail?.unread === "number") {
+        setUnread(detail.unread);
+        return;
+      }
+      refreshUnread();
+    };
+    window.addEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(NOTIFICATIONS_CHANGED_EVENT, onChanged);
+  }, [refreshUnread]);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let alive = true;
+    fetch("/api/staff/me")
+      .then((res) => res.json())
+      .then((body) => {
+        if (!alive) return;
+        setNeedsTerms(!body.data?.termsAcceptedAt);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [status]);
+
+  const acceptTerms = async () => {
+    setAcceptingTerms(true);
+    try {
+      const res = await fetch("/api/staff/terms", { method: "POST" });
+      if (!res.ok) return;
+      setNeedsTerms(false);
+    } finally {
+      setAcceptingTerms(false);
+    }
+  };
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -119,6 +167,7 @@ export function PortalShell({
   const profileHref = `${homeHref}/profil`;
   const badgeHref =
     navigation.find((item) => item.href.includes("alertes"))?.href ??
+    navigation.find((item) => item.href.includes("communiques"))?.href ??
     navigation.find((item) => item.href.includes("messages"))?.href;
   const logoVariant: BrandVariant = brand === "NOVA" ? "nova" : "eduapps";
 
@@ -250,33 +299,13 @@ export function PortalShell({
                 <span className="hidden font-medium sm:inline-block">{session.user.prenom}</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="px-2 py-1.5">
-                <p className="text-sm font-medium">
-                  {session.user.prenom} {session.user.nom}
-                </p>
-                <p className="text-xs text-muted-foreground">{session.user.email}</p>
-                {ecoleNom ? <p className="text-xs text-muted-foreground">{ecoleNom}</p> : null}
-              </div>
-              <DropdownMenuSeparator />
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem asChild>
                 <Link href={profileHref} className="cursor-pointer">
                   <User className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Mon profil
+                  Profil
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={homeHref} className="cursor-pointer">
-                  Accueil
-                </Link>
-              </DropdownMenuItem>
-              {accountLinks.map((item) => (
-                <DropdownMenuItem key={item.href} asChild>
-                  <Link href={item.href} className="cursor-pointer">
-                    {item.name}
-                  </Link>
-                </DropdownMenuItem>
-              ))}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="cursor-pointer text-destructive focus:text-destructive"
@@ -292,6 +321,22 @@ export function PortalShell({
           {children}
         </main>
       </div>
+      {needsTerms ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-card p-6 shadow-card">
+            <h2 className="text-xl font-bold">{TERMS_TITLE}</h2>
+            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{TERMS_TEXT}</p>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => signOut({ callbackUrl: signOutHref })}>
+                Refuser
+              </Button>
+              <Button type="button" onClick={acceptTerms} disabled={acceptingTerms}>
+                {acceptingTerms ? "Enregistrement…" : "J’accepte"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

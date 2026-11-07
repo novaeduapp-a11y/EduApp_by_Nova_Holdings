@@ -252,14 +252,14 @@ export default function DirecteurBilanPage() {
           statut: "ABSENT" as FiltreStatut,
           value: data.personnel.absents,
           label: "Absences profs",
-          detail: "Saisie Direction",
+          detail: "Saisie préfet / direction",
         },
         {
           onglet: "personnel" as const,
           statut: "RETARD" as FiltreStatut,
           value: data.personnel.retards,
           label: "Retards profs",
-          detail: "Saisie Direction",
+          detail: "Saisie préfet / direction",
         },
       ]
     : [];
@@ -357,9 +357,13 @@ export default function DirecteurBilanPage() {
 
       {data ? (
         <p className={portalMutedClass}>
-          {data.personnel.presents} professeur{data.personnel.presents > 1 ? "s" : ""} présent
-          {data.personnel.presents > 1 ? "s" : ""} sur {data.personnel.total}
-          {" · "}
+          {data.personnel.total > 0 ? (
+            <>
+              {data.personnel.presents} professeur{data.personnel.presents > 1 ? "s" : ""} présent
+              {data.personnel.presents > 1 ? "s" : ""} sur {data.personnel.total}
+              {" · "}
+            </>
+          ) : null}
           <Link href="/directeur/personnel" className={portalLinkClass}>
             Voir le personnel
           </Link>

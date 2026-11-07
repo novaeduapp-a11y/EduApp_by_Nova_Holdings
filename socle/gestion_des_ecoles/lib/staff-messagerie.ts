@@ -1,4 +1,36 @@
+import type { FamilleCycle } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+/** La session web ne porte pas l'école : on la relit en base. */
+export async function loadProfesseurSchool(userId: string) {
+  const prof = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, prenom: true, nom: true, role: true, ecoleId: true },
+  });
+  if (!prof || prof.role !== "PROFESSEUR" || !prof.ecoleId) return null;
+  return { ...prof, ecoleId: prof.ecoleId };
+}
+
+export async function famillesDuProfesseur(professeurId: string, ecoleId: string) {
+  const [parMatiere, principales] = await Promise.all([
+    prisma.classeMatiere.findMany({
+      where: { professeurId, classe: { ecoleId } },
+      select: { classe: { select: { cycle: { select: { famille: true } } } } },
+    }),
+    prisma.classe.findMany({
+      where: { ecoleId, professeurPrincipalId: professeurId },
+      select: { cycle: { select: { famille: true } } },
+    }),
+  ]);
+  const familles = new Set<FamilleCycle>();
+  for (const row of parMatiere) {
+    if (row.classe.cycle?.famille) familles.add(row.classe.cycle.famille);
+  }
+  for (const row of principales) {
+    if (row.cycle?.famille) familles.add(row.cycle.famille);
+  }
+  return [...familles];
+}
 
 export function serializeMessageStaff(message: {
   id: string;
@@ -24,7 +56,7 @@ export async function assertFilStaffAccess(filId: string, userId: string, ecoleI
     where: {
       id: filId,
       ecoleId,
-      OR: [{ directeurId: userId }, { prefetId: userId }],
+      OR: [{ directeurId: userId }, { prefetId: userId }, { professeurId: userId }],
     },
   });
 }

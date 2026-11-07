@@ -14,11 +14,29 @@ export async function GET(request: NextRequest) {
     const action = request.nextUrl.searchParams.get("action")?.trim() ?? "";
     const role = request.nextUrl.searchParams.get("role")?.trim() ?? "";
     const voie = request.nextUrl.searchParams.get("voie")?.trim() ?? "";
+    const ecoleId = request.nextUrl.searchParams.get("ecoleId")?.trim() ?? "";
+    const dateDebut = request.nextUrl.searchParams.get("dateDebut")?.trim() ?? "";
+    const dateFin = request.nextUrl.searchParams.get("dateFin")?.trim() ?? "";
+
+    const createdAtFilter: { gte?: Date; lte?: Date } = {};
+    if (dateDebut) {
+      const start = new Date(`${dateDebut}T00:00:00`);
+      if (!Number.isNaN(start.getTime())) createdAtFilter.gte = start;
+    }
+    if (dateFin) {
+      const end = new Date(`${dateFin}T23:59:59`);
+      if (!Number.isNaN(end.getTime())) createdAtFilter.lte = end;
+    }
 
     const logs = await prisma.logActivite.findMany({
       where: {
         ...(action ? { action } : {}),
-        ...(role && ROLES.includes(role as Role) ? { user: { role: role as Role } } : {}),
+        ...(Object.keys(createdAtFilter).length ? { createdAt: createdAtFilter } : {}),
+        ...(role && ROLES.includes(role as Role)
+          ? { user: { role: role as Role, ...(ecoleId ? { ecoleId } : {}) } }
+          : ecoleId
+            ? { user: { ecoleId } }
+            : {}),
       },
       include: {
         user: {
@@ -28,7 +46,8 @@ export async function GET(request: NextRequest) {
             nom: true,
             email: true,
             role: true,
-            ecole: { select: { nom: true } },
+            ecoleId: true,
+            ecole: { select: { id: true, nom: true } },
           },
         },
       },
@@ -54,6 +73,7 @@ export async function GET(request: NextRequest) {
                 nom: `${log.user.prenom} ${log.user.nom}`,
                 email: log.user.email,
                 role: log.user.role,
+                ecoleId: log.user.ecoleId,
                 ecole: log.user.ecole?.nom ?? null,
               }
             : null,
@@ -67,8 +87,12 @@ export async function GET(request: NextRequest) {
       });
 
     const actions = [...new Set(logs.map((log) => log.action))].sort((a, b) => a.localeCompare(b, "fr"));
+    const ecoles = await prisma.ecole.findMany({
+      select: { id: true, nom: true },
+      orderBy: { nom: "asc" },
+    });
 
-    return NextResponse.json({ data: { logs: rows, actions } });
+    return NextResponse.json({ data: { logs: rows, actions, ecoles } });
   } catch (error) {
     console.error("Erreur admin logs:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

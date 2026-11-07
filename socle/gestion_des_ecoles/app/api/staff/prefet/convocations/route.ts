@@ -4,12 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { requirePrefet } from "@/lib/request-auth";
 import { familleWhere, forbiddenCycle } from "@/lib/prefet-scope";
 import { sendConvocationEmail } from "@/lib/email";
+import { notifyUsers } from "@/lib/notify";
 
 const createSchema = z.object({
   classeId: z.string().min(1),
   eleveIds: z.array(z.string().min(1)).min(1).max(80),
   dateConvocation: z.string().min(8),
-  motif: z.string().min(4).max(800),
+  motif: z.string().min(3).max(200),
+  message: z.string().min(8).max(2000),
 });
 
 function dateLabel(value: Date) {
@@ -57,6 +59,7 @@ export async function GET(request: NextRequest) {
           id: row.id,
           dateConvocation: row.dateConvocation,
           motif: row.motif,
+          message: row.message,
           nomTuteur: row.nomTuteur,
           statut: row.statut,
           eleve: `${row.eleve.prenom} ${row.eleve.nom}`,
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     const parsed = createSchema.safeParse(await request.json());
     if (!parsed.success) {
-      return NextResponse.json({ error: "Classe, élèves, date et motif sont requis" }, { status: 400 });
+      return NextResponse.json({ error: "Classe, élèves, date, motif et message sont requis" }, { status: 400 });
     }
 
     const classe = await prisma.classe.findFirst({
@@ -109,6 +112,8 @@ export async function POST(request: NextRequest) {
 
     const created = [];
     for (const eleve of eleves) {
+      const motif = parsed.data.motif.trim();
+      const message = parsed.data.message.trim();
       const row = await prisma.convocation.create({
         data: {
           ecoleId,
@@ -116,7 +121,8 @@ export async function POST(request: NextRequest) {
           eleveId: eleve.id,
           createdById: authResult.user.id,
           dateConvocation,
-          motif: parsed.data.motif.trim(),
+          motif,
+          message,
           nomTuteur: eleve.nomTuteur,
           telephoneTuteur: eleve.telephoneTuteur,
           emailTuteur: eleve.emailParent,
@@ -126,15 +132,24 @@ export async function POST(request: NextRequest) {
 
       const parentIds = [...new Set(eleve.parentEleves.map((p) => p.parentId))];
       if (parentIds.length) {
-        await prisma.notification.createMany({
-          data: parentIds.map((userId) => ({
+        await notifyUsers(
+          parentIds.map((userId) => ({
             userId,
             type: "convocation",
-            title: "Convocation",
-            message: `${eleve.prenom} ${eleve.nom} — ${dateLabel(dateConvocation)} · ${parsed.data.motif.trim()}`,
-            data: { eleveId: eleve.id, convocationId: row.id, classeId: classe.id },
-          })),
-        });
+            title: `Convocation de ${eleve.prenom} ${eleve.nom}`,
+            message,
+            data: {
+              eleveId: eleve.id,
+              convocationId: row.id,
+              classeId: classe.id,
+              motif,
+              dateConvocation: dateConvocation.toISOString(),
+              classeNom: classe.nom,
+              eleveNom: `${eleve.prenom} ${eleve.nom}`,
+              demandePar: "Le Préfet",
+            },
+          }))
+        );
       }
 
       const emails = [
@@ -150,7 +165,8 @@ export async function POST(request: NextRequest) {
           nomEleve: `${eleve.prenom} ${eleve.nom}`,
           classe: classe.nom,
           dateLabel: dateLabel(dateConvocation),
-          motif: parsed.data.motif.trim(),
+          motif,
+          message,
         });
       }
     }

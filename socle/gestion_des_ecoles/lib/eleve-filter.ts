@@ -1,13 +1,13 @@
+import { matchesFolded } from "@/lib/text-search";
+
 export function matchesEleveSearch(
   eleve: { nom?: string | null; prenom?: string | null; matricule?: string | null },
   query: string
 ) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const hay = [eleve.prenom, eleve.nom, eleve.matricule, `${eleve.prenom ?? ""} ${eleve.nom ?? ""}`]
-    .join(" ")
-    .toLowerCase();
-  return hay.includes(q);
+  const hay = [eleve.prenom, eleve.nom, eleve.matricule, `${eleve.prenom ?? ""} ${eleve.nom ?? ""}`].join(
+    " "
+  );
+  return matchesFolded(hay, query);
 }
 
 export function uniqueNiveaux(classes: Array<{ niveau?: string | null }>) {

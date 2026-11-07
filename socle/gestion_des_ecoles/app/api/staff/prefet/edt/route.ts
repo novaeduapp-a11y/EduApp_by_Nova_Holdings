@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { JourSemaine } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requirePrefet } from "@/lib/request-auth";
-import { familleWhere, forbiddenCycle } from "@/lib/prefet-scope";
+import { familleWhere, forbiddenCycle, matieresDuCycleWhere, profTypeWhere } from "@/lib/prefet-scope";
 import {
   JOURS_SEMAINE,
   creneauxSeChevauchent,
@@ -11,7 +11,7 @@ import {
 } from "@/lib/edt";
 import { fusionnerHoraires, horairesDuCycle } from "@/lib/grille-horaire";
 
-const jourEnum = z.enum(["LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI"]);
+const jourEnum = z.enum(["LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI", "SAMEDI"]);
 
 const createSchema = z.object({
   classeId: z.string().min(1),
@@ -54,9 +54,7 @@ async function professeursDuCycle(
       role: "PROFESSEUR",
       actif: true,
       deletedAt: null,
-      ...(familleCycle === "PRIMAIRE"
-        ? { typeProfesseur: "PRIMAIRE" }
-        : { typeProfesseur: "MATIERE" }),
+      ...profTypeWhere(familleCycle),
     },
     select: { id: true, prenom: true, nom: true },
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
@@ -87,9 +85,7 @@ async function ensureAffectation(params: {
       actif: true,
       deletedAt: null,
       ecoleId,
-      ...(familleCycle === "PRIMAIRE"
-        ? { typeProfesseur: "PRIMAIRE" }
-        : { typeProfesseur: "MATIERE" }),
+      ...profTypeWhere(familleCycle),
     },
   });
   if (!professeur) {
@@ -179,34 +175,46 @@ export async function GET(request: NextRequest) {
         include: { matiere: { select: { id: true, nom: true } } },
       }),
       prisma.matiere.findMany({
+        where: matieresDuCycleWhere(ecoleId, familleCycle),
         select: { id: true, nom: true },
         orderBy: { nom: "asc" },
       }),
       professeursDuCycle(ecoleId, familleCycle),
     ]);
 
-    const professeurIds = [...new Set(affectations.map((row) => row.professeurId).filter(Boolean))] as string[];
-    const profsAffectes = professeurIds.length
-      ? await prisma.user.findMany({
-          where: { id: { in: professeurIds } },
-          select: { id: true, prenom: true, nom: true },
-        })
-      : [];
-    const profById = new Map(profsAffectes.map((p) => [p.id, p]));
-    const affectationByMatiere = new Map(
-      affectations.map((row) => [
-        row.matiere.id,
-        {
-          professeurId: row.professeurId,
-          professeur: row.professeurId
-            ? (() => {
-                const prof = profById.get(row.professeurId!);
-                return prof ? `${prof.prenom} ${prof.nom}` : null;
-              })()
-            : null,
-        },
-      ])
-    );
+    const cycleProfIds = professeurs.map((p) => p.id);
+    const competences =
+      cycleProfIds.length > 0
+        ? await prisma.professeurMatiere.findMany({
+            where: { professeurId: { in: cycleProfIds } },
+            select: { matiereId: true, professeurId: true, matiere: { select: { nom: true } } },
+          })
+        : [];
+
+    const profById = new Map(professeurs.map((p) => [p.id, p]));
+    const profIdsByMatiere = new Map<string, string[]>();
+    const addProf = (matiereId: string, professeurId: string) => {
+      const list = profIdsByMatiere.get(matiereId) ?? [];
+      if (!list.includes(professeurId)) list.push(professeurId);
+      profIdsByMatiere.set(matiereId, list);
+    };
+    const norm = (value: string) =>
+      value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    for (const row of competences) {
+      addProf(row.matiereId, row.professeurId);
+      const nom = norm(row.matiere.nom);
+      for (const matiere of matieres) {
+        if (norm(matiere.nom) === nom) addProf(matiere.id, row.professeurId);
+      }
+    }
+    // Affectation classe (titulaire) en tête de liste.
+    for (const row of affectations) {
+      if (!row.professeurId) continue;
+      const list = profIdsByMatiere.get(row.matiere.id) ?? [];
+      const rest = list.filter((id) => id !== row.professeurId);
+      profIdsByMatiere.set(row.matiere.id, [row.professeurId, ...rest]);
+    }
+    const affecteeIds = new Set(affectations.map((row) => row.matiere.id));
 
     return NextResponse.json({
       data: {
@@ -222,13 +230,16 @@ export async function GET(request: NextRequest) {
           nom: `${p.prenom} ${p.nom}`,
         })),
         matieres: matieres.map((m) => {
-          const affectation = affectationByMatiere.get(m.id);
+          const professeurIds = profIdsByMatiere.get(m.id) ?? [];
+          const defaultProfId = professeurIds[0] ?? null;
+          const defaultProf = defaultProfId ? profById.get(defaultProfId) : null;
           return {
             id: m.id,
             nom: m.nom,
-            professeurId: affectation?.professeurId ?? null,
-            professeur: affectation?.professeur ?? null,
-            affectee: Boolean(affectation),
+            professeurId: defaultProfId,
+            professeur: defaultProf ? `${defaultProf.prenom} ${defaultProf.nom}` : null,
+            professeurIds,
+            affectee: affecteeIds.has(m.id),
           };
         }),
         creneaux: creneaux.map((c) => ({

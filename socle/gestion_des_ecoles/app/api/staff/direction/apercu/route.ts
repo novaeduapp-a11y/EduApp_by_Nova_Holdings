@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireDirecteur } from "@/lib/request-auth";
 import { FAMILLES_CYCLE, getMention } from "@/lib/constants";
 import { parseDateIso } from "@/lib/direction";
+import { getPeriodeActiveForEcole } from "@/lib/periodes";
 
 const MENTION_LABELS = ["Très Bien", "Bien", "Assez Bien", "Passable", "Insuffisant"] as const;
 
@@ -13,7 +14,7 @@ export async function GET() {
     const { ecoleId } = authResult.user;
     const { start, end } = parseDateIso(null);
 
-    const periode = await prisma.periode.findFirst({ where: { actif: true }, orderBy: { numero: "desc" } });
+    const periode = await getPeriodeActiveForEcole(ecoleId);
     const [ecole, totalEleves, totalClasses, totalProfs, absencesJour, retardsJour, totalCommuniques, classes] =
       await Promise.all([
         prisma.ecole.findUnique({ where: { id: ecoleId } }),

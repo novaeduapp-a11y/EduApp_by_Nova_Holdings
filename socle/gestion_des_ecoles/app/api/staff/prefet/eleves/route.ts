@@ -128,6 +128,9 @@ export async function POST(request: NextRequest) {
       nomTuteur: parsed.data.nomTuteur,
       telephoneTuteur: parsed.data.telephoneTuteur,
       relation: parsed.data.lienTuteur,
+      elevePrenom: eleve.prenom,
+      eleveNom: eleve.nom,
+      notify: true,
     });
     if (!parent.ok) {
       await prisma.eleve.delete({ where: { id: eleve.id } });
@@ -144,7 +147,10 @@ export async function POST(request: NextRequest) {
           parent: {
             email: parent.email,
             cree: parent.cree,
-            motDePasseTemporaire: parent.cree ? parent.motDePasseTemporaire : null,
+            mailEnvoye: parent.mailEnvoye,
+            // Secours école uniquement si le mail n’est pas parti
+            motDePasseTemporaire:
+              parent.cree && !parent.mailEnvoye ? parent.motDePasseTemporaire : null,
           },
         },
       },

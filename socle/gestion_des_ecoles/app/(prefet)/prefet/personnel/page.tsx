@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Save } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import {
   portalPanelClass,
 } from "@/components/eduadmins/portal-shell";
 
-type Statut = "PRESENT" | "ABSENT" | "RETARD";
+type Statut = "PRESENT" | "ABSENT" | "RETARD" | "ABSENT_RETARD";
 type TypeProf = "MATIERE" | "PRIMAIRE" | null;
 
 type Personne = {
@@ -43,7 +43,12 @@ const STATUT_LABEL: Record<Statut, string> = {
   PRESENT: "Présent",
   ABSENT: "Absent",
   RETARD: "Retard",
+  ABSENT_RETARD: "Abs. + retard",
 };
+
+function snapshotOf(list: Personne[]) {
+  return JSON.stringify(list.map((item) => ({ id: item.id, statut: item.statut })));
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -76,15 +81,18 @@ export default function PrefetPersonnelPage() {
   const { toast } = useToast();
   const [date, setDate] = useState(todayIso);
   const [personnel, setPersonnel] = useState<Personne[]>([]);
+  const [snapshot, setSnapshot] = useState("[]");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [refreshing, setRefreshing] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [busyAll, setBusyAll] = useState(false);
+  const [locked, setLocked] = useState(false);
   const [search, setSearch] = useState("");
   const [filtreType, setFiltreType] = useState("");
   const [filtreStatut, setFiltreStatut] = useState("");
   const [page, setPage] = useState(1);
   const [tousPresentsOpen, setTousPresentsOpen] = useState(false);
+  const dirty = snapshotOf(personnel) !== snapshot;
 
   const load = useCallback(
     async (nextDate: string, mode: "full" | "soft" = "full") => {
@@ -94,12 +102,17 @@ export default function PrefetPersonnelPage() {
         const res = await fetch(`/api/staff/prefet/personnel?date=${encodeURIComponent(nextDate)}`);
         const body = await res.json();
         if (!res.ok) throw new Error(body.error);
-        setPersonnel(body.data.personnel ?? []);
+        const list = (body.data.personnel ?? []) as Personne[];
+        setPersonnel(list);
+        setSnapshot(snapshotOf(list));
+        setLocked(Boolean(body.data?.verrouille));
         if (body.data?.date) setDate(body.data.date);
         setStatus("ready");
       } catch {
         if (mode === "full") {
           setPersonnel([]);
+          setSnapshot("[]");
+          setLocked(false);
           setStatus("error");
         } else {
           toast({ variant: "destructive", title: "Impossible d’actualiser le personnel" });
@@ -147,71 +160,54 @@ export default function PrefetPersonnelPage() {
   const to = Math.min(pageSafe * PAGE_SIZE, filtered.length);
 
   const presents = personnel.filter((item) => item.statut === "PRESENT").length;
-  const absents = personnel.filter((item) => item.statut === "ABSENT").length;
-  const retards = personnel.filter((item) => item.statut === "RETARD").length;
+  const absents = personnel.filter((item) => item.statut === "ABSENT" || item.statut === "ABSENT_RETARD").length;
+  const retards = personnel.filter((item) => item.statut === "RETARD" || item.statut === "ABSENT_RETARD").length;
 
-  const setStatut = async (userId: string, next: Statut) => {
-    const previous = personnel.find((item) => item.id === userId)?.statut;
-    if (previous === next) return;
-    setBusyId(userId);
+  const setStatut = (userId: string, next: Statut) => {
+    if (locked) return;
     setPersonnel((current) =>
       current.map((item) => (item.id === userId ? { ...item, statut: next } : item))
     );
-    try {
-      const res = await fetch("/api/staff/prefet/personnel", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, statut: next, date }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error);
-      toast({
-        title:
-          next === "PRESENT"
-            ? "Présence enregistrée"
-            : next === "RETARD"
-              ? "Retard enregistré"
-              : "Absence enregistrée",
-        description: "Visible sur le bilan direction.",
-      });
-    } catch (error) {
-      if (previous) {
-        setPersonnel((current) =>
-          current.map((item) => (item.id === userId ? { ...item, statut: previous } : item))
-        );
-      }
-      toast({
-        variant: "destructive",
-        title: "Statut refusé",
-        description: error instanceof Error ? error.message : undefined,
-      });
-    } finally {
-      setBusyId(null);
-    }
   };
 
-  const markAllPresent = async () => {
-    setBusyAll(true);
+  const save = async () => {
+    if (locked || !dirty) return;
+    setSaving(true);
     try {
       const res = await fetch("/api/staff/prefet/personnel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ all: true, statut: "PRESENT", date }),
+        body: JSON.stringify({
+          date,
+          lignes: personnel.map((item) => ({ userId: item.id, statut: item.statut })),
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
+      setSnapshot(snapshotOf(personnel));
+      setLocked(true);
       toast({
-        title: "Toute l’équipe est marquée présente.",
-        description: "Visible sur le bilan direction.",
+        title: "Liste du personnel enregistrée",
+        description: "Enregistrement définitif · visible sur le bilan direction.",
       });
-      setTousPresentsOpen(false);
-      await load(date, "soft");
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Enregistrement refusé",
         description: error instanceof Error ? error.message : undefined,
       });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const markAllPresent = async () => {
+    if (locked) return;
+    setBusyAll(true);
+    try {
+      setPersonnel((current) => current.map((item) => ({ ...item, statut: "PRESENT" as const })));
+      setTousPresentsOpen(false);
+      toast({ title: "Toute l’équipe est marquée présente.", description: "Cliquez sur Enregistrer pour valider." });
     } finally {
       setBusyAll(false);
     }
@@ -225,11 +221,16 @@ export default function PrefetPersonnelPage() {
           <p className={`${portalMutedClass} mt-1 capitalize`}>
             {formatJour(date)}
             {" · "}
-            Saisissez les absences et retards du personnel (visibles sur le bilan direction).{" "}
+            Saisissez absences et retards du personnel, puis Enregistrer (définitif).{" "}
             <Link href="/prefet" className={portalLinkClass}>
               Retour à l’accueil
             </Link>
           </p>
+          {locked ? (
+            <p className="mt-2 text-sm font-medium text-amber-700">
+              Liste déjà enregistrée pour cette date — modification impossible.
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
@@ -271,9 +272,13 @@ export default function PrefetPersonnelPage() {
             type="button"
             variant="outline"
             onClick={() => setTousPresentsOpen(true)}
-            disabled={personnel.length === 0 || presents === personnel.length}
+            disabled={locked || personnel.length === 0 || presents === personnel.length}
           >
             Tous présents
+          </Button>
+          <Button type="button" onClick={save} disabled={locked || saving || !dirty || personnel.length === 0}>
+            {saving ? <Loader2 className="animate-spin" /> : <Save />}
+            Enregistrer
           </Button>
         </div>
       </div>
@@ -376,7 +381,7 @@ export default function PrefetPersonnelPage() {
                       </TableCell>
                       <TableCell className="px-4 py-3.5">
                         <div className="flex justify-end">
-                          <div className="inline-flex rounded-2xl border border-border bg-muted/40 p-1">
+                          <div className="inline-flex flex-wrap justify-end rounded-2xl border border-border bg-muted/40 p-1">
                             {(["PRESENT", "ABSENT", "RETARD"] as const).map((statut) => {
                               const active = personne.statut === statut;
                               return (
@@ -385,7 +390,8 @@ export default function PrefetPersonnelPage() {
                                   type="button"
                                   size="sm"
                                   variant={active ? "default" : "ghost"}
-                                  disabled={busyId === personne.id || busyAll}
+                                  disabled={locked || busyAll}
+                                  title={locked ? "Liste déjà enregistrée" : STATUT_LABEL[statut]}
                                   className={
                                     active && statut === "ABSENT"
                                       ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -448,7 +454,7 @@ export default function PrefetPersonnelPage() {
         open={tousPresentsOpen}
         onOpenChange={setTousPresentsOpen}
         title="Marquer toute l’équipe présente ?"
-        description="Les absences et retards déjà saisis pour cette date seront effacés du bilan direction."
+        description="Les statuts locaux seront remis à Présent. Cliquez ensuite sur Enregistrer pour valider définitivement."
         confirmText="Tous présents"
         isLoading={busyAll}
         onConfirm={markAllPresent}

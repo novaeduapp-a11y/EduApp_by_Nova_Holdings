@@ -25,6 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { EleveToolbar } from "@/components/shared/eleve-toolbar";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { matchesEleveSearch, uniqueNiveaux } from "@/lib/eleve-filter";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -97,6 +98,7 @@ const TYPE_LABEL: Record<TypeEval, string> = {
   INTERROGATION: "Interrogation",
   TP: "TP",
 };
+const TYPES_SAISIE: TypeEval[] = ["DEVOIR", "COMPOSITION", "INTERROGATION"];
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -458,8 +460,8 @@ function ProfesseurNotesForm() {
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Notes</h1>
           <p className={`${portalMutedClass} mt-1`}>
             {status === "ready"
-              ? `${evaluations.length} évaluation${evaluations.length > 1 ? "s" : ""} · les moyennes partent vers les parents et le préfet.`
-              : "Créez une évaluation, puis saisissez les notes."}
+              ? `${evaluations.length} évaluation${evaluations.length > 1 ? "s" : ""} · Les moyennes sont transmises aux parents et au préfet.`
+              : "Les moyennes sont transmises aux parents et au préfet."}
           </p>
         </div>
         <Button type="button" onClick={openCreate} disabled={affectations.length === 0}>
@@ -502,7 +504,7 @@ function ProfesseurNotesForm() {
               onChange={(e) => setFiltreType(e.target.value)}
             >
               <option value="">Tous les types</option>
-              {(Object.keys(TYPE_LABEL) as TypeEval[]).map((type) => (
+              {TYPES_SAISIE.map((type) => (
                 <option key={type} value={type}>
                   {TYPE_LABEL[type]}
                 </option>
@@ -685,7 +687,7 @@ function ProfesseurNotesForm() {
                 value={createForm.type}
                 onChange={(e) => setCreateForm({ ...createForm, type: e.target.value as TypeEval })}
               >
-                {(Object.keys(TYPE_LABEL) as TypeEval[]).map((type) => (
+                {TYPES_SAISIE.map((type) => (
                   <option key={type} value={type}>
                     {TYPE_LABEL[type]}
                   </option>
@@ -717,17 +719,16 @@ function ProfesseurNotesForm() {
               </select>
             </Field>
             <Field label="Matière">
-              <select
-                className="edu-select w-full"
+              <SearchableSelect
                 value={createForm.matiereId}
-                onChange={(e) => setCreateForm({ ...createForm, matiereId: e.target.value })}
-              >
-                {createMatieres.map((matiere) => (
-                  <option key={matiere.id} value={matiere.id}>
-                    {matiere.nom}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => setCreateForm({ ...createForm, matiereId: next })}
+                searchPlaceholder="Rechercher une matière…"
+                placeholder="Choisir une matière"
+                options={createMatieres.map((matiere) => ({
+                  value: matiere.id,
+                  label: matiere.nom,
+                }))}
+              />
             </Field>
             <Field label="Période">
               <select
@@ -743,27 +744,18 @@ function ProfesseurNotesForm() {
                 ))}
               </select>
             </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Coefficient">
-                <Input
-                  type="number"
-                  min={0.5}
-                  max={10}
-                  step="0.5"
-                  value={createForm.coefficient}
-                  onChange={(e) => setCreateForm({ ...createForm, coefficient: e.target.value })}
-                />
-              </Field>
-              <Field label="Note sur">
-                <Input
-                  type="number"
-                  min={5}
-                  max={20}
-                  value={createForm.noteSur}
-                  onChange={(e) => setCreateForm({ ...createForm, noteSur: e.target.value })}
-                />
-              </Field>
-            </div>
+            <Field label="Note sur">
+              <Input
+                type="number"
+                min={5}
+                max={20}
+                value={createForm.noteSur}
+                onChange={(e) => setCreateForm({ ...createForm, noteSur: e.target.value })}
+              />
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              Le coefficient de la matière est fixé par le préfet. Vous saisissez uniquement les notes.
+            </p>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
@@ -810,7 +802,7 @@ function ProfesseurNotesForm() {
                   value={editForm.type}
                   onChange={(e) => setEditForm({ ...editForm, type: e.target.value as TypeEval })}
                 >
-                  {(Object.keys(TYPE_LABEL) as TypeEval[]).map((type) => (
+                  {TYPES_SAISIE.map((type) => (
                     <option key={type} value={type}>
                       {TYPE_LABEL[type]}
                     </option>
@@ -838,27 +830,18 @@ function ProfesseurNotesForm() {
                   ))}
                 </select>
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Coefficient">
-                  <Input
-                    type="number"
-                    min={0.5}
-                    max={10}
-                    step="0.5"
-                    value={editForm.coefficient}
-                    onChange={(e) => setEditForm({ ...editForm, coefficient: e.target.value })}
-                  />
-                </Field>
-                <Field label="Note sur">
-                  <Input
-                    type="number"
-                    min={5}
-                    max={20}
-                    value={editForm.noteSur}
-                    onChange={(e) => setEditForm({ ...editForm, noteSur: e.target.value })}
-                  />
-                </Field>
-              </div>
+              <Field label="Note sur">
+                <Input
+                  type="number"
+                  min={5}
+                  max={20}
+                  value={editForm.noteSur}
+                  onChange={(e) => setEditForm({ ...editForm, noteSur: e.target.value })}
+                />
+              </Field>
+              <p className="text-xs text-muted-foreground">
+                Coefficient matière géré par le préfet (affiché en lecture seule dans la liste).
+              </p>
             </div>
           ) : null}
           <DialogFooter>

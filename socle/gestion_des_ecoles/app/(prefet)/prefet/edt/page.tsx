@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { uniqueNiveaux } from "@/lib/eleve-filter";
 import { useToast } from "@/hooks/use-toast";
 import { portalMutedClass, portalPanelClass, portalTitleClass } from "@/components/eduadmins/portal-shell";
@@ -27,6 +28,7 @@ type Matiere = {
   nom: string;
   professeurId: string | null;
   professeur: string | null;
+  professeurIds?: string[];
   affectee?: boolean;
 };
 type Professeur = { id: string; nom: string };
@@ -186,13 +188,18 @@ function PrefetEdtForm() {
 
   const openCreate = (preset?: { jour: string; heureDebut: string; heureFin: string }) => {
     const firstMatiere = matieres.find((m) => m.affectee) ?? matieres[0];
+    const firstProf =
+      firstMatiere?.professeurId ||
+      firstMatiere?.professeurIds?.[0] ||
+      professeurs[0]?.id ||
+      "";
     setEditing(null);
     setForm({
       jour: preset?.jour || jours[0]?.jour || "LUNDI",
       heureDebut: preset?.heureDebut || horaires[0]?.heureDebut || "08:00",
       heureFin: preset?.heureFin || horaires[0]?.heureFin || "09:00",
       matiereId: firstMatiere?.id || "",
-      professeurId: firstMatiere?.professeurId || professeurs[0]?.id || "",
+      professeurId: firstProf,
       salle: "",
     });
     setFormOpen(true);
@@ -212,12 +219,26 @@ function PrefetEdtForm() {
     setFormOpen(true);
   };
 
+  const professeursPourMatiere = useMemo(() => {
+    const matiere = matieres.find((m) => m.id === form.matiereId);
+    const ids = matiere?.professeurIds ?? [];
+    if (ids.length === 0) return professeurs;
+    const filtered = professeurs.filter((p) => ids.includes(p.id));
+    return filtered.length > 0 ? filtered : professeurs;
+  }, [matieres, form.matiereId, professeurs]);
+
   const onMatiereChange = (matiereId: string) => {
     const matiere = matieres.find((m) => m.id === matiereId);
+    const ids = matiere?.professeurIds ?? [];
+    const preferred =
+      matiere?.professeurId ||
+      ids[0] ||
+      (ids.length === 1 ? ids[0] : "") ||
+      "";
     setForm((prev) => ({
       ...prev,
       matiereId,
-      professeurId: matiere?.professeurId || prev.professeurId || professeurs[0]?.id || "",
+      professeurId: preferred,
     }));
   };
 
@@ -247,14 +268,39 @@ function PrefetEdtForm() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
+      const matiere = matieres.find((m) => m.id === form.matiereId);
+      const prof = professeurs.find((p) => p.id === (form.professeurId || matiere?.professeurId || ""));
+      const nextSlot: Creneau = {
+        id: editing?.id || body.data?.id || `tmp-${Date.now()}`,
+        jour: form.jour,
+        heureDebut: normalizeHeure(form.heureDebut),
+        heureFin: normalizeHeure(form.heureFin),
+        salle: form.salle || null,
+        matiereId: form.matiereId,
+        matiere: matiere?.nom || "—",
+        professeurId: form.professeurId || matiere?.professeurId || null,
+        professeur: prof?.nom || matiere?.professeur || null,
+      };
+      setCreneaux((current) => {
+        if (editing) return current.map((slot) => (slot.id === editing.id ? nextSlot : slot));
+        const without = current.filter(
+          (slot) =>
+            !(
+              slot.jour === nextSlot.jour &&
+              slot.heureDebut === nextSlot.heureDebut &&
+              slot.heureFin === nextSlot.heureFin
+            )
+        );
+        return [...without, nextSlot];
+      });
       toast({
         title: editing ? "Créneau modifié" : "Créneau enregistré",
         description: editing ? undefined : "Visible dans EduParent et le planning du professeur.",
       });
       setFormOpen(false);
       setEditing(null);
-      await load(classeId);
-      setStatus("ready");
+      // Sync silencieux (sans écran de chargement).
+      void load(classeId).then(() => setStatus("ready"));
     } catch (error) {
       toast({
         variant: "destructive",
@@ -273,12 +319,12 @@ function PrefetEdtForm() {
       const res = await fetch(`/api/staff/prefet/edt?id=${encodeURIComponent(toDelete.id)}`, { method: "DELETE" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
+      setCreneaux((current) => current.filter((slot) => slot.id !== toDelete.id));
       toast({ title: "Créneau retiré" });
       setToDelete(null);
       setFormOpen(false);
       setEditing(null);
-      await load(classeId);
-      setStatus("ready");
+      void load(classeId).then(() => setStatus("ready"));
     } catch (error) {
       toast({
         variant: "destructive",
@@ -489,14 +535,15 @@ function PrefetEdtForm() {
         <div>
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Emploi du temps</h1>
           <p className={`${portalMutedClass} mt-1`}>
-            Grille lundi–vendredi
+            Grille du lundi au samedi
             {classeActive ? ` · ${classeActive.nom}` : ""}
-            {status === "ready" ? ` · ${creneaux.length} créneau${creneaux.length > 1 ? "x" : ""}` : ""}.
-            Visible dans EduParent.
+            {status === "ready" ? ` · ${creneaux.length} créneau${creneaux.length > 1 ? "x" : ""}` : ""}
+            {" · "}Visible dans EduParent.
           </p>
           {status === "ready" && creneaux.length > 0 ? (
             <p className={`${portalMutedClass} mt-1`}>
-              Glissez un cours vers une autre case pour le déplacer. Option ou Ctrl + glisser pour le recopier.
+              Glissez un cours vers une autre case pour le déplacer. Maintenez Option ou Ctrl + glisser pour le
+              dupliquer
             </p>
           ) : null}
         </div>
@@ -752,28 +799,32 @@ function PrefetEdtForm() {
               </select>
             </Field>
             <Field label="Matière">
-              <select className="edu-select w-full" value={form.matiereId} onChange={(e) => onMatiereChange(e.target.value)}>
-                {matieres.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nom}
-                    {m.affectee && m.professeur ? ` · ${m.professeur}` : ""}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={form.matiereId}
+                onValueChange={onMatiereChange}
+                searchPlaceholder="Rechercher une matière…"
+                placeholder="Choisir une matière"
+                options={matieres.map((m) => ({
+                  value: m.id,
+                  label: m.nom,
+                  keywords: m.nom,
+                }))}
+              />
             </Field>
             <Field label="Professeur">
-              <select
-                className="edu-select w-full"
+              <SearchableSelect
                 value={form.professeurId}
-                onChange={(e) => setForm({ ...form, professeurId: e.target.value })}
-              >
-                <option value="">Choisir un professeur</option>
-                {professeurs.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nom}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => setForm({ ...form, professeurId: next })}
+                searchPlaceholder="Rechercher un professeur…"
+                placeholder={
+                  professeursPourMatiere.length === 1
+                    ? professeursPourMatiere[0].nom
+                    : "Choisir un professeur de cette matière"
+                }
+                allowEmpty
+                emptyOptionLabel="Choisir un professeur"
+                options={professeursPourMatiere.map((p) => ({ value: p.id, label: p.nom }))}
+              />
             </Field>
             <Field label="Salle">
               <Input placeholder="A1" value={form.salle} onChange={(e) => setForm({ ...form, salle: e.target.value })} />

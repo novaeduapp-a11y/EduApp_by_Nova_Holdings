@@ -235,7 +235,7 @@ export default function DirecteurCommuniquesPage() {
           <p className={`${portalMutedClass} mt-1`}>
             Toute l’école
             {status === "ready" ? ` · ${items.length} communiqué${items.length > 1 ? "s" : ""}` : ""}.
-            Un envoi parents apparaît dans EduParent. Les urgents remontent sur le{" "}
+            Les parents sont notifiés dans EduParent. Les messages urgents s’affichent sur le{" "}
             <Link href="/directeur" className="font-medium text-primary">
               bilan du jour
             </Link>

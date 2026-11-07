@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { notifyUsers } from "@/lib/notify";
 import { requirePrefet } from "@/lib/request-auth";
 import { familleWhere, forbiddenCycle } from "@/lib/prefet-scope";
+import {
+  getPeriodeActiveForEcole,
+  listPeriodesForEcole,
+} from "@/lib/periodes";
 
 export async function GET() {
   try {
@@ -10,7 +15,7 @@ export async function GET() {
     const { ecoleId, familleCycle } = authResult.user;
 
     const [periodes, bulletins, appreciations] = await Promise.all([
-      prisma.periode.findMany({ orderBy: { ordre: "asc" } }),
+      listPeriodesForEcole(ecoleId),
       prisma.bulletin.findMany({
         where: {
           deletedAt: null,
@@ -78,9 +83,9 @@ export async function POST(request: NextRequest) {
     });
     if (!eleve) return forbiddenCycle();
 
+    const periodeActive = await getPeriodeActiveForEcole(ecoleId);
     if (!periodeId) {
-      const active = await prisma.periode.findFirst({ where: { actif: true } });
-      periodeId = active?.id ?? "";
+      periodeId = periodeActive?.id ?? "";
     }
     if (!periodeId) {
       return NextResponse.json({ error: "Aucune période active" }, { status: 400 });
@@ -90,9 +95,11 @@ export async function POST(request: NextRequest) {
     if (!periode) {
       return NextResponse.json({ error: "Période introuvable" }, { status: 404 });
     }
-    if (!periode.actif) {
+    if (!periodeActive || periodeActive.id !== periode.id) {
       return NextResponse.json(
-        { error: `Impossible de générer un bulletin pour « ${periode.nom} » : ce trimestre n’est pas actif.` },
+        {
+          error: `Impossible de générer un bulletin pour « ${periode.nom} » : ce trimestre n’est pas actif pour l’école.`,
+        },
         { status: 409 }
       );
     }
@@ -137,15 +144,15 @@ export async function POST(request: NextRequest) {
       select: { parentId: true },
     });
     if (liens.length > 0) {
-      await prisma.notification.createMany({
-        data: liens.map((lien) => ({
+      await notifyUsers(
+        liens.map((lien) => ({
           userId: lien.parentId,
           type: "bulletin",
           title: `Bulletin disponible · ${eleve.prenom} ${eleve.nom}`,
           message: "Un bulletin a été généré. Vous pouvez le télécharger dans EduParent.",
           data: { eleveId, bulletinId: bulletin.id, periodeId },
-        })),
-      });
+        }))
+      );
     }
 
     return NextResponse.json({ data: { id: bulletin.id, parentsNotifies: liens.length } }, { status: 201 });

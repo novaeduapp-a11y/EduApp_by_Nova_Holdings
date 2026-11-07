@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requirePrefet } from "@/lib/request-auth";
 import { familleWhere, forbiddenCycle } from "@/lib/prefet-scope";
-import { matiereIdsDuProfesseur, profPeutEnseigner } from "@/lib/prof-competences";
+import { profPeutEnseignerMatiere } from "@/lib/prof-competences";
 
 const schema = z.object({
   classeId: z.string().min(1),
@@ -49,8 +49,8 @@ export async function POST(request: NextRequest) {
     if (familleCycle !== "PRIMAIRE" && professeur.typeProfesseur === "PRIMAIRE") {
       return NextResponse.json({ error: "Un instituteur ne peut pas être affecté hors primaire" }, { status: 403 });
     }
-    const competences = await matiereIdsDuProfesseur(professeur.id);
-    if (!profPeutEnseigner(competences, parsed.data.matiereId)) {
+    const peut = await profPeutEnseignerMatiere(professeur.id, matiere);
+    if (!peut) {
       return NextResponse.json(
         { error: "Ce professeur n’enseigne pas cette matière" },
         { status: 403 }

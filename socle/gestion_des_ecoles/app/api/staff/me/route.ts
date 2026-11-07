@@ -33,6 +33,7 @@ export async function GET() {
         telephone: user.telephone,
         adresse: user.adresse,
         twoFactorEnabled: user.twoFactorEnabled,
+        termsAcceptedAt: user.termsAcceptedAt,
         ecole: user.ecole ? { id: user.ecole.id, nom: user.ecole.nom, ville: user.ecole.ville } : null,
         unread,
       },

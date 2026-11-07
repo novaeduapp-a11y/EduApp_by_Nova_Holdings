@@ -15,37 +15,57 @@ export async function GET() {
     if (!authResult.ok) return authResult.response;
     const { id, ecoleId } = authResult.user;
 
-    const [prefets, fils] = await Promise.all([
+    const [contacts, fils] = await Promise.all([
       prisma.user.findMany({
-        where: { ecoleId, role: "PREFET", actif: true, deletedAt: null },
-        select: { id: true, prenom: true, nom: true, familleCycle: true },
-        orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+        where: {
+          ecoleId,
+          role: { in: ["PREFET", "PROFESSEUR"] },
+          actif: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          prenom: true,
+          nom: true,
+          role: true,
+          familleCycle: true,
+          typeProfesseur: true,
+        },
+        orderBy: [{ role: "asc" }, { nom: "asc" }, { prenom: "asc" }],
       }),
       prisma.filStaff.findMany({
         where: { ecoleId, directeurId: id },
         include: {
-          prefet: { select: { id: true, prenom: true, nom: true, familleCycle: true } },
+          prefet: { select: { id: true, prenom: true, nom: true, familleCycle: true, role: true } },
           messages: { orderBy: { createdAt: "desc" }, take: 1 },
         },
       }),
     ]);
 
-    const filByPrefet = new Map(fils.map((fil) => [fil.prefetId, fil]));
+    const filByContact = new Map(fils.map((fil) => [fil.prefetId, fil]));
 
     const rows = await Promise.all(
-      prefets.map(async (prefet) => {
-        const fil = filByPrefet.get(prefet.id);
+      contacts.map(async (contact) => {
+        const fil = filByContact.get(contact.id);
         const last = fil?.messages[0];
         const nonLus = fil
           ? await prisma.messageStaff.count({
               where: { filId: fil.id, auteurId: { not: id }, luAt: null },
             })
           : 0;
+        const detail =
+          contact.role === "PREFET"
+            ? contact.familleCycle
+              ? `Préfet · ${contact.familleCycle}`
+              : "Préfet"
+            : contact.typeProfesseur === "PRIMAIRE"
+              ? "Professeur · Instituteur"
+              : "Professeur";
         return {
           id: fil?.id ?? null,
-          interlocuteurId: prefet.id,
-          interlocuteur: `${prefet.prenom} ${prefet.nom}`,
-          detail: prefet.familleCycle ? `Préfet · ${prefet.familleCycle}` : "Préfet",
+          interlocuteurId: contact.id,
+          interlocuteur: `${contact.prenom} ${contact.nom}`,
+          detail,
           dernierMessage: last?.corps ?? null,
           date: last?.createdAt?.toISOString() ?? null,
           nonLus,
@@ -75,20 +95,26 @@ export async function POST(request: NextRequest) {
 
     const parsed = startSchema.safeParse(await request.json());
     if (!parsed.success) {
-      return NextResponse.json({ error: "Préfet et message requis" }, { status: 400 });
+      return NextResponse.json({ error: "Destinataire et message requis" }, { status: 400 });
     }
 
-    const prefet = await prisma.user.findFirst({
-      where: { id: parsed.data.prefetId, ecoleId, role: "PREFET", actif: true, deletedAt: null },
+    const contact = await prisma.user.findFirst({
+      where: {
+        id: parsed.data.prefetId,
+        ecoleId,
+        role: { in: ["PREFET", "PROFESSEUR"] },
+        actif: true,
+        deletedAt: null,
+      },
     });
-    if (!prefet) {
-      return NextResponse.json({ error: "Ce préfet n’appartient pas à votre établissement" }, { status: 403 });
+    if (!contact) {
+      return NextResponse.json({ error: "Ce contact n’appartient pas à votre établissement" }, { status: 403 });
     }
 
     const fil = await prisma.filStaff.upsert({
-      where: { directeurId_prefetId: { directeurId: id, prefetId: prefet.id } },
+      where: { directeurId_prefetId: { directeurId: id, prefetId: contact.id } },
       update: { updatedAt: new Date() },
-      create: { ecoleId, directeurId: id, prefetId: prefet.id },
+      create: { ecoleId, directeurId: id, prefetId: contact.id },
     });
 
     const message = await prisma.messageStaff.create({
@@ -97,7 +123,7 @@ export async function POST(request: NextRequest) {
     });
 
     await notifyStaffMessage({
-      destinataireId: prefet.id,
+      destinataireId: contact.id,
       titre: "Message de la direction",
       message: `${prenom} ${nom} : ${parsed.data.corps.trim().slice(0, 120)}`,
       filId: fil.id,

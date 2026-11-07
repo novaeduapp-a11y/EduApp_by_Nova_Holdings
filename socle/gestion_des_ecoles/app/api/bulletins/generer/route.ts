@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireManagement } from "@/lib/permissions";
 import QRCode from "qrcode";
 import { Decimal } from "@prisma/client/runtime/library";
+import { buildBulletinData } from "@/lib/bulletins/build-bulletin";
 
 // POST /api/bulletins/generer - Générer un bulletin
 export async function POST(request: NextRequest) {
@@ -192,34 +193,35 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Préparer les données pour le PDF
-    const bulletinData = {
-      ecole: {
-        nom: eleve.ecole.nom,
-        adresse: eleve.ecole.adresse || `${eleve.ecole.ville}, Sénégal`,
-        telephone: eleve.ecole.telephone || "",
-        email: eleve.ecole.email || "",
-      },
-      eleve: {
-        nom: eleve.nom,
-        prenom: eleve.prenom,
-        matricule: eleve.matricule,
-        dateNaissance: new Date(eleve.dateNaissance).toLocaleDateString("fr-FR"),
-        classe: eleve.classe?.nom || "",
-        effectif: eleve.classe?._count?.eleves || 0,
-      },
-      periode: {
-        nom: periode.nom,
-        anneeScolaire: periode.anneeScolaire,
-      },
-      notes: bulletinNotes,
-      moyenneGenerale,
-      rang,
-      mention,
-      appreciationGenerale: getAppreciationGenerale(moyenneGenerale),
-      qrCodeUrl: qrCodeDataUrl,
-      dateGeneration: new Date().toLocaleDateString("fr-FR"),
-    };
+    // Données PDF via le builder (thème école, absences, photo, etc.)
+    const bulletinData =
+      (await buildBulletinData(bulletin.id)) ?? {
+        ecole: {
+          nom: eleve.ecole.nom,
+          adresse: eleve.ecole.adresse || `${eleve.ecole.ville}, Sénégal`,
+          telephone: eleve.ecole.telephone || "",
+          email: eleve.ecole.email || "",
+        },
+        eleve: {
+          nom: eleve.nom,
+          prenom: eleve.prenom,
+          matricule: eleve.matricule,
+          dateNaissance: new Date(eleve.dateNaissance).toLocaleDateString("fr-FR"),
+          classe: eleve.classe?.nom || "",
+          effectif: eleve.classe?._count?.eleves || 0,
+        },
+        periode: {
+          nom: periode.nom,
+          anneeScolaire: periode.anneeScolaire,
+        },
+        notes: bulletinNotes,
+        moyenneGenerale,
+        rang,
+        mention,
+        appreciationGenerale: getAppreciationGenerale(moyenneGenerale),
+        qrCodeUrl: qrCodeDataUrl,
+        dateGeneration: new Date().toLocaleDateString("fr-FR"),
+      };
 
     return NextResponse.json({
       success: true,

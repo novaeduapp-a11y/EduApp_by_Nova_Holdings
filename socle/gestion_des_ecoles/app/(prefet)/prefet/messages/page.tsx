@@ -6,13 +6,13 @@ export default function PrefetMessagesPage() {
   return (
     <StaffMessagesPage
       title="Messagerie"
-      subtitle="Échanges avec la direction de votre établissement"
+      subtitle="Échanges avec la direction et les professeurs de votre cycle"
       listUrl="/api/staff/prefet/messages"
       startPayloadKey="directeurId"
       myRole="PREFET"
-      emptyListLabel="Aucun directeur actif dans votre établissement."
-      pickLabel="Choisissez la direction dans la liste."
-      placeholder="Votre message à la direction"
+      emptyListLabel="Aucune direction ni professeur de votre cycle."
+      pickLabel="Choisissez la direction ou un professeur."
+      placeholder="Votre message"
     />
   );
 }

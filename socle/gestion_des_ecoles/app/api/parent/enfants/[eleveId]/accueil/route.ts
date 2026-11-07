@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireParent } from "@/lib/request-auth";
 import { jourSemaineAujourdhui, serializeCreneau } from "@/lib/edt";
+import { getPeriodeActiveForEcole } from "@/lib/periodes";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
@@ -27,18 +28,15 @@ export async function GET(
 
     const eleve = await prisma.eleve.findUnique({
       where: { id: eleveId },
-      select: { classeId: true },
+      select: { classeId: true, ecoleId: true },
     });
     if (!eleve) {
       return NextResponse.json({ error: "Élève introuvable" }, { status: 404 });
     }
 
-    const periodeActive = await prisma.periode.findFirst({
-      where: { actif: true },
-      orderBy: { numero: "desc" },
-    });
+    const periodeActive = await getPeriodeActiveForEcole(eleve.ecoleId);
     const jour = jourSemaineAujourdhui();
-    const [notes, absences, moyenne, unread, creneauxJour] = await Promise.all([
+    const [notes, absences, moyenne, unread, creneauxJour, matieresSuivies] = await Promise.all([
       prisma.note.findMany({
         where: { eleveId, deletedAt: null },
         include: {
@@ -71,6 +69,7 @@ export async function GET(
             orderBy: { heureDebut: "asc" },
           })
         : Promise.resolve([]),
+      prisma.classeMatiere.count({ where: { classeId: eleve.classeId } }),
     ]);
 
     return NextResponse.json({
@@ -91,8 +90,10 @@ export async function GET(
               valeur: moyenne.moyenneGenerale,
               periode: moyenne.periode.nom,
               mention: moyenne.mention,
+              rang: moyenne.rangClasse,
             }
           : null,
+        matieresSuivies,
         notificationsNonLues: unread,
         coursDuJour: jour ? creneauxJour.map(serializeCreneau) : [],
       },

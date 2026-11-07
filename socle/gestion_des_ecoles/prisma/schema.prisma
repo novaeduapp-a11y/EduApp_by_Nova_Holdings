@@ -61,6 +61,7 @@ enum JourSemaine {
   MERCREDI
   JEUDI
   VENDREDI
+  SAMEDI
 }
 
 enum DestinataireCommunique {
@@ -94,6 +95,7 @@ model User {
   familleCycle  FamilleCycle?    @map("famille_cycle")
   twoFactorEnabled Boolean       @default(false) @map("two_factor_enabled")
   mustChangePassword Boolean     @default(false) @map("must_change_password")
+  termsAcceptedAt DateTime?      @map("terms_accepted_at")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -121,12 +123,14 @@ model User {
   messages            Message[]
   filsStaffDirecteur  FilStaff[]      @relation("FilStaffDirecteur")
   filsStaffPrefet     FilStaff[]      @relation("FilStaffPrefet")
+  filsStaffProfesseur FilStaff[]      @relation("FilStaffProfesseur")
   messagesStaff       MessageStaff[]
   classesPrincipal    Classe[]        @relation("ClasseProfPrincipal")
   professeurMatieres  ProfesseurMatiere[]
   convocationsCreees  Convocation[]   @relation("ConvocationAuteur")
   tokenRevocations    TokenRevocation[]
   loginAttempts       LoginAttempt[]
+  devicePushTokens    DevicePushToken[]
 
   @@index([ecoleId])
   @@index([telephone])
@@ -143,8 +147,11 @@ model Ecole {
   telephone        String?
   email            String?
   actif            Boolean @default(true)
+  /// Licence NOVA : true = à jour, false = impayé.
+  paiementAJour    Boolean @default(true) @map("paiement_a_jour")
   montantMensuel   Int?    @map("montant_mensuel")
   montantAnnuel    Int?    @map("montant_annuel")
+  periodeActiveId  String? @map("periode_active_id")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -161,8 +168,45 @@ model Ecole {
   cycles          EcoleCycle[]
   grillesHoraires GrilleHoraire[]
   convocations    Convocation[]
+  matieres        Matiere[]
+  bulletinTheme   BulletinTheme?
+  periodeActive   Periode? @relation("EcolePeriodeActive", fields: [periodeActiveId], references: [id], onDelete: SetNull)
 
   @@map("ecoles")
+}
+
+enum BulletinLayout {
+  CLASSIQUE
+}
+
+/// Apparence et blocs optionnels du bulletin PDF, par école.
+model BulletinTheme {
+  id        String @id @default(cuid())
+  ecoleId   String @unique @map("ecole_id")
+
+  logoUrl            String? @map("logo_url")
+  couleurPrimaire    String  @default("#1e40af") @map("couleur_primaire")
+  couleurSecondaire  String  @default("#f0f9ff") @map("couleur_secondaire")
+
+  /// Lignes institutionnelles au-dessus du nom (ex. République du Sénégal).
+  lignesEntete       Json    @default("[]") @map("lignes_entete")
+  /// Texte libre sous les signatures.
+  lignesPied         Json    @default("[]") @map("lignes_pied")
+  /// Libellés des cases signature (3 max utilisés).
+  labelsSignatures   Json    @default("[\"Le Directeur\",\"Le Maître/La Maîtresse\",\"Le Parent\"]") @map("labels_signatures")
+
+  afficherPhoto               Boolean @default(false) @map("afficher_photo")
+  afficherAbsences            Boolean @default(true) @map("afficher_absences")
+  afficherObservationConseil  Boolean @default(true) @map("afficher_observation_conseil")
+
+  layout BulletinLayout @default(CLASSIQUE)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ecole Ecole @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+
+  @@map("bulletin_themes")
 }
 
 model EcoleCycle {
@@ -194,6 +238,7 @@ model GrilleHoraire {
 enum ConvocationStatut {
   ENVOYEE
   VUE
+  CONFIRMEE
 }
 
 model Convocation {
@@ -204,10 +249,12 @@ model Convocation {
   createdById      String            @map("created_by_id")
   dateConvocation  DateTime          @map("date_convocation")
   motif            String            @db.Text
+  message          String?           @db.Text
   nomTuteur        String?           @map("nom_tuteur")
   telephoneTuteur  String?           @map("telephone_tuteur")
   emailTuteur      String?           @map("email_tuteur")
   statut           ConvocationStatut @default(ENVOYEE)
+  confirmedAt      DateTime?         @map("confirmed_at")
   createdAt        DateTime          @default(now()) @map("created_at")
 
   ecole     Ecole  @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
@@ -296,20 +343,23 @@ model Classe {
   salle         String?
   professeurPrincipalId String? @map("professeur_principal_id")
 
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  deletedAt DateTime? @map("deleted_at")
 
   // Relations
   ecole          Ecole           @relation(fields: [ecoleId], references: [id])
   cycle          Cycle?          @relation(fields: [cycleId], references: [id])
   professeurPrincipal User?      @relation("ClasseProfPrincipal", fields: [professeurPrincipalId], references: [id], onDelete: SetNull)
-  eleves         Eleve[]
-  evaluations    Evaluation[]
-  classeMatieres ClasseMatiere[]
-  creneauxEdt    CreneauEdt[]
-  convocations   Convocation[]
+  eleves           Eleve[]
+  evaluations      Evaluation[]
+  classeMatieres   ClasseMatiere[]
+  creneauxEdt      CreneauEdt[]
+  convocations     Convocation[]
+  feuillesPresence FeuillePresence[]
 
   @@index([ecoleId])
   @@index([professeurPrincipalId])
+  @@index([deletedAt])
   @@map("classes")
 }
 
@@ -401,10 +451,13 @@ model Matiere {
   coefficient Decimal @default(1.00) @db.Decimal(3, 2)
   couleur     String?
   domaineId   String? @map("domaine_id")
+  ecoleId     String?       @map("ecole_id")
+  familleCycle FamilleCycle? @map("famille_cycle")
 
   createdAt DateTime @default(now())
 
   // Relations
+  ecole            Ecole?                @relation(fields: [ecoleId], references: [id])
   domaine          DomaineApprentissage? @relation(fields: [domaineId], references: [id])
   evaluations      Evaluation[]
   classeMatieres   ClasseMatiere[]
@@ -415,6 +468,7 @@ model Matiere {
   filsMessages     FilMessage[]
   professeurMatieres ProfesseurMatiere[]
 
+  @@index([ecoleId, familleCycle])
   @@map("matieres")
 }
 
@@ -460,6 +514,7 @@ model Periode {
   moyennesMatieres  MoyenneMatiere[]
   moyennesGenerales MoyenneGenerale[]
   appreciations     Appreciation[]
+  ecolesActives     Ecole[] @relation("EcolePeriodeActive")
 
   @@map("periodes")
 }
@@ -516,6 +571,8 @@ model Absence {
   dateAbsence DateTime       @map("date_absence")
   periode     PeriodeJournee @default(JOURNEE)
   dureeHeures Decimal?       @map("duree_heures") @db.Decimal(4, 2)
+  heureDebut  String?        @map("heure_debut")
+  heureFin    String?        @map("heure_fin")
   matiereId   String?        @map("matiere_id")
   justifiee   Boolean        @default(false)
   motif       String?
@@ -530,7 +587,27 @@ model Absence {
   matiere Matiere? @relation(fields: [matiereId], references: [id])
   user    User     @relation(fields: [createdBy], references: [id])
 
+  @@index([eleveId, dateAbsence])
+  @@index([dateAbsence, heureDebut, heureFin])
   @@map("absences")
+}
+
+/// Verrouillage d’une feuille d’appel par créneau (y compris « tous présents »).
+model FeuillePresence {
+  id         String   @id @default(cuid())
+  classeId   String   @map("classe_id")
+  dateAppel  DateTime @map("date_appel")
+  heureDebut String   @map("heure_debut")
+  heureFin   String   @map("heure_fin")
+  matiereId  String?  @map("matiere_id")
+  createdBy  String   @map("created_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  classe Classe @relation(fields: [classeId], references: [id], onDelete: Cascade)
+
+  @@unique([classeId, dateAppel, heureDebut, heureFin])
+  @@index([classeId, dateAppel])
+  @@map("feuilles_presence")
 }
 
 model MoyenneMatiere {
@@ -624,6 +701,20 @@ model Parametre {
   @@map("parametres")
 }
 
+/// Annonces NOVA destinées aux directions (mises à jour, messages opérationnels).
+model AnnonceNova {
+  id        String   @id @default(cuid())
+  titre     String
+  message   String
+  actif     Boolean  @default(true)
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("annonces_nova")
+}
+
 model LogActivite {
   id        String   @id @default(cuid())
   userId    String?  @map("user_id")
@@ -657,6 +748,21 @@ model Notification {
 
   @@index([userId])
   @@map("notifications")
+}
+
+/// Jetons Expo Push (EduParent) pour alertes hors application.
+model DevicePushToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_push_tokens")
 }
 
 model CreneauEdt {
@@ -780,21 +886,24 @@ model Message {
 }
 
 model FilStaff {
-  id          String @id @default(cuid())
-  ecoleId     String @map("ecole_id")
-  directeurId String @map("directeur_id")
-  prefetId    String @map("prefet_id")
+  id           String  @id @default(cuid())
+  ecoleId      String  @map("ecole_id")
+  directeurId  String? @map("directeur_id")
+  prefetId     String  @map("prefet_id")
+  professeurId String? @map("professeur_id")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ecole     Ecole          @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
-  directeur User           @relation("FilStaffDirecteur", fields: [directeurId], references: [id])
-  prefet    User           @relation("FilStaffPrefet", fields: [prefetId], references: [id])
-  messages  MessageStaff[]
+  ecole      Ecole          @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+  directeur  User?          @relation("FilStaffDirecteur", fields: [directeurId], references: [id])
+  prefet     User           @relation("FilStaffPrefet", fields: [prefetId], references: [id])
+  professeur User?          @relation("FilStaffProfesseur", fields: [professeurId], references: [id])
+  messages   MessageStaff[]
 
   @@unique([directeurId, prefetId])
   @@index([ecoleId])
+  @@index([prefetId, professeurId])
   @@map("fils_staff")
 }
 

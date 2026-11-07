@@ -115,6 +115,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     }
 
     const emailChange = parsed.data.emailParent.trim().toLowerCase() !== (existing.emailParent ?? "").toLowerCase();
+    let parentInfo: {
+      email: string;
+      cree: boolean;
+      mailEnvoye: boolean;
+      motDePasseTemporaire: string | null;
+    } | null = null;
+
     if (emailChange) {
       const parent = await lierParentAEleve({
         ecoleId,
@@ -123,10 +130,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         nomTuteur: parsed.data.nomTuteur,
         telephoneTuteur: parsed.data.telephoneTuteur,
         relation: parsed.data.lienTuteur,
+        elevePrenom: parsed.data.prenom,
+        eleveNom: parsed.data.nom,
+        notify: true,
       });
       if (!parent.ok) {
         return NextResponse.json({ error: parent.error }, { status: 409 });
       }
+      parentInfo = {
+        email: parent.email,
+        cree: parent.cree,
+        mailEnvoye: parent.mailEnvoye,
+        motDePasseTemporaire: parent.cree && !parent.mailEnvoye ? parent.motDePasseTemporaire ?? null : null,
+      };
     }
 
     const eleve = await prisma.eleve.update({
@@ -150,7 +166,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       select: { id: true, prenom: true, nom: true, matricule: true },
     });
 
-    return NextResponse.json({ data: eleve });
+    return NextResponse.json({ data: { ...eleve, parent: parentInfo } });
   } catch (error) {
     console.error("Erreur modification élève préfet:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

@@ -151,10 +151,10 @@ export default function DirecteurPersonnelPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Personnel</h1>
-          <p className={`${portalMutedClass} mt-1 capitalize`}>
-            {formatJour(date)}
+          <p className={`${portalMutedClass} mt-1`}>
+            <span className="capitalize">{formatJour(date)}</span>
             {" · "}
-            Lecture seule. Les absences et retards sont saisis par le préfet.{" "}
+            Mode consultation. Les absences et retards sont renseignés par la Préfecture.{" "}
             <Link href="/directeur" className={portalLinkClass}>
               Voir le bilan
             </Link>
@@ -202,7 +202,7 @@ export default function DirecteurPersonnelPage() {
       <EleveToolbar
         search={search}
         onSearchChange={setSearch}
-        placeholder="Rechercher un professeur, une matière ou une classe…"
+        placeholder="Rechercher un enseignant, une matière ou une classe"
         extra={
           <>
             <select
@@ -245,8 +245,10 @@ export default function DirecteurPersonnelPage() {
         </div>
       ) : personnel.length === 0 ? (
         <div className={`${portalPanelClass} py-10 text-center`}>
-          <p className="font-medium text-foreground">Aucun professeur dans cet établissement</p>
-          <p className={`${portalMutedClass} mt-1`}>Les comptes enseignants apparaissent ici une fois créés.</p>
+          <p className="font-medium text-foreground">Aucun compte enseignant répertorié</p>
+          <p className={`${portalMutedClass} mt-1`}>
+            Les profils du corps professoral s&apos;afficheront dans cet espace dès leur création.
+          </p>
         </div>
       ) : (
         <>

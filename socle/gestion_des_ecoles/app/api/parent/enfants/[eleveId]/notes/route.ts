@@ -43,24 +43,57 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    // Récupérer les moyennes par matière
-    const moyennesMatieres = await prisma.moyenneMatiere.findMany({
-      where: { eleveId },
-      include: {
-        matiere: true,
-        periode: true,
-      },
-      orderBy: { periode: { numero: "desc" } },
+    const eleve = await prisma.eleve.findUnique({
+      where: { id: eleveId },
+      select: { classeId: true },
     });
 
-    // Récupérer les moyennes générales
-    const moyennesGenerales = await prisma.moyenneGenerale.findMany({
-      where: { eleveId },
-      include: {
-        periode: true,
-      },
-      orderBy: { periode: { numero: "desc" } },
-    });
+    const [moyennesMatieres, moyennesGenerales, affectations] = await Promise.all([
+      prisma.moyenneMatiere.findMany({
+        where: { eleveId },
+        include: {
+          matiere: true,
+          periode: true,
+        },
+        orderBy: { periode: { numero: "desc" } },
+      }),
+      prisma.moyenneGenerale.findMany({
+        where: { eleveId },
+        include: {
+          periode: true,
+        },
+        orderBy: { periode: { numero: "desc" } },
+      }),
+      eleve
+        ? prisma.classeMatiere.findMany({
+            where: { classeId: eleve.classeId },
+            include: {
+              matiere: { select: { id: true, nom: true, coefficient: true } },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const profIds = [
+      ...new Set(affectations.map((a) => a.professeurId).filter((id): id is string => Boolean(id))),
+    ];
+    const profs = profIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: profIds } },
+          select: { id: true, prenom: true, nom: true },
+        })
+      : [];
+    const profById = new Map(profs.map((p) => [p.id, `${p.prenom} ${p.nom}`]));
+
+    const profByMatiere = new Map(
+      affectations.map((a) => [
+        a.matiere.nom,
+        {
+          professeur: a.professeurId ? profById.get(a.professeurId) ?? null : null,
+          coefficient: Number(a.coefficient ?? a.matiere.coefficient),
+        },
+      ])
+    );
 
     return NextResponse.json({
       data: {
@@ -75,11 +108,16 @@ export async function GET(
           periode: n.evaluation.periode.nom,
           coefficient: n.evaluation.coefficient,
         })),
-        moyennesMatieres: moyennesMatieres.map((m) => ({
-          matiere: m.matiere.nom,
-          moyenne: m.moyenne,
-          periode: m.periode.nom,
-        })),
+        moyennesMatieres: moyennesMatieres.map((m) => {
+          const meta = profByMatiere.get(m.matiere.nom);
+          return {
+            matiere: m.matiere.nom,
+            moyenne: m.moyenne,
+            periode: m.periode.nom,
+            coefficient: meta?.coefficient ?? Number(m.matiere.coefficient),
+            professeur: meta?.professeur ?? null,
+          };
+        }),
         moyennesGenerales: moyennesGenerales.map((m) => ({
           moyenne: m.moyenneGenerale,
           rang: m.rangClasse,

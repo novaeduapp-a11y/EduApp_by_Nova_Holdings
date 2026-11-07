@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProfesseur } from "@/lib/request-auth";
 import { canAccessClasse, getProfAssignments, groupedClasses } from "@/lib/prof-scope";
 import { assertProfOfEleve } from "@/lib/messagerie";
+import { notifyUser } from "@/lib/notify";
 
 const startSchema = z.object({
   eleveId: z.string().min(1),
@@ -152,14 +153,12 @@ export async function POST(request: NextRequest) {
       },
     });
     await prisma.filMessage.update({ where: { id: fil.id }, data: { updatedAt: new Date() } });
-    await prisma.notification.create({
-      data: {
-        userId: parsed.data.parentId,
-        type: "message",
-        title: `Message de ${authResult.user.prenom} ${authResult.user.nom}`,
-        message: parsed.data.corps.trim().slice(0, 180),
-        data: { filId: fil.id, eleveId: parsed.data.eleveId },
-      },
+    await notifyUser({
+      userId: parsed.data.parentId,
+      type: "message",
+      title: `Message de ${authResult.user.prenom} ${authResult.user.nom}`,
+      message: parsed.data.corps.trim().slice(0, 180),
+      data: { filId: fil.id, eleveId: parsed.data.eleveId },
     });
 
     return NextResponse.json({ data: { filId: fil.id, messageId: message.id } }, { status: 201 });

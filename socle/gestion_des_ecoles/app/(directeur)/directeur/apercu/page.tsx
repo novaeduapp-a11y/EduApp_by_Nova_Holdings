@@ -113,7 +113,7 @@ export default function DirecteurApercuPage() {
     data?.moyenneGenerale != null
       ? `${data.elevesDifficulte} élève${data.elevesDifficulte > 1 ? "s" : ""} sous 10${data.periode ? ` · ${data.periode.nom}` : ""}`
       : data?.periode
-        ? `Notes pas encore consolidées · ${data.periode.nom}`
+        ? `En attente de consolidation · ${data.periode.nom}`
         : "Aucune période active.";
 
   const kpis = data
@@ -122,7 +122,7 @@ export default function DirecteurApercuPage() {
           href: "#cycles",
           value: data.totalEleves,
           title: "Élèves",
-          detail: "Effectif actif de l’établissement.",
+          detail: "Élèves actifs de l’établissement.",
         },
         {
           href: "#cycles",
@@ -134,7 +134,7 @@ export default function DirecteurApercuPage() {
           href: "/directeur/personnel",
           value: data.totalProfesseurs,
           title: "Professeurs",
-          detail: "Présence du jour sur Personnel.",
+          detail: "Présence journalière du corps enseignant.",
         },
         {
           href: "#mentions",
@@ -145,14 +145,14 @@ export default function DirecteurApercuPage() {
         {
           href: "/directeur",
           value: data.tauxPresence != null ? `${data.tauxPresence} %` : "—",
-          title: "Présence du jour",
+          title: "Assiduité des élèves",
           detail: `${data.absencesJour} absence${data.absencesJour > 1 ? "s" : ""} · ${data.retardsJour} retard${data.retardsJour > 1 ? "s" : ""}`,
         },
         {
           href: "/directeur/communiques",
           value: data.totalCommuniques,
           title: "Communiqués",
-          detail: "Parents et professeurs de l’école.",
+          detail: "Diffusé aux responsables légaux et au personnel.",
         },
       ]
     : [];
@@ -167,7 +167,7 @@ export default function DirecteurApercuPage() {
           {" · "}
           La présence du jour compte les absences élèves, hors retards.{" "}
           <Link href="/directeur" className={portalLinkClass}>
-            Ouvrir le bilan
+            Aperçu global
           </Link>
         </p>
       </div>
@@ -212,9 +212,9 @@ export default function DirecteurApercuPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <section id="cycles" className={portalPanelClass} aria-labelledby="chart-cycles">
             <h2 id="chart-cycles" className={portalTitleClass}>
-              Élèves par cycle
+              Assiduité des élèves
             </h2>
-            <p className={`${portalMutedClass} mt-1`}>Effectifs actifs, toute l’école.</p>
+            <p className={`${portalMutedClass} mt-1`}>Élèves actifs de l’établissement.</p>
             <div
               className="mt-4 h-64 w-full"
               role="img"
@@ -277,7 +277,8 @@ export default function DirecteurApercuPage() {
             </p>
             {mentionsActives.length === 0 ? (
               <p className="mt-10 text-sm leading-6 text-muted-foreground">
-                Les mentions apparaîtront quand les moyennes de la période seront calculées.
+                Les distinctions académiques s&apos;afficheront dès la clôture et le calcul des
+                moyennes de la période.
               </p>
             ) : (
               <div className="mt-4 grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_11rem]">

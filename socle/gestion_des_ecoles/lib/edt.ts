@@ -6,6 +6,7 @@ export const JOURS_SEMAINE: { jour: JourSemaine; label: string }[] = [
   { jour: "MERCREDI", label: "Mercredi" },
   { jour: "JEUDI", label: "Jeudi" },
   { jour: "VENDREDI", label: "Vendredi" },
+  { jour: "SAMEDI", label: "Samedi" },
 ];
 
 export const CRENEAUX_DEFAUT = [
@@ -39,7 +40,7 @@ export function creneauxSeChevauchent(
 }
 
 export function jourSemaineAujourdhui(): JourSemaine | null {
-  const keys = [null, "LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI", null] as const;
+  const keys = [null, "LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI", "SAMEDI"] as const;
   return keys[new Date().getDay()] ?? null;
 }
 

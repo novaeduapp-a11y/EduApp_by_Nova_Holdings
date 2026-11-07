@@ -11,15 +11,20 @@ export async function GET() {
     const authResult = await requireProfesseur();
     if (!authResult.ok) return authResult.response;
 
+    // Les messages parents/profs ont leur propre écran Messagerie — pas dans Alertes.
     const notifications = await prisma.notification.findMany({
-      where: { userId: authResult.user.id },
+      where: { userId: authResult.user.id, NOT: { type: "message" } },
       orderBy: { createdAt: "desc" },
       take: 200,
     });
 
+    const unread = await prisma.notification.count({
+      where: { userId: authResult.user.id, readAt: null, NOT: { type: "message" } },
+    });
+
     return NextResponse.json({
       data: {
-        unread: notifications.filter((n) => !n.readAt).length,
+        unread,
         alertes: notifications.map((n) => ({
           id: n.id,
           type: n.type,
@@ -54,12 +59,17 @@ export async function PATCH(request: NextRequest) {
       where: {
         userId: authResult.user.id,
         readAt: null,
+        NOT: { type: "message" },
         ...(all ? {} : { id: { in: ids } }),
       },
       data: { readAt: new Date() },
     });
 
-    return NextResponse.json({ data: { ok: true } });
+    const unread = await prisma.notification.count({
+      where: { userId: authResult.user.id, readAt: null, NOT: { type: "message" } },
+    });
+
+    return NextResponse.json({ data: { ok: true, unread } });
   } catch (error) {
     console.error("Erreur lecture alertes prof:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

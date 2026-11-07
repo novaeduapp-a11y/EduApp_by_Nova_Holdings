@@ -20,6 +20,12 @@ const nextConfig = {
     optimizePackageImports: ["@tanstack/react-query"],
   },
   
+  // Keep public URL /app while the route lives at /ouvrir (avoids App Router
+  // collision between the root `app/` directory and a nested `app` segment).
+  async rewrites() {
+    return [{ source: "/app", destination: "/ouvrir" }];
+  },
+
   // Headers de cache : uniquement en production (en dev, les chunks n’ont pas de hash
   // et un max-age immutable bloque tout hot-reload dans le navigateur).
   async headers() {

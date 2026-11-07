@@ -19,6 +19,7 @@ const patchSchema = z.object({
   montantAnnuel: z.coerce.number().int().min(0).optional().nullable(),
   cycles: z.array(z.enum(CYCLES)).min(1).optional(),
   actif: z.boolean().optional(),
+  paiementAJour: z.boolean().optional(),
 });
 
 function emptyToNull(value?: string | null) {
@@ -40,7 +41,7 @@ export async function GET(
       include: {
         cycles: { select: { famille: true } },
         classes: {
-          orderBy: [{ niveau: "asc" }, { nom: "asc" }],
+          orderBy: [{ deletedAt: "asc" }, { niveau: "asc" }, { nom: "asc" }],
           include: {
             cycle: { select: { famille: true, nom: true } },
             _count: { select: { eleves: { where: { deletedAt: null, actif: true } } } },
@@ -52,29 +53,33 @@ export async function GET(
       return NextResponse.json({ error: "Établissement introuvable" }, { status: 404 });
     }
 
-    const [staff, eleves] = await Promise.all([
-      prisma.user.findMany({
-        where: { ecoleId: ecole.id, deletedAt: null, actif: true, role: { in: ["DIRECTEUR", "PREFET", "PROFESSEUR"] } },
-        select: { id: true, prenom: true, nom: true, role: true, familleCycle: true, email: true },
-        orderBy: [{ role: "asc" }, { nom: "asc" }],
-      }),
-      prisma.eleve.findMany({
-        where: { ecoleId: ecole.id, deletedAt: null, actif: true },
-        select: {
-          id: true,
-          nom: true,
-          prenom: true,
-          matricule: true,
-          classe: { select: { id: true, nom: true, niveau: true, cycle: { select: { famille: true } } } },
+    const [staffCounts, elevesCount] = await Promise.all([
+      prisma.user.groupBy({
+        by: ["role"],
+        where: {
+          ecoleId: ecole.id,
+          deletedAt: null,
+          actif: true,
+          role: { in: ["DIRECTEUR", "PREFET", "PROFESSEUR"] },
         },
-        orderBy: [{ nom: "asc" }, { prenom: "asc" }],
-        take: 2000,
+        _count: { _all: true },
+      }),
+      prisma.eleve.count({
+        where: { ecoleId: ecole.id, deletedAt: null, actif: true },
       }),
     ]);
 
+    const staffByRole = { DIRECTEUR: 0, PREFET: 0, PROFESSEUR: 0 };
+    for (const row of staffCounts) {
+      if (row.role in staffByRole) {
+        staffByRole[row.role as keyof typeof staffByRole] = row._count._all;
+      }
+    }
+
+    const classesActives = ecole.classes.filter((c) => !c.deletedAt);
     const parCycle = CYCLES.map((famille) => {
-      const classes = ecole.classes.filter((c) => c.cycle?.famille === famille);
-      const nEleves = eleves.filter((e) => e.classe.cycle?.famille === famille).length;
+      const classes = classesActives.filter((c) => c.cycle?.famille === famille);
+      const nEleves = classes.reduce((sum, c) => sum + c._count.eleves, 0);
       return {
         famille,
         label: FAMILLES_CYCLE[famille].label,
@@ -95,26 +100,25 @@ export async function GET(
         telephone: ecole.telephone,
         email: ecole.email,
         actif: ecole.actif,
+        paiementAJour: ecole.paiementAJour,
         montantMensuel: ecole.montantMensuel,
         montantAnnuel: ecole.montantAnnuel,
         cycles: ecole.cycles.map((c) => c.famille),
         parCycle,
-        staff,
+        effectifs: {
+          eleves: elevesCount,
+          directeurs: staffByRole.DIRECTEUR,
+          prefets: staffByRole.PREFET,
+          professeurs: staffByRole.PROFESSEUR,
+          classes: classesActives.length,
+        },
         classes: ecole.classes.map((classe) => ({
           id: classe.id,
           nom: classe.nom,
           niveau: classe.niveau,
           famille: classe.cycle?.famille ?? null,
           eleves: classe._count.eleves,
-        })),
-        eleves: eleves.map((eleve) => ({
-          id: eleve.id,
-          nom: eleve.nom,
-          prenom: eleve.prenom,
-          matricule: eleve.matricule,
-          classe: eleve.classe.nom,
-          niveau: eleve.classe.niveau,
-          famille: eleve.classe.cycle?.famille ?? null,
+          deletedAt: classe.deletedAt?.toISOString() ?? null,
         })),
       },
     });
@@ -145,8 +149,14 @@ export async function PATCH(
     const ecole = await prisma.ecole.update({
       where: { id: params.id },
       data: {
-        ...(parsed.data.nom ? { nom: parsed.data.nom.trim() } : {}),
-        ...(parsed.data.nomOfficiel !== undefined ? { nomOfficiel: emptyToNull(parsed.data.nomOfficiel) } : {}),
+        ...(parsed.data.nom ? { nom: parsed.data.nom.trim().toUpperCase() } : {}),
+        ...(parsed.data.nomOfficiel !== undefined
+          ? {
+              nomOfficiel: emptyToNull(parsed.data.nomOfficiel)
+                ? emptyToNull(parsed.data.nomOfficiel)!.toUpperCase()
+                : null,
+            }
+          : {}),
         ...(parsed.data.sigle !== undefined ? { sigle: emptyToNull(parsed.data.sigle) } : {}),
         ...(parsed.data.ville ? { ville: parsed.data.ville.trim() } : {}),
         ...(parsed.data.adresse !== undefined ? { adresse: emptyToNull(parsed.data.adresse) } : {}),
@@ -155,6 +165,7 @@ export async function PATCH(
         ...(parsed.data.montantMensuel !== undefined ? { montantMensuel: parsed.data.montantMensuel } : {}),
         ...(parsed.data.montantAnnuel !== undefined ? { montantAnnuel: parsed.data.montantAnnuel } : {}),
         ...(parsed.data.actif !== undefined ? { actif: parsed.data.actif } : {}),
+        ...(parsed.data.paiementAJour !== undefined ? { paiementAJour: parsed.data.paiementAJour } : {}),
       },
     });
 
@@ -171,14 +182,34 @@ export async function PATCH(
 
     await logActivite({
       userId: authResult.user.id,
-      action: parsed.data.actif === false ? "ecole_desactivee" : parsed.data.actif === true ? "ecole_reactivee" : "ecole_modifiee",
+      action:
+        parsed.data.actif === false
+          ? "ecole_desactivee"
+          : parsed.data.actif === true
+            ? "ecole_reactivee"
+            : parsed.data.paiementAJour !== undefined
+              ? "ecole_paiement_maj"
+              : "ecole_modifiee",
       table: "ecoles",
       recordId: ecole.id,
-      details: { nom: ecole.nom, ville: ecole.ville, actif: ecole.actif },
+      details: {
+        nom: ecole.nom,
+        ville: ecole.ville,
+        actif: ecole.actif,
+        paiementAJour: ecole.paiementAJour,
+      },
     });
 
     return NextResponse.json({
-      data: { id: ecole.id, nom: ecole.nom, ville: ecole.ville, actif: ecole.actif },
+      data: {
+        id: ecole.id,
+        nom: ecole.nom,
+        ville: ecole.ville,
+        actif: ecole.actif,
+        paiementAJour: ecole.paiementAJour,
+        montantMensuel: ecole.montantMensuel,
+        montantAnnuel: ecole.montantAnnuel,
+      },
     });
   } catch (error) {
     console.error("Erreur MAJ école:", error);

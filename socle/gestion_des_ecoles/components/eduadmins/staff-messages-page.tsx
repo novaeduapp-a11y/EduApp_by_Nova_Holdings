@@ -11,6 +11,7 @@ import { portalMutedClass, portalPanelClass, portalTitleClass } from "@/componen
 
 type Fil = {
   id: string | null;
+  kind?: "direction" | "professeur";
   interlocuteurId: string;
   interlocuteur: string;
   detail: string;
@@ -42,7 +43,7 @@ type StaffMessagesPageProps = {
   subtitle: string;
   listUrl: string;
   startPayloadKey: "prefetId" | "directeurId";
-  myRole: "DIRECTEUR" | "PREFET";
+  myRole: "DIRECTEUR" | "PREFET" | "PROFESSEUR";
   emptyListLabel: string;
   pickLabel: string;
   placeholder: string;
@@ -153,11 +154,12 @@ export function StaffMessagesPage({
         if (!res.ok) throw new Error(body.error);
         await openFil(selected);
       } else {
+        const payloadKey = selected.kind === "professeur" ? "professeurId" : startPayloadKey;
         const res = await fetch(listUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            [startPayloadKey]: selected.interlocuteurId,
+            [payloadKey]: selected.interlocuteurId,
             corps,
           }),
         });
@@ -185,8 +187,10 @@ export function StaffMessagesPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">{title}</h1>
-        <p className={`${portalMutedClass} mt-1`}>
+        {title ? (
+          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">{title}</h1>
+        ) : null}
+        <p className={`${portalMutedClass} ${title ? "mt-1" : ""}`}>
           {subtitle}
           {status === "ready" ? ` · ${fils.length} conversation${fils.length > 1 ? "s" : ""}` : ""}
           {unreadTotal > 0 ? ` · ${unreadTotal} non lu${unreadTotal > 1 ? "s" : ""}` : ""}.

@@ -131,6 +131,15 @@ function PrefetElevesForm() {
   const [filtreSexe, setFiltreSexe] = useState("");
   const [page, setPage] = useState(1);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [inscriptionOk, setInscriptionOk] = useState<{
+    matricule: string;
+    prenom: string;
+    nom: string;
+    email: string;
+    cree: boolean;
+    mailEnvoye: boolean;
+    motDePasseTemporaire: string | null;
+  } | null>(null);
 
   const load = async () => {
     const [e, c] = await Promise.all([
@@ -244,14 +253,38 @@ function PrefetElevesForm() {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
       if (editing) {
-        toast({ title: `Fiche mise à jour · ${body.data.matricule}` });
+        const parent = body.data.parent as
+          | {
+              email: string;
+              cree: boolean;
+              mailEnvoye: boolean;
+              motDePasseTemporaire: string | null;
+            }
+          | null
+          | undefined;
+        if (parent) {
+          setInscriptionOk({
+            matricule: body.data.matricule,
+            prenom: body.data.prenom,
+            nom: body.data.nom,
+            email: parent.email,
+            cree: parent.cree,
+            mailEnvoye: parent.mailEnvoye,
+            motDePasseTemporaire: parent.motDePasseTemporaire,
+          });
+        } else {
+          toast({ title: `Fiche mise à jour · ${body.data.matricule}` });
+        }
       } else {
         const parent = body.data.parent;
-        toast({
-          title: `Inscrit · ${body.data.matricule}`,
-          description: parent?.cree
-            ? `Compte parent créé (${parent.email}). Mot de passe temporaire : ${parent.motDePasseTemporaire}`
-            : `Parent déjà lié : ${parent?.email}. Visible dans EduParent.`,
+        setInscriptionOk({
+          matricule: body.data.matricule,
+          prenom: body.data.prenom,
+          nom: body.data.nom,
+          email: parent.email,
+          cree: Boolean(parent.cree),
+          mailEnvoye: Boolean(parent.mailEnvoye),
+          motDePasseTemporaire: parent.motDePasseTemporaire ?? null,
         });
       }
       setFormOpen(false);
@@ -594,6 +627,83 @@ function PrefetElevesForm() {
             </Button>
             <Button type="button" onClick={submit} disabled={busy}>
               {busy ? "Enregistrement…" : editing ? "Enregistrer" : "Inscrire"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!inscriptionOk}
+        onOpenChange={(open) => {
+          if (!open) setInscriptionOk(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {inscriptionOk?.cree ? "Compte parent créé" : "Élève lié au parent"}
+            </DialogTitle>
+            <DialogDescription>
+              {inscriptionOk
+                ? `${inscriptionOk.prenom} ${inscriptionOk.nom} · ${inscriptionOk.matricule}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {inscriptionOk ? (
+            <div className="space-y-3 text-sm leading-6 text-foreground">
+              {inscriptionOk.cree ? (
+                <>
+                  <p>
+                    Le compte parent a été créé pour l’adresse inscrite sur la fiche :{" "}
+                    <strong className="font-semibold">{inscriptionOk.email}</strong>.
+                  </p>
+                  {inscriptionOk.mailEnvoye ? (
+                    <p className={portalMutedClass}>
+                      Un e-mail avec les accès (mot de passe temporaire) a été envoyé à cette adresse.
+                      Le parent devra le changer à la première connexion.
+                    </p>
+                  ) : (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-950">
+                      <p className="font-medium">L’e-mail n’a pas pu être envoyé.</p>
+                      {inscriptionOk.motDePasseTemporaire ? (
+                        <p className="mt-1">
+                          Mot de passe temporaire à communiquer au parent :{" "}
+                          <span className="font-mono font-semibold">
+                            {inscriptionOk.motDePasseTemporaire}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="mt-1">
+                          Vérifiez la configuration e-mail ou réinitialisez le mot de passe depuis les
+                          comptes.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p>
+                    Ce parent avait déjà un compte pour cet établissement (
+                    <strong className="font-semibold">{inscriptionOk.email}</strong>). L’élève a été
+                    ajouté à son espace EduParent — aucun nouveau mot de passe.
+                  </p>
+                  {inscriptionOk.mailEnvoye ? (
+                    <p className={portalMutedClass}>
+                      Un e-mail d’information lui a été envoyé pour confirmer l’ajout.
+                    </p>
+                  ) : (
+                    <p className={portalMutedClass}>
+                      L’élève est bien lié. L’e-mail d’information n’a pas pu être envoyé.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" onClick={() => setInscriptionOk(null)}>
+              Compris
             </Button>
           </DialogFooter>
         </DialogContent>

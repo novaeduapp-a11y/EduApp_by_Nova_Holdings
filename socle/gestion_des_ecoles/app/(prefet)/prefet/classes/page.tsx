@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { Calendar, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +24,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { EleveToolbar } from "@/components/shared/eleve-toolbar";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { uniqueNiveaux } from "@/lib/eleve-filter";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -428,25 +428,17 @@ export default function PrefetClassesPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
+                          title="Modifier la classe"
                           aria-label={`Modifier ${classe.nom}`}
                           onClick={() => openEdit(classe)}
                         >
                           <Pencil />
                         </Button>
-                        <Button asChild variant="ghost" size="icon">
-                          <Link href={`/prefet/eleves?classeId=${classe.id}`} aria-label={`Élèves de ${classe.nom}`}>
-                            <Users />
-                          </Link>
-                        </Button>
-                        <Button asChild variant="ghost" size="icon">
-                          <Link href={`/prefet/edt?classeId=${classe.id}`} aria-label={`Emploi du temps de ${classe.nom}`}>
-                            <Calendar />
-                          </Link>
-                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
+                          title={classe.effectif > 0 ? "Impossible : des élèves sont inscrits" : "Supprimer la classe"}
                           className="text-destructive hover:text-destructive"
                           aria-label={`Supprimer ${classe.nom}`}
                           disabled={classe.effectif > 0}
@@ -535,18 +527,14 @@ export default function PrefetClassesPage() {
             </Field>
             <div className="sm:col-span-2">
               <Field label="Professeur principal">
-                <select
-                  className="edu-select w-full"
+                <SearchableSelect
                   value={create.professeurPrincipalId}
-                  onChange={(e) => setCreate({ ...create, professeurPrincipalId: e.target.value })}
-                >
-                  <option value="">Aucun</option>
-                  {professeurs.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nom}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(next) => setCreate({ ...create, professeurPrincipalId: next })}
+                  searchPlaceholder="Rechercher un professeur…"
+                  allowEmpty
+                  emptyOptionLabel="Aucun"
+                  options={professeurs.map((p) => ({ value: p.id, label: p.nom }))}
+                />
               </Field>
             </div>
           </div>
@@ -555,32 +543,29 @@ export default function PrefetClassesPage() {
             <p className={portalMutedClass}>
               Pour chaque matière, choisissez le professeur qui l’enseignera dans cette classe.
             </p>
+            {matieres.length === 0 ? (
+              <p className={portalMutedClass}>
+                Aucune matière pour ce cycle. Créez-les d’abord dans Matières, puis revenez les affecter.
+              </p>
+            ) : (
             <ul className="space-y-2">
-              {matieres.map((matiere) => {
-                const candidats = professeurs.filter(
-                  (p) => !p.matiereIds?.length || p.matiereIds.includes(matiere.id)
-                );
-                return (
+              {matieres.map((matiere) => (
                   <li key={matiere.id} className="grid gap-2 sm:grid-cols-[1fr_1fr] sm:items-center">
                     <span className="text-sm font-medium">{matiere.nom}</span>
-                    <select
-                      className="edu-select w-full"
+                    <SearchableSelect
                       value={createAffectations[matiere.id] ?? ""}
-                      onChange={(e) =>
-                        setCreateAffectations((current) => ({ ...current, [matiere.id]: e.target.value }))
+                      onValueChange={(next) =>
+                        setCreateAffectations((current) => ({ ...current, [matiere.id]: next }))
                       }
-                    >
-                      <option value="">Non affecté</option>
-                      {candidats.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nom}
-                        </option>
-                      ))}
-                    </select>
+                      searchPlaceholder="Rechercher un professeur…"
+                      allowEmpty
+                      emptyOptionLabel="Non affecté"
+                      options={professeurs.map((p) => ({ value: p.id, label: p.nom }))}
+                    />
                   </li>
-                );
-              })}
+              ))}
             </ul>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
@@ -623,18 +608,14 @@ export default function PrefetClassesPage() {
               <Input value={edit.salle} onChange={(e) => setEdit({ ...edit, salle: e.target.value })} />
             </Field>
             <Field label="Professeur principal">
-              <select
-                className="edu-select w-full"
+              <SearchableSelect
                 value={edit.professeurPrincipalId}
-                onChange={(e) => setEdit({ ...edit, professeurPrincipalId: e.target.value })}
-              >
-                <option value="">Aucun</option>
-                {professeurs.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nom}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(next) => setEdit({ ...edit, professeurPrincipalId: next })}
+                searchPlaceholder="Rechercher un professeur…"
+                allowEmpty
+                emptyOptionLabel="Aucun"
+                options={professeurs.map((p) => ({ value: p.id, label: p.nom }))}
+              />
             </Field>
           </div>
           <Button type="button" variant="outline" onClick={submitEdit} disabled={busy || !edit.nom}>
@@ -645,28 +626,24 @@ export default function PrefetClassesPage() {
             <p className="font-semibold text-foreground">Affectations</p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <Field label="Matière">
-                <select className="edu-select min-w-[160px]" value={matiereId} onChange={(e) => setMatiereId(e.target.value)}>
-                  {matieres.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.nom}
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  className="min-w-[160px]"
+                  value={matiereId}
+                  onValueChange={setMatiereId}
+                  searchPlaceholder="Rechercher une matière…"
+                  placeholder="Choisir une matière"
+                  options={matieres.map((m) => ({ value: m.id, label: m.nom }))}
+                />
               </Field>
-              <Field label="Professeur du cycle">
-                <select
-                  className="edu-select min-w-[200px]"
+              <Field label="Professeur">
+                <SearchableSelect
+                  className="min-w-[200px]"
                   value={professeurId}
-                  onChange={(e) => setProfesseurId(e.target.value)}
-                >
-                  {professeurs
-                    .filter((p) => !p.matiereIds?.length || p.matiereIds.includes(matiereId))
-                    .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nom}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={setProfesseurId}
+                  searchPlaceholder="Rechercher un professeur…"
+                  placeholder="Choisir un professeur"
+                  options={professeurs.map((p) => ({ value: p.id, label: p.nom }))}
+                />
               </Field>
               <Button type="button" onClick={affecter} disabled={busy || !matiereId || !professeurId}>
                 Affecter

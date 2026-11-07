@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePrefet } from "@/lib/request-auth";
 import { familleWhere } from "@/lib/prefet-scope";
 import { getMention } from "@/lib/constants";
+import { getPeriodeActiveForEcole } from "@/lib/periodes";
 
 export async function GET() {
   try {
@@ -11,10 +12,7 @@ export async function GET() {
     const { ecoleId, familleCycle } = authResult.user;
     const classeWhere = familleWhere(ecoleId, familleCycle);
 
-    const periode = await prisma.periode.findFirst({
-      where: { actif: true },
-      orderBy: { numero: "desc" },
-    });
+    const periode = await getPeriodeActiveForEcole(ecoleId);
     if (!periode) {
       return NextResponse.json({ data: { periode: null, classes: [] } });
     }
@@ -73,6 +71,12 @@ export async function GET() {
         mentions,
         meilleurs: sorted.slice(0, 3),
         difficulte: [...sorted].reverse().filter((e) => e.moyenne < 10).slice(0, 5),
+        classement: sorted.map((eleve, index) => ({
+          id: eleve.id,
+          nom: eleve.nom,
+          moyenne: eleve.moyenne,
+          rang: index + 1,
+        })),
         sousDix: eleves.filter((e) => e.moyenne < 10).length,
       };
     });

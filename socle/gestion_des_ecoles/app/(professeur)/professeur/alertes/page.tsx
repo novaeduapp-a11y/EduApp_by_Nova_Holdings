@@ -21,6 +21,7 @@ import {
   portalMutedClass,
   portalPanelClass,
 } from "@/components/eduadmins/portal-shell";
+import { emitNotificationsChanged } from "@/lib/notifications-client";
 
 type AlerteData = {
   filId?: string;
@@ -145,17 +146,28 @@ export default function ProfAlertesPage() {
     if (ids.length === 0) return;
     const unreadIds = ids.filter((id) => alertes.some((item) => item.id === id && !item.readAt));
     if (unreadIds.length === 0) return;
+    const readAt = new Date().toISOString();
     setAlertes((current) =>
-      current.map((item) => (unreadIds.includes(item.id) ? { ...item, readAt: new Date().toISOString() } : item))
+      current.map((item) => (unreadIds.includes(item.id) ? { ...item, readAt } : item))
     );
-    const res = await fetch("/api/staff/prof/alertes", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: unreadIds }),
-    });
-    if (!res.ok) {
+    setSelected((current) =>
+      current && unreadIds.includes(current.id) ? { ...current, readAt } : current
+    );
+    try {
+      const res = await fetch("/api/staff/prof/alertes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: unreadIds }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Lecture refusée");
+      emitNotificationsChanged(
+        typeof body.data?.unread === "number" ? body.data.unread : undefined
+      );
+    } catch {
       toast({ variant: "destructive", title: "Lecture refusée" });
       await load({ silent: true });
+      emitNotificationsChanged();
     }
   };
 
@@ -167,10 +179,14 @@ export default function ProfAlertesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ all: true }),
       });
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error();
       toast({ title: "Toutes les alertes sont lues." });
       setMarkAllOpen(false);
       await load({ silent: true });
+      emitNotificationsChanged(
+        typeof body.data?.unread === "number" ? body.data.unread : 0
+      );
     } catch {
       toast({ variant: "destructive", title: "Lecture refusée" });
     } finally {
@@ -190,8 +206,8 @@ export default function ProfAlertesPage() {
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Alertes</h1>
           <p className={`${portalMutedClass} mt-1`}>
             {status === "ready"
-              ? `${unread} non lue${unread > 1 ? "s" : ""} · communiqués, messages parents et infos de l’établissement.`
-              : "Communiqués, messages parents et alertes de l’établissement."}
+              ? `${unread} non lue${unread > 1 ? "s" : ""} · Communiqués et informations de l’établissement.`
+              : "Communiqués et informations de l’établissement."}
           </p>
         </div>
         <Button type="button" variant="outline" onClick={() => setMarkAllOpen(true)} disabled={unread === 0}>
@@ -253,7 +269,7 @@ export default function ProfAlertesPage() {
             {alertes.length === 0 ? "Aucune alerte" : "Aucune alerte ne correspond à la recherche."}
           </p>
           {alertes.length === 0 ? (
-            <p className={`${portalMutedClass} mt-1`}>Les communiqués et messages parents apparaîtront ici.</p>
+            <p className={`${portalMutedClass} mt-1`}>Les communiqués de la direction et du préfet apparaîtront ici.</p>
           ) : null}
         </div>
       ) : (

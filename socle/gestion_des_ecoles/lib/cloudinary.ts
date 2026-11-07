@@ -25,7 +25,7 @@ function ensureCloudinary() {
   return cloudinary;
 }
 
-export type UploadFolder = "avatars" | "eleves" | "documents" | "bulletins" | "misc";
+export type UploadFolder = "avatars" | "eleves" | "documents" | "bulletins" | "ecoles" | "misc";
 
 const ALLOWED_MIME = new Set([
   "image/jpeg",

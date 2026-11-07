@@ -64,7 +64,7 @@ export async function GET(
           qrCode: b.tokenQr,
           dateGeneration: b.createdAt,
           classe: b.eleve.classe.nom,
-          fichierPdf: `/api/parent/enfants/${eleveId}/bulletins/${b.id}/pdf`,
+          fichierPdf: null,
         };
       }),
     });

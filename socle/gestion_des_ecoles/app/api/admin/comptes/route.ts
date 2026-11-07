@@ -7,6 +7,7 @@ import { requireAdmin } from "@/lib/request-auth";
 import { logActivite } from "@/lib/activity-log";
 
 const STAFF_ROLES = ["ADMIN", "DIRECTEUR", "PREFET", "PROFESSEUR"] as const;
+const ACCOUNT_ROLES = [...STAFF_ROLES, "PARENT"] as const;
 
 const createSchema = z.object({
   nom: z.string().min(2).max(80),
@@ -36,39 +37,61 @@ export async function GET(request: NextRequest) {
 
     const ecoleId = request.nextUrl.searchParams.get("ecoleId") || "";
     const role = request.nextUrl.searchParams.get("role") || "";
+    const includeDeleted = request.nextUrl.searchParams.get("includeDeleted") === "1";
+
+    const roleFilter =
+      role && ACCOUNT_ROLES.includes(role as (typeof ACCOUNT_ROLES)[number])
+        ? (role as (typeof ACCOUNT_ROLES)[number])
+        : ecoleId
+          ? { in: ["DIRECTEUR", "PREFET", "PROFESSEUR", "PARENT"] as const }
+          : { in: [...STAFF_ROLES] };
+
+    const baseSelect = {
+      id: true,
+      nom: true,
+      prenom: true,
+      email: true,
+      telephone: true,
+      role: true,
+      actif: true,
+      deletedAt: true,
+      ecoleId: true,
+      familleCycle: true,
+      typeProfesseur: true,
+      ecole: { select: { id: true, nom: true, ville: true } },
+      professeurMatieres: { select: { matiereId: true } },
+    } as const;
 
     const [users, matieres] = await Promise.all([
       prisma.user.findMany({
-      where: {
-        deletedAt: null,
-        role: role && STAFF_ROLES.includes(role as (typeof STAFF_ROLES)[number])
-          ? (role as (typeof STAFF_ROLES)[number])
-          : { in: [...STAFF_ROLES] },
-        ...(ecoleId ? { ecoleId } : {}),
-      },
-      select: {
-        id: true,
-        nom: true,
-        prenom: true,
-        email: true,
-        telephone: true,
-        role: true,
-        actif: true,
-        ecoleId: true,
-        familleCycle: true,
-        typeProfesseur: true,
-        ecole: { select: { id: true, nom: true, ville: true } },
-        professeurMatieres: { select: { matiereId: true } },
-      },
-      orderBy: [{ role: "asc" }, { nom: "asc" }, { prenom: "asc" }],
-      take: 300,
-    }),
+        where: {
+          ...(includeDeleted ? {} : { deletedAt: null }),
+          role: roleFilter,
+          ...(ecoleId
+            ? {
+                OR: [
+                  { ecoleId },
+                  {
+                    role: "PARENT",
+                    parentEleves: {
+                      some: { eleve: { ecoleId, deletedAt: null } },
+                    },
+                  },
+                ],
+              }
+            : {}),
+        },
+        select: baseSelect,
+        orderBy: [{ role: "asc" }, { nom: "asc" }, { prenom: "asc" }],
+        take: 500,
+      }),
       prisma.matiere.findMany({ select: { id: true, nom: true }, orderBy: { nom: "asc" } }),
     ]);
 
     return NextResponse.json({
       data: users.map((user) => ({
         ...user,
+        deletedAt: user.deletedAt?.toISOString() ?? null,
         matiereIds: user.professeurMatieres.map((row) => row.matiereId),
       })),
       matieres,

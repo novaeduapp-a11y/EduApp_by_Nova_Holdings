@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireProfesseur } from "@/lib/request-auth";
 import { serializeMessage } from "@/lib/messagerie";
+import { notifyUser } from "@/lib/notify";
 
 const replySchema = z.object({
   corps: z.string().min(1).max(2000),
@@ -37,6 +38,17 @@ export async function GET(
     await prisma.message.updateMany({
       where: { filId: fil.id, auteurId: { not: authResult.user.id }, luAt: null },
       data: { luAt: new Date() },
+    });
+
+    // Marquer aussi les alertes « message » liées à ce fil (sinon le badge reste).
+    await prisma.notification.updateMany({
+      where: {
+        userId: authResult.user.id,
+        readAt: null,
+        type: "message",
+        data: { path: ["filId"], equals: fil.id },
+      },
+      data: { readAt: new Date() },
     });
 
     return NextResponse.json({
@@ -82,14 +94,12 @@ export async function POST(
     });
     await prisma.filMessage.update({ where: { id: fil.id }, data: { updatedAt: new Date() } });
 
-    await prisma.notification.create({
-      data: {
-        userId: fil.parentId,
-        type: "message",
-        title: `Message de ${authResult.user.prenom} ${authResult.user.nom}`,
-        message: parsed.data.corps.trim().slice(0, 180),
-        data: { filId: fil.id, eleveId: fil.eleveId },
-      },
+    await notifyUser({
+      userId: fil.parentId,
+      type: "message",
+      title: `Message de ${authResult.user.prenom} ${authResult.user.nom}`,
+      message: parsed.data.corps.trim().slice(0, 180),
+      data: { filId: fil.id, eleveId: fil.eleveId },
     });
 
     return NextResponse.json({ data: { id: message.id } }, { status: 201 });

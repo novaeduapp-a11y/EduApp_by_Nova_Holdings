@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, KeyRound, Pencil, Plus, Search } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, KeyRound, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { SearchableSelect } from "@/components/shared/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { FAMILLES_CYCLE } from "@/lib/constants";
 import {
@@ -32,11 +33,19 @@ import {
   portalPanelClass,
 } from "@/components/eduadmins/portal-shell";
 
-type Role = "ADMIN" | "DIRECTEUR" | "PREFET" | "PROFESSEUR";
+type Role = "ADMIN" | "DIRECTEUR" | "PREFET" | "PROFESSEUR" | "PARENT";
 type FamilleCycle = keyof typeof FAMILLES_CYCLE;
 type TypeProf = "PRIMAIRE" | "MATIERE";
 
-type Ecole = { id: string; nom: string; ville: string; actif: boolean };
+type Ecole = {
+  id: string;
+  nom: string;
+  ville: string;
+  actif: boolean;
+  directeurs?: number;
+  prefets?: number;
+  professeurs?: number;
+};
 
 type Compte = {
   id: string;
@@ -46,6 +55,7 @@ type Compte = {
   telephone: string | null;
   role: Role;
   actif: boolean;
+  deletedAt?: string | null;
   ecoleId: string | null;
   familleCycle: FamilleCycle | null;
   typeProfesseur: TypeProf | null;
@@ -60,6 +70,7 @@ const ROLE_LABEL: Record<Role, string> = {
   DIRECTEUR: "Directeur",
   PREFET: "Préfet",
   PROFESSEUR: "Professeur",
+  PARENT: "Parent",
 };
 
 const EMPTY_FORM = {
@@ -108,31 +119,34 @@ function AdminComptesForm() {
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [filtreRole, setFiltreRole] = useState(searchParams.get("role") ?? "");
-  const [filtreEcole, setFiltreEcole] = useState(searchParams.get("ecoleId") ?? "");
+  const [selectedEcoleId, setSelectedEcoleId] = useState(searchParams.get("ecoleId") ?? "");
   const [filtreActif, setFiltreActif] = useState("");
+  const [ecoleSearch, setEcoleSearch] = useState("");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Compte | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [toToggle, setToToggle] = useState<Compte | null>(null);
   const [toReset, setToReset] = useState<Compte | null>(null);
+  const [toRestore, setToRestore] = useState<Compte | null>(null);
   const [secret, setSecret] = useState<{ email: string; password: string; emailed?: boolean } | null>(null);
 
-  const load = async () => {
-    const [e, c] = await Promise.all([
-      fetch("/api/admin/ecoles").then((res) => res.json()),
-      fetch("/api/admin/comptes").then((res) => res.json()),
-    ]);
-    if (!Array.isArray(e.data) && e.error) throw new Error(e.error);
+  const load = async (ecoleId = selectedEcoleId) => {
+    const ecolesRes = await fetch("/api/admin/ecoles").then((res) => res.json());
+    if (!Array.isArray(ecolesRes.data) && ecolesRes.error) throw new Error(ecolesRes.error);
+    setEcoles((ecolesRes.data ?? []) as Ecole[]);
+
+    if (!ecoleId) {
+      setComptes([]);
+      setMatieres([]);
+      return;
+    }
+
+    const comptesUrl = `/api/admin/comptes?ecoleId=${encodeURIComponent(ecoleId)}&includeDeleted=1`;
+    const c = await fetch(comptesUrl).then((res) => res.json());
     if (!Array.isArray(c.data) && c.error) throw new Error(c.error);
-    const list = (e.data ?? []) as Ecole[];
-    setEcoles(list);
     setComptes(c.data ?? []);
     setMatieres(c.matieres ?? []);
-    setForm((prev) => ({
-      ...prev,
-      ecoleId: prev.ecoleId || list.find((item) => item.actif)?.id || "",
-    }));
   };
 
   const refresh = async () => {
@@ -147,30 +161,73 @@ function AdminComptesForm() {
   };
 
   useEffect(() => {
-    refresh().then(() => {
-      if (searchParams.get("creer") === "1") setFormOpen(true);
-    });
+    const boot = async () => {
+      const ecoleId = searchParams.get("ecoleId") || "";
+      setStatus("loading");
+      try {
+        await load(ecoleId);
+        if (ecoleId) setSelectedEcoleId(ecoleId);
+        setStatus("ready");
+        if (searchParams.get("creer") === "1" && ecoleId) setFormOpen(true);
+      } catch {
+        setStatus("error");
+        toast({ variant: "destructive", title: "Impossible de charger les comptes" });
+      }
+    };
+    void boot();
   }, []);
 
   const ecolesActives = useMemo(() => ecoles.filter((item) => item.actif), [ecoles]);
+
+  const selectedEcole = useMemo(
+    () => ecoles.find((ecole) => ecole.id === selectedEcoleId) ?? null,
+    [ecoles, selectedEcoleId]
+  );
+
+  const filteredEcoles = useMemo(() => {
+    const q = ecoleSearch.trim().toLowerCase();
+    if (!q) return ecoles;
+    return ecoles.filter((ecole) => `${ecole.nom} ${ecole.ville}`.toLowerCase().includes(q));
+  }, [ecoles, ecoleSearch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return comptes.filter((compte) => {
       if (filtreRole && compte.role !== filtreRole) return false;
-      if (filtreEcole && compte.ecoleId !== filtreEcole) return false;
-      if (filtreActif === "actif" && !compte.actif) return false;
-      if (filtreActif === "inactif" && compte.actif) return false;
+      if (filtreActif === "actif" && (!compte.actif || compte.deletedAt)) return false;
+      if (filtreActif === "inactif" && (compte.actif || compte.deletedAt)) return false;
+      if (filtreActif === "archive" && !compte.deletedAt) return false;
       if (!q) return true;
-      return `${compte.prenom} ${compte.nom} ${compte.email} ${compte.ecole?.nom ?? ""}`
-        .toLowerCase()
-        .includes(q);
+      return `${compte.prenom} ${compte.nom} ${compte.email}`.toLowerCase().includes(q);
     });
-  }, [comptes, search, filtreRole, filtreEcole, filtreActif]);
+  }, [comptes, search, filtreRole, filtreActif]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, filtreRole, filtreEcole, filtreActif]);
+  }, [search, filtreRole, filtreActif, selectedEcoleId]);
+
+  const openEcole = async (ecoleId: string) => {
+    setSelectedEcoleId(ecoleId);
+    setSearch("");
+    setFiltreRole("");
+    setFiltreActif("");
+    setStatus("loading");
+    try {
+      await load(ecoleId);
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+      toast({ variant: "destructive", title: "Impossible de charger les comptes" });
+    }
+  };
+
+  const backToEcoles = () => {
+    setSelectedEcoleId("");
+    setComptes([]);
+    setSearch("");
+    setFiltreRole("");
+    setFiltreActif("");
+  };
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pageCount);
@@ -182,7 +239,7 @@ function AdminComptesForm() {
     setEditing(null);
     setForm({
       ...EMPTY_FORM,
-      ecoleId: searchParams.get("ecoleId") || ecolesActives[0]?.id || "",
+      ecoleId: selectedEcoleId || "",
       role: (searchParams.get("role") as Role) || "DIRECTEUR",
     });
     setFormOpen(true);
@@ -320,6 +377,32 @@ function AdminComptesForm() {
     }
   };
 
+  const confirmRestore = async () => {
+    if (!toRestore) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/comptes/${toRestore.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restore: true }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      toast({ title: "Compte restauré" });
+      setToRestore(null);
+      await load(selectedEcoleId);
+      setStatus("ready");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Restauration refusée",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const canSave =
     form.prenom.trim().length >= 2 &&
     form.nom.trim().length >= 2 &&
@@ -327,13 +410,89 @@ function AdminComptesForm() {
     (form.role === "ADMIN" || Boolean(form.ecoleId)) &&
     (form.role !== "PROFESSEUR" || form.typeProfesseur !== "MATIERE" || form.matiereIds.length >= 1);
 
+  if (!selectedEcoleId) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Comptes</h1>
+          <p className={`${portalMutedClass} mt-1`}>
+            Gestion des accès du personnel. Les comptes familles sont automatisés
+            {status === "ready" ? ` · ${ecoles.length} établissement${ecoles.length > 1 ? "s" : ""}` : ""}.
+          </p>
+        </div>
+
+        <div className="relative max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input
+            type="search"
+            value={ecoleSearch}
+            onChange={(e) => setEcoleSearch(e.target.value)}
+            placeholder="Rechercher un établissement…"
+            className="pl-9"
+            aria-label="Rechercher un établissement"
+          />
+        </div>
+
+        {status === "error" ? (
+          <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
+            <p className="text-sm leading-6 text-foreground">Impossible de charger les établissements.</p>
+            <Button type="button" onClick={() => refresh()}>
+              Réessayer
+            </Button>
+          </div>
+        ) : status === "loading" ? (
+          <Skeleton className="h-72" />
+        ) : filteredEcoles.length === 0 ? (
+          <div className={`${portalPanelClass} py-10 text-center`}>
+            <p className={portalMutedClass}>Aucun établissement ne correspond à la recherche.</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Établissement</TableHead>
+                <TableHead>Ville</TableHead>
+                <TableHead className="text-right">Direction</TableHead>
+                <TableHead className="text-right">Préfecture</TableHead>
+                <TableHead className="text-right">Enseignants</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredEcoles.map((ecole) => (
+                <TableRow key={ecole.id}>
+                  <TableCell className="font-medium uppercase">{ecole.nom}</TableCell>
+                  <TableCell>{ecole.ville}</TableCell>
+                  <TableCell className="text-right tabular-nums">{ecole.directeurs ?? 0}</TableCell>
+                  <TableCell className="text-right tabular-nums">{ecole.prefets ?? 0}</TableCell>
+                  <TableCell className="text-right tabular-nums">{ecole.professeurs ?? 0}</TableCell>
+                  <TableCell className="text-right">
+                    <Button type="button" variant="outline" size="sm" onClick={() => void openEcole(ecole.id)}>
+                      Voir les comptes
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Comptes</h1>
+          <Button type="button" variant="ghost" className="-ml-2 mb-2" onClick={backToEcoles}>
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Établissements
+          </Button>
+          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight uppercase">
+            {selectedEcole?.nom ?? "Comptes"}
+          </h1>
           <p className={`${portalMutedClass} mt-1`}>
-            Direction, préfets et professeurs rattachés à un établissement. Les parents se créent à l’inscription
+            Gestion des accès du personnel. Les comptes familles sont automatisés
             {status === "ready" ? ` · ${comptes.length}` : ""}.
           </p>
         </div>
@@ -360,20 +519,13 @@ function AdminComptesForm() {
           <option value="DIRECTEUR">Directeurs</option>
           <option value="PREFET">Préfets</option>
           <option value="PROFESSEUR">Professeurs</option>
-          <option value="ADMIN">Admins NOVA</option>
-        </select>
-        <select className="edu-select" aria-label="Filtrer par établissement" value={filtreEcole} onChange={(e) => setFiltreEcole(e.target.value)}>
-          <option value="">Tous les établissements</option>
-          {ecoles.map((ecole) => (
-            <option key={ecole.id} value={ecole.id}>
-              {ecole.nom}
-            </option>
-          ))}
+          <option value="PARENT">Parents</option>
         </select>
         <select className="edu-select" aria-label="Filtrer par statut" value={filtreActif} onChange={(e) => setFiltreActif(e.target.value)}>
           <option value="">Tous les statuts</option>
           <option value="actif">Actifs</option>
           <option value="inactif">Inactifs</option>
+          <option value="archive">Archivés</option>
         </select>
       </div>
 
@@ -388,8 +540,8 @@ function AdminComptesForm() {
         <Skeleton className="h-72" />
       ) : comptes.length === 0 ? (
         <div className={`${portalPanelClass} py-10 text-center`}>
-          <p className="font-medium text-foreground">Aucun compte staff</p>
-          <p className={`${portalMutedClass} mt-1`}>Créez un directeur après l’établissement.</p>
+          <p className="font-medium text-foreground">Aucun compte pour cet établissement</p>
+          <p className={`${portalMutedClass} mt-1`}>Créez un directeur ou un préfet.</p>
           <Button type="button" className="mt-4" onClick={openCreate}>
             Nouveau compte
           </Button>
@@ -406,7 +558,6 @@ function AdminComptesForm() {
                 <TableHead>Nom</TableHead>
                 <TableHead>E-mail</TableHead>
                 <TableHead>Rôle</TableHead>
-                <TableHead>Établissement</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead className="w-52 text-right">Actions</TableHead>
               </TableRow>
@@ -422,27 +573,39 @@ function AdminComptesForm() {
                     {ROLE_LABEL[compte.role]}
                     {detail(compte) ? ` · ${detail(compte)}` : ""}
                   </TableCell>
-                  <TableCell>{compte.ecole ? `${compte.ecole.nom}` : "—"}</TableCell>
                   <TableCell>
-                    <span className={portalChipClass}>{compte.actif ? "Actif" : "Inactif"}</span>
+                    <span className={portalChipClass}>
+                      {compte.deletedAt ? "Archivé" : compte.actif ? "Actif" : "Inactif"}
+                    </span>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button type="button" variant="ghost" size="icon" aria-label={`Modifier ${compte.prenom}`} onClick={() => openEdit(compte)}>
-                        <Pencil />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Réinitialiser le mot de passe de ${compte.prenom}`}
-                        onClick={() => setToReset(compte)}
-                      >
-                        <KeyRound />
-                      </Button>
-                      <Button type="button" variant="ghost" onClick={() => setToToggle(compte)}>
-                        {compte.actif ? "Désactiver" : "Réactiver"}
-                      </Button>
+                      {compte.deletedAt ? (
+                        <Button type="button" variant="ghost" onClick={() => setToRestore(compte)}>
+                          <RotateCcw className="mr-1 h-4 w-4" aria-hidden />
+                          Restaurer
+                        </Button>
+                      ) : (
+                        <>
+                          {compte.role !== "PARENT" ? (
+                            <Button type="button" variant="ghost" size="icon" aria-label={`Modifier ${compte.prenom}`} onClick={() => openEdit(compte)}>
+                              <Pencil />
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Réinitialiser le mot de passe de ${compte.prenom}`}
+                            onClick={() => setToReset(compte)}
+                          >
+                            <KeyRound />
+                          </Button>
+                          <Button type="button" variant="ghost" onClick={() => setToToggle(compte)}>
+                            {compte.actif ? "Désactiver" : "Réactiver"}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -482,8 +645,8 @@ function AdminComptesForm() {
           if (!open) setEditing(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[90dvh] flex-col gap-4 overflow-hidden sm:max-w-lg">
+          <DialogHeader className="shrink-0">
             <DialogTitle>{editing ? "Modifier le compte" : "Nouveau compte"}</DialogTitle>
             <DialogDescription>
               {editing
@@ -491,7 +654,7 @@ function AdminComptesForm() {
                 : "Un mot de passe temporaire est envoyé par e-mail et affiché une seule fois ici."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-2">
             <Field label="Prénom">
               <Input value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
             </Field>
@@ -524,17 +687,17 @@ function AdminComptesForm() {
             </Field>
             {form.role !== "ADMIN" ? (
               <Field label="Établissement">
-                <select
-                  className="edu-select w-full"
+                <SearchableSelect
                   value={form.ecoleId}
-                  onChange={(e) => setForm({ ...form, ecoleId: e.target.value })}
-                >
-                  {ecolesActives.map((ecole) => (
-                    <option key={ecole.id} value={ecole.id}>
-                      {ecole.nom} · {ecole.ville}
-                    </option>
-                  ))}
-                </select>
+                  onValueChange={(ecoleId) => setForm({ ...form, ecoleId })}
+                  placeholder="Choisir un établissement"
+                  searchPlaceholder="Rechercher un établissement…"
+                  options={ecolesActives.map((ecole) => ({
+                    value: ecole.id,
+                    label: `${ecole.nom} · ${ecole.ville}`,
+                    keywords: `${ecole.nom} ${ecole.ville}`,
+                  }))}
+                />
               </Field>
             ) : null}
             {form.role === "PREFET" ? (
@@ -568,7 +731,7 @@ function AdminComptesForm() {
               <div className="sm:col-span-2">
                 <p className="mb-2 text-sm font-medium">Matières enseignées</p>
                 <p className="mb-2 text-xs text-muted-foreground">Une par défaut. Cochez une seconde seulement si le prof l’enseigne vraiment.</p>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid max-h-48 gap-2 overflow-y-auto overscroll-contain rounded-2xl border border-border/60 p-3 sm:grid-cols-2">
                   {matieres.map((matiere) => (
                     <label key={matiere.id} className="flex min-h-10 items-center gap-2 text-sm">
                       <input
@@ -601,7 +764,7 @@ function AdminComptesForm() {
               </div>
             ) : null}
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border/60 pt-4 sm:space-x-2">
             <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
               Annuler
             </Button>
@@ -688,6 +851,19 @@ function AdminComptesForm() {
         variant="destructive"
         isLoading={busy}
         onConfirm={confirmReset}
+      />
+
+      <ConfirmDialog
+        open={!!toRestore}
+        onOpenChange={(open) => {
+          if (!open) setToRestore(null);
+        }}
+        title={toRestore ? `Restaurer ${toRestore.prenom} ${toRestore.nom} ?` : "Restaurer ?"}
+        description="Le compte redevient actif et pourra se connecter."
+        confirmText="Restaurer"
+        cancelText="Annuler"
+        isLoading={busy}
+        onConfirm={confirmRestore}
       />
     </div>
   );

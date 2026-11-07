@@ -22,6 +22,23 @@ export function familleWhere(ecoleId: string, famille: FamilleCycle) {
   };
 }
 
+/** Matières créées par ce préfet, plus celles déjà posées sur une classe du cycle. */
+export function matieresDuCycleWhere(ecoleId: string, famille: FamilleCycle) {
+  return {
+    OR: [
+      { ecoleId, familleCycle: famille },
+      { classeMatieres: { some: { classe: familleWhere(ecoleId, famille) } } },
+    ],
+  };
+}
+
+/** Primaire : instituteurs. Collège et lycée : professeurs de matière (les deux cycles). */
+export function profTypeWhere(famille: FamilleCycle) {
+  return famille === "PRIMAIRE"
+    ? { typeProfesseur: "PRIMAIRE" as const }
+    : { typeProfesseur: "MATIERE" as const };
+}
+
 export function forbiddenCycle() {
   return NextResponse.json(
     { error: "Cette classe ou cet élève n’appartient pas à votre cycle" },

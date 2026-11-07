@@ -25,7 +25,7 @@ import {
   portalTitleClass,
 } from "@/components/eduadmins/portal-shell";
 
-type Eleve = { id: string; nom: string; moyenne: number };
+type Eleve = { id: string; nom: string; moyenne: number; rang?: number };
 type ClasseBilan = {
   id: string;
   nom: string;
@@ -36,17 +36,26 @@ type ClasseBilan = {
   mentions: Record<string, number>;
   meilleurs: Eleve[];
   difficulte: Eleve[];
+  classement: Eleve[];
   sousDix: number;
 };
 
 const PAGE_SIZE = 30;
 
 const MENTION_COLORS: Record<string, string> = {
-  "Très Bien": "#0B2F7A",
-  Bien: "#1A5FD4",
-  "Assez Bien": "#3D7AE8",
-  Passable: "#3D6FBF",
-  Insuffisant: "#C62828",
+  "Très Bien": "#15803D",
+  Bien: "#16A34A",
+  "Assez Bien": "#CA8A04",
+  Passable: "#EA580C",
+  Insuffisant: "#DC2626",
+};
+
+const MENTION_BG: Record<string, string> = {
+  "Très Bien": "#DCFCE7",
+  Bien: "#DCFCE7",
+  "Assez Bien": "#FEF9C3",
+  Passable: "#FFEDD5",
+  Insuffisant: "#FEE2E2",
 };
 
 function formatMoyenne(value: number) {
@@ -206,7 +215,7 @@ export default function PrefetBilanPage() {
             <Link href="/prefet/bulletins" className={`${portalCardClass} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}>
               <p className={portalKpiClass}>{sousDix}</p>
               <h2 className={`${portalTitleClass} mt-1`}>Sous 10</h2>
-              <p className={`${portalMutedClass} mt-1`}>À suivre pour le bulletin de la période active.</p>
+              <p className={`${portalMutedClass} mt-1`}>Élèves sous la moyenne pour cette période.</p>
             </Link>
           </div>
 
@@ -277,7 +286,11 @@ export default function PrefetBilanPage() {
                     {Object.entries(classe.mentions).map(([label, count]) => (
                       <li
                         key={label}
-                        className="inline-flex min-h-9 items-center gap-2 rounded-full bg-secondary px-3 text-sm text-foreground"
+                        className="inline-flex min-h-9 items-center gap-2 rounded-full px-3 text-sm font-medium"
+                        style={{
+                          backgroundColor: MENTION_BG[label] ?? "#F3F6FC",
+                          color: MENTION_COLORS[label] ?? "#0F172A",
+                        }}
                       >
                         <span
                           className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -289,47 +302,32 @@ export default function PrefetBilanPage() {
                     ))}
                   </ul>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                      <p className="mb-2 text-sm font-semibold text-foreground">Meilleurs</p>
-                      {classe.meilleurs.length === 0 ? (
-                        <p className={portalMutedClass}>Aucune moyenne pour l’instant.</p>
-                      ) : (
-                        <ul className="space-y-1.5 text-sm">
-                          {classe.meilleurs.map((eleve) => (
-                            <li key={eleve.id} className="flex justify-between gap-3">
+                  <div className="mt-4">
+                    <p className="mb-2 text-sm font-semibold text-foreground">Classement de la classe</p>
+                    {!classe.classement?.length ? (
+                      <p className={portalMutedClass}>Aucune moyenne pour l’instant.</p>
+                    ) : (
+                      <ol className="max-h-64 space-y-1.5 overflow-y-auto text-sm">
+                        {classe.classement.map((eleve) => (
+                          <li key={eleve.id} className="flex items-center justify-between gap-3 rounded-xl bg-secondary/50 px-3 py-2">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-card text-xs font-bold tabular-nums text-primary">
+                                {eleve.rang ?? "—"}
+                              </span>
                               <Link
                                 href={`/prefet/bulletins?eleveId=${eleve.id}`}
-                                className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="truncate font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               >
                                 {eleve.nom}
                               </Link>
-                              <span className="tabular-nums text-muted-foreground">{formatMoyenne(eleve.moyenne)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                    <div>
-                      <p className="mb-2 text-sm font-semibold text-foreground">En difficulté (&lt; 10)</p>
-                      {classe.difficulte.length === 0 ? (
-                        <p className={portalMutedClass}>Aucun élève sous 10.</p>
-                      ) : (
-                        <ul className="space-y-1.5 text-sm">
-                          {classe.difficulte.map((eleve) => (
-                            <li key={eleve.id} className="flex justify-between gap-3">
-                              <Link
-                                href={`/prefet/bulletins?eleveId=${eleve.id}`}
-                                className="font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                              >
-                                {eleve.nom}
-                              </Link>
-                              <span className="tabular-nums text-destructive">{formatMoyenne(eleve.moyenne)}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                            </span>
+                            <span className="tabular-nums font-semibold text-muted-foreground">
+                              {formatMoyenne(eleve.moyenne)}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-3">
@@ -340,10 +338,10 @@ export default function PrefetBilanPage() {
                       Voir les élèves
                     </Link>
                     <Link
-                      href={`/prefet/bulletins`}
+                      href={`/prefet/bulletins?classeId=${classe.id}`}
                       className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      Générer un bulletin
+                      Voir les bulletins
                     </Link>
                   </div>
                 </article>

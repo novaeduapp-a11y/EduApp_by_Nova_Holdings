@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -87,6 +87,7 @@ export default function AdminEcolesPage() {
 
 function AdminEcolesForm() {
   const { toast } = useToast();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [ecoles, setEcoles] = useState<Ecole[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -175,10 +176,10 @@ function AdminEcolesForm() {
         method: editing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          nom: form.nom,
-          nomOfficiel: form.nomOfficiel || form.nom,
+          nom: form.nom.trim().toUpperCase(),
+          nomOfficiel: (form.nomOfficiel || form.nom).trim().toUpperCase(),
           sigle: form.sigle || null,
-          ville: form.ville,
+          ville: form.ville.trim(),
           adresse: form.adresse || null,
           telephone: form.telephone || null,
           email: form.email || null,
@@ -199,19 +200,25 @@ function AdminEcolesForm() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
-      toast({
-        title: editing ? "Établissement mis à jour" : `${body.data.nom} créé`,
-        description: editing
-          ? undefined
-          : body.data.prefets?.length
-            ? `${body.data.prefets.length} compte${body.data.prefets.length > 1 ? "s" : ""} préfet créé${body.data.prefets.length > 1 ? "s" : ""} — mot de passe envoyé par e-mail.`
-            : "Créez ensuite le directeur et les préfets dans Comptes.",
-      });
-      setFormOpen(false);
-      setEditing(null);
-      setForm(EMPTY_FORM);
-      await load();
-      setStatus("ready");
+      if (editing) {
+        toast({ title: "Établissement mis à jour" });
+        setFormOpen(false);
+        setEditing(null);
+        setForm(EMPTY_FORM);
+        await load();
+        setStatus("ready");
+      } else {
+        toast({
+          title: `${body.data.nom} créé`,
+          description: body.data.prefets?.length
+            ? `${body.data.prefets.length} compte${body.data.prefets.length > 1 ? "s" : ""} préfet créé${body.data.prefets.length > 1 ? "s" : ""} — créez le directeur.`
+            : "Créez maintenant le directeur et les préfets.",
+        });
+        setFormOpen(false);
+        setEditing(null);
+        setForm(EMPTY_FORM);
+        router.push(`/dashboard/comptes?ecoleId=${body.data.id}&creer=1`);
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -262,7 +269,7 @@ function AdminEcolesForm() {
         <div>
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Établissements</h1>
           <p className={`${portalMutedClass} mt-1`}>
-            Un établissement inactif n’accepte plus de nouvelles connexions staff
+            Les établissements désactivés bloquent toute nouvelle connexion du personnel
             {status === "ready" ? ` · ${ecoles.length}` : ""}.
           </p>
         </div>
@@ -322,19 +329,19 @@ function AdminEcolesForm() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nom</TableHead>
-                <TableHead>Ville</TableHead>
-                <TableHead className="text-right">Classes</TableHead>
-                <TableHead className="text-right">Élèves</TableHead>
-                <TableHead>Personnel</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead className="w-48 text-right">Actions</TableHead>
+                <TableHead className="w-[28%]">Nom</TableHead>
+                <TableHead className="w-[14%]">Ville</TableHead>
+                <TableHead className="w-[10%] text-right">Classes</TableHead>
+                <TableHead className="w-[10%] text-right">Élèves</TableHead>
+                <TableHead className="w-[18%] text-right">Personnel</TableHead>
+                <TableHead className="w-[8%]">Statut</TableHead>
+                <TableHead className="w-[12%] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pageItems.map((ecole) => (
                 <TableRow key={ecole.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium uppercase">
                     <Link href={`/dashboard/ecoles/${ecole.id}`} className="hover:text-primary">
                       {ecole.nom}
                     </Link>
@@ -342,8 +349,8 @@ function AdminEcolesForm() {
                   <TableCell>{ecole.ville}</TableCell>
                   <TableCell className="text-right tabular-nums">{ecole.classes}</TableCell>
                   <TableCell className="text-right tabular-nums">{ecole.eleves}</TableCell>
-                  <TableCell className={portalMutedClass}>
-                    {ecole.directeurs} dir. · {ecole.prefets} préf. · {ecole.professeurs} prof.
+                  <TableCell className={`text-right tabular-nums ${portalMutedClass}`}>
+                    {ecole.directeurs + ecole.prefets + ecole.professeurs}
                   </TableCell>
                   <TableCell>
                     <span className={portalChipClass}>{ecole.actif ? "Actif" : "Inactif"}</span>
@@ -419,16 +426,18 @@ function AdminEcolesForm() {
             <Field label="Nom">
               <Input
                 value={form.nom}
-                onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                placeholder="NOVA Rufisque"
+                onChange={(e) => setForm({ ...form, nom: e.target.value.toUpperCase() })}
+                placeholder="NOVA RUFISQUE"
                 maxLength={120}
+                className="uppercase"
               />
             </Field>
             <Field label="Nom officiel">
               <Input
                 value={form.nomOfficiel}
-                onChange={(e) => setForm({ ...form, nomOfficiel: e.target.value })}
-                placeholder="Groupe scolaire NOVA Rufisque"
+                onChange={(e) => setForm({ ...form, nomOfficiel: e.target.value.toUpperCase() })}
+                placeholder="GROUPE SCOLAIRE NOVA RUFISQUE"
+                className="uppercase"
               />
             </Field>
             <Field label="Sigle">
@@ -549,7 +558,7 @@ function AdminEcolesForm() {
         }
         description={
           toToggle?.actif
-            ? "Les comptes staff de cet établissement ne pourront plus se connecter. Les données restent en base."
+            ? "Les établissements désactivés bloquent toute nouvelle connexion du personnel. Les données restent en base."
             : "Les comptes de l’établissement pourront à nouveau se connecter."
         }
         confirmText={toToggle?.actif ? "Désactiver" : "Réactiver"}

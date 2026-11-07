@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   try {
     const authResult = await requirePrefet();
     if (!authResult.ok) return authResult.response;
-    const { id, ecoleId, familleCycle } = authResult.user;
+    const { id, ecoleId, familleCycle, prenom, nom } = authResult.user;
 
     const parsed = createSchema.safeParse(await request.json());
     if (!parsed.success) {
@@ -71,10 +71,11 @@ export async function POST(request: NextRequest) {
       titre: communique.titre,
       corps: communique.corps,
       urgent: communique.urgent,
+      auteurNom: `${prenom ?? ""} ${nom ?? ""}`.trim() || "Préfet",
     });
 
     return NextResponse.json(
-      { data: { id: communique.id, envoyes } },
+      { data: { id: communique.id, envoyes: envoyes.total, detail: envoyes } },
       { status: 201 }
     );
   } catch (error) {

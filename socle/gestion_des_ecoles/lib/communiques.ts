@@ -1,21 +1,20 @@
 import type { DestinataireCommunique, FamilleCycle } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { notifyUsers } from "@/lib/notify";
 import { familleWhere } from "@/lib/prefet-scope";
 
-export async function fanOutCommunique(params: {
-  communiqueId: string;
+export async function resolveCommuniqueRecipients(params: {
   ecoleId: string;
   familleCycle: FamilleCycle | null;
   destinataires: DestinataireCommunique;
-  titre: string;
-  corps: string;
-  urgent: boolean;
 }) {
   const classeWhere = params.familleCycle
     ? familleWhere(params.ecoleId, params.familleCycle)
     : { ecoleId: params.ecoleId };
 
-  const recipientIds = new Set<string>();
+  const parents = new Set<string>();
+  const professeurs = new Set<string>();
+  const direction = new Set<string>();
 
   if (params.destinataires === "PARENTS" || params.destinataires === "TOUS") {
     const liens = await prisma.parentEleve.findMany({
@@ -28,7 +27,7 @@ export async function fanOutCommunique(params: {
       },
       select: { parentId: true },
     });
-    for (const lien of liens) recipientIds.add(lien.parentId);
+    for (const lien of liens) parents.add(lien.parentId);
   }
 
   if (params.destinataires === "PROFESSEURS" || params.destinataires === "TOUS") {
@@ -40,21 +39,63 @@ export async function fanOutCommunique(params: {
       select: { professeurId: true },
     });
     for (const row of affectations) {
-      if (row.professeurId) recipientIds.add(row.professeurId);
+      if (row.professeurId) professeurs.add(row.professeurId);
     }
   }
 
-  if (recipientIds.size === 0) return 0;
+  if (params.destinataires === "TOUS") {
+    const directeurs = await prisma.user.findMany({
+      where: {
+        ecoleId: params.ecoleId,
+        role: "DIRECTEUR",
+        actif: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    for (const directeur of directeurs) direction.add(directeur.id);
+  }
 
-  await prisma.notification.createMany({
-    data: [...recipientIds].map((userId) => ({
+  return {
+    parents: [...parents],
+    professeurs: [...professeurs],
+    direction: [...direction],
+    all: [...new Set([...parents, ...professeurs, ...direction])],
+  };
+}
+
+export async function fanOutCommunique(params: {
+  communiqueId: string;
+  ecoleId: string;
+  familleCycle: FamilleCycle | null;
+  destinataires: DestinataireCommunique;
+  titre: string;
+  corps: string;
+  urgent: boolean;
+  auteurNom?: string;
+}) {
+  const recipients = await resolveCommuniqueRecipients(params);
+  if (recipients.all.length === 0) {
+    return { total: 0, parents: 0, professeurs: 0, direction: 0 };
+  }
+
+  await notifyUsers(
+    recipients.all.map((userId) => ({
       userId,
       type: params.urgent ? "communique_urgent" : "communique",
       title: params.urgent ? `Urgent · ${params.titre}` : params.titre,
       message: params.corps,
-      data: { communiqueId: params.communiqueId },
-    })),
-  });
+      data: {
+        communiqueId: params.communiqueId,
+        auteur: params.auteurNom ?? null,
+      },
+    }))
+  );
 
-  return recipientIds.size;
+  return {
+    total: recipients.all.length,
+    parents: recipients.parents.length,
+    professeurs: recipients.professeurs.length,
+    direction: recipients.direction.length,
+  };
 }

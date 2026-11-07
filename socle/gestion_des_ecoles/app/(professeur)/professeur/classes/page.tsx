@@ -98,8 +98,8 @@ export default function ProfesseurClassesPage() {
         <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Mes classes</h1>
         <p className={`${portalMutedClass} mt-1`}>
           {status === "ready"
-            ? `${classes.length} classe${classes.length > 1 ? "s" : ""} affectée${classes.length > 1 ? "s" : ""} · notes, appel et élèves.`
-            : "Uniquement les classes qui vous sont affectées."}
+            ? `${classes.length} classe${classes.length > 1 ? "s" : ""} affectée${classes.length > 1 ? "s" : ""} · Gestion des notes, des appels et des élèves.`
+            : "Gestion des notes, des appels et des élèves."}
         </p>
       </div>
 
@@ -188,25 +188,29 @@ export default function ProfesseurClassesPage() {
                   </TableCell>
                   <TableCell className="px-4 py-3.5 tabular-nums text-foreground">{classe.effectif}</TableCell>
                   <TableCell className="px-4 py-3.5">
-                    <div className="flex justify-end gap-1">
-                      <Button asChild variant="ghost" size="icon">
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <Button asChild variant="ghost" size="sm" className="h-auto gap-1.5 px-2 py-1.5">
                         <Link href={`/professeur/notes?classeId=${classe.id}`} aria-label={`Notes de ${classe.nom}`}>
-                          <BookOpen />
+                          <BookOpen className="h-4 w-4" />
+                          <span className="text-xs font-medium">Notes</span>
                         </Link>
                       </Button>
-                      <Button asChild variant="ghost" size="icon">
+                      <Button asChild variant="ghost" size="sm" className="h-auto gap-1.5 px-2 py-1.5">
                         <Link href={`/professeur/appel?classeId=${classe.id}`} aria-label={`Appel de ${classe.nom}`}>
-                          <ClipboardCheck />
+                          <ClipboardCheck className="h-4 w-4" />
+                          <span className="text-xs font-medium">Présence</span>
                         </Link>
                       </Button>
-                      <Button asChild variant="ghost" size="icon">
+                      <Button asChild variant="ghost" size="sm" className="h-auto gap-1.5 px-2 py-1.5">
                         <Link href={`/professeur/edt?classeId=${classe.id}`} aria-label={`Planning de ${classe.nom}`}>
-                          <Calendar />
+                          <Calendar className="h-4 w-4" />
+                          <span className="text-xs font-medium">Planning</span>
                         </Link>
                       </Button>
-                      <Button asChild variant="ghost" size="icon">
+                      <Button asChild variant="ghost" size="sm" className="h-auto gap-1.5 px-2 py-1.5">
                         <Link href={`/professeur/classes/${classe.id}`} aria-label={`Élèves de ${classe.nom}`}>
-                          <Users />
+                          <Users className="h-4 w-4" />
+                          <span className="text-xs font-medium">Élèves</span>
                         </Link>
                       </Button>
                     </div>

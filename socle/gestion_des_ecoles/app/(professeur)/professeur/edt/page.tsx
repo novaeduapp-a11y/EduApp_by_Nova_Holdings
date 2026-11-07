@@ -130,8 +130,8 @@ function ProfEdtForm() {
         <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Planning</h1>
         <p className={`${portalMutedClass} mt-1`}>
           {status === "ready"
-            ? `Grille lundi–vendredi · ${creneaux.length} cours · posée par le préfet.`
-            : "Vos cours uniquement — lecture, saisie par le préfet."}
+            ? `${creneaux.length} cours · Établie par le préfet.`
+            : "Établie par le préfet."}
         </p>
       </div>
 
@@ -192,7 +192,7 @@ function ProfEdtForm() {
         <div className={`${portalPanelClass} py-10 text-center`}>
           <p className="font-medium text-foreground">Aucun cours dans votre grille</p>
           <p className={`${portalMutedClass} mt-1`}>
-            Le préfet pose l’emploi du temps après vous avoir affecté une matière.
+            L&apos;emploi du temps sera disponible une fois configuré par le préfet.
           </p>
         </div>
       ) : filtered.length === 0 ? (
@@ -205,7 +205,7 @@ function ProfEdtForm() {
             <section className={portalPanelClass}>
               <h2 className={portalTitleClass}>Aujourd’hui</h2>
               {todaySlots.length === 0 ? (
-                <p className={`${portalMutedClass} mt-2`}>Pas de cours aujourd’hui dans ce filtre.</p>
+                <p className={`${portalMutedClass} mt-2`}>Aucun cours prévu aujourd&apos;hui</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {todaySlots.map((slot) => (

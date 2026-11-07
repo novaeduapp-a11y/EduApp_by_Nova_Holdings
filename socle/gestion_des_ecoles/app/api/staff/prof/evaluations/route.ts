@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireProfesseur } from "@/lib/request-auth";
 import { canAccessMatiere, evaluationWhere, getProfAssignments, groupedClasses } from "@/lib/prof-scope";
+import { getPeriodeActiveForEcole, listPeriodesForEcole } from "@/lib/periodes";
 
 const createSchema = z.object({
   titre: z.string().min(3).max(120),
@@ -27,6 +28,14 @@ export async function GET(request: NextRequest) {
     const assignments = await getProfAssignments(authResult.user.id);
     if (!assignments) {
       return NextResponse.json({ error: "Accès réservé aux professeurs" }, { status: 403 });
+    }
+
+    const prof = await prisma.user.findUnique({
+      where: { id: authResult.user.id },
+      select: { ecoleId: true },
+    });
+    if (!prof?.ecoleId) {
+      return NextResponse.json({ error: "École manquante sur le compte professeur" }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -70,7 +79,7 @@ export async function GET(request: NextRequest) {
         },
         orderBy: { dateEvaluation: "desc" },
       }),
-      prisma.periode.findMany({ orderBy: { ordre: "asc" } }),
+      listPeriodesForEcole(prof.ecoleId),
     ]);
 
     return NextResponse.json({
@@ -116,6 +125,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Accès réservé aux professeurs" }, { status: 403 });
     }
 
+    const prof = await prisma.user.findUnique({
+      where: { id: authResult.user.id },
+      select: { ecoleId: true },
+    });
+    if (!prof?.ecoleId) {
+      return NextResponse.json({ error: "École manquante sur le compte professeur" }, { status: 403 });
+    }
+
     const parsed = createSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json({ error: "Titre, classe, matière et date sont requis" }, { status: 400 });
@@ -127,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     let periodeId = parsed.data.periodeId ?? "";
     if (!periodeId) {
-      const active = await prisma.periode.findFirst({ where: { actif: true }, orderBy: { numero: "desc" } });
+      const active = await getPeriodeActiveForEcole(prof.ecoleId);
       periodeId = active?.id ?? "";
     }
     if (!periodeId) {

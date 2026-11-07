@@ -49,7 +49,7 @@ export async function GET() {
           _count: {
             select: {
               eleves: { where: { deletedAt: null, actif: true } },
-              classes: true,
+              classes: { where: { deletedAt: null } },
             },
           },
         },
@@ -88,6 +88,7 @@ export async function GET() {
           telephone: ecole.telephone,
           email: ecole.email,
           actif: ecole.actif,
+          paiementAJour: ecole.paiementAJour,
           montantMensuel: ecole.montantMensuel,
           montantAnnuel: ecole.montantAnnuel,
           cycles: ecole.cycles.map((c) => c.famille),
@@ -131,10 +132,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const nom = parsed.data.nom.trim().toUpperCase();
+    const nomOfficiel = (emptyToNull(parsed.data.nomOfficiel) || nom).toUpperCase();
     const ecole = await prisma.ecole.create({
       data: {
-        nom: parsed.data.nom.trim(),
-        nomOfficiel: emptyToNull(parsed.data.nomOfficiel) || parsed.data.nom.trim(),
+        nom,
+        nomOfficiel,
         sigle: emptyToNull(parsed.data.sigle),
         ville: parsed.data.ville.trim(),
         adresse: emptyToNull(parsed.data.adresse),
@@ -143,6 +146,7 @@ export async function POST(request: NextRequest) {
         montantMensuel: parsed.data.montantMensuel ?? null,
         montantAnnuel: parsed.data.montantAnnuel ?? null,
         actif: true,
+        paiementAJour: true,
         cycles: { create: cycles.map((famille) => ({ famille })) },
       },
     });

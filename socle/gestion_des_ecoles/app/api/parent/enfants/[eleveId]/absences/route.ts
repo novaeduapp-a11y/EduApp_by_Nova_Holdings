@@ -48,7 +48,13 @@ export async function GET(
       return hit?.nom ?? "Hors trimestre";
     };
 
-    const isRetard = (motif: string | null) => /retard/i.test(motif ?? "");
+    // Retard pur uniquement — « Absence et retard » (ancien) compte comme absence.
+    const isRetard = (motif: string | null) => {
+      const value = (motif ?? "").trim();
+      if (!value) return false;
+      if (/absence\s*et\s*retard|abs\.\s*\+\s*retard/i.test(value)) return false;
+      return /^retard$/i.test(value) || /^retard\b/i.test(value);
+    };
     const absencesSeules = absences.filter((a) => !isRetard(a.motif));
     const retards = absences.filter((a) => isRetard(a.motif));
     const stats = {
@@ -65,6 +71,10 @@ export async function GET(
           date: a.dateAbsence,
           periode: a.periode,
           heures: a.dureeHeures,
+          heureDebut: a.heureDebut,
+          heureFin: a.heureFin,
+          creneau:
+            a.heureDebut && a.heureFin ? `${a.heureDebut}–${a.heureFin}` : null,
           motif: a.motif,
           kind: isRetard(a.motif) ? "RETARD" : "ABSENCE",
           justifiee: a.justifiee,

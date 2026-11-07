@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Search, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { portalMutedClass, portalPanelClass, portalTitleClass } from "@/components/eduadmins/portal-shell";
+import { emitNotificationsChanged } from "@/lib/notifications-client";
+import { StaffMessagesPage } from "@/components/eduadmins/staff-messages-page";
 
 type ClasseOption = { id: string; nom: string; niveau: string };
 
@@ -53,12 +55,63 @@ function formatWhen(iso: string) {
 export default function ProfMessagesPage() {
   return (
     <Suspense fallback={<p className="text-sm text-muted-foreground">Chargement…</p>}>
-      <ProfMessagesForm />
+      <ProfMessagesHub />
     </Suspense>
   );
 }
 
-function ProfMessagesForm() {
+function ProfMessagesHub() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") === "equipe" ? "equipe" : "parents";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Messagerie</h1>
+        <p className={`${portalMutedClass} mt-1`}>
+          Parents, préfet et direction — toutes vos communications au même endroit.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Interlocuteurs">
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={tab === "parents"}
+          variant={tab === "parents" ? "default" : "outline"}
+          onClick={() => router.replace("/professeur/messages")}
+        >
+          Parents
+        </Button>
+        <Button
+          type="button"
+          role="tab"
+          aria-selected={tab === "equipe"}
+          variant={tab === "equipe" ? "default" : "outline"}
+          onClick={() => router.replace("/professeur/messages?tab=equipe")}
+        >
+          Préfet / Direction
+        </Button>
+      </div>
+      {tab === "equipe" ? (
+        <StaffMessagesPage
+          title=""
+          subtitle="Échanges avec le préfet de votre cycle"
+          listUrl="/api/staff/prof/equipe"
+          startPayloadKey="prefetId"
+          myRole="PROFESSEUR"
+          emptyListLabel="Aucun message du préfet pour le moment."
+          pickLabel="Sélectionnez une conversation."
+          placeholder="Votre réponse"
+        />
+      ) : (
+        <ProfMessagesForm hideHeader />
+      )}
+    </div>
+  );
+}
+
+function ProfMessagesForm({ hideHeader = false }: { hideHeader?: boolean }) {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const eleveFromUrl = searchParams.get("eleveId") ?? "";
@@ -114,6 +167,7 @@ function ProfMessagesForm() {
     setFils((current) =>
       current.map((item) => (filKey(item) === filKey(fil) ? { ...item, nonLus: 0 } : item))
     );
+    emitNotificationsChanged();
   };
 
   useEffect(() => {
@@ -198,14 +252,22 @@ function ProfMessagesForm() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Messagerie</h1>
-        <p className={`${portalMutedClass} mt-1`}>
-          Parents de vos élèves uniquement
+      {!hideHeader ? (
+        <div>
+          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Messagerie</h1>
+          <p className={`${portalMutedClass} mt-1`}>
+            Parents de vos élèves uniquement
+            {status === "ready" ? ` · ${fils.length} conversation${fils.length > 1 ? "s" : ""}` : ""}
+            {unreadTotal > 0 ? ` · ${unreadTotal} non lu${unreadTotal > 1 ? "s" : ""}` : ""}.
+          </p>
+        </div>
+      ) : (
+        <p className={portalMutedClass}>
+          Parents de vos élèves
           {status === "ready" ? ` · ${fils.length} conversation${fils.length > 1 ? "s" : ""}` : ""}
           {unreadTotal > 0 ? ` · ${unreadTotal} non lu${unreadTotal > 1 ? "s" : ""}` : ""}.
         </p>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">

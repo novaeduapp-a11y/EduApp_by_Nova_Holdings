@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import {
+  childLinkedMail,
   convocationMail,
   passwordChangedMail,
   passwordResetMail,
@@ -80,6 +81,23 @@ export async function sendWelcomeAccountEmail(params: {
   );
 }
 
+/** Élève ajouté à un compte parent déjà existant. */
+export async function sendChildLinkedEmail(params: {
+  to: string;
+  prenom?: string;
+  eleveNom: string;
+  ecoleNom?: string | null;
+}) {
+  return sendTemplatedEmail(
+    params.to,
+    childLinkedMail({
+      prenom: params.prenom,
+      eleveNom: params.eleveNom,
+      ecoleNom: params.ecoleNom,
+    })
+  );
+}
+
 /** Mot de passe réinitialisé par un admin. */
 export async function sendPasswordResetEmail(params: {
   to: string;
@@ -113,6 +131,7 @@ export async function sendConvocationEmail(params: {
   classe: string;
   dateLabel: string;
   motif: string;
+  message?: string;
 }) {
   return sendTemplatedEmail(params.to, convocationMail(params));
 }

@@ -61,8 +61,8 @@ function roleLabel(role?: string) {
 
 function loginPathForRole(role?: string) {
   const base = appUrl();
+  if (role === "PARENT") return `${base}/app`;
   if (role === "ADMIN") return `${base}/login`;
-  if (role === "PARENT") return `${base}/login`;
   if (role === "DIRECTEUR") return `${base}/eduadmins`;
   if (role === "PREFET") return `${base}/eduadmins`;
   if (role === "PROFESSEUR") return `${base}/eduadmins`;
@@ -229,11 +229,13 @@ export function welcomeAccountMail(params: {
       </table>
       <p style="margin:0;color:${BRAND.muted};font-size:14px">Changez ce mot de passe dès votre première connexion.</p>
     `,
-    cta: { label: "Se connecter", href },
+    cta: { label: params.role === "PARENT" ? "Ouvrir EduParent" : "Se connecter", href },
   });
   return {
     subject: "Votre accès EduApps est prêt",
-    text: `Bonjour${params.prenom ? ` ${params.prenom}` : ""},\n\nVotre compte ${role} est prêt.\nE-mail : ${params.email}\nMot de passe temporaire : ${params.temporaryPassword}\nConnexion : ${href}\n\nChangez ce mot de passe dès la première connexion.\n`,
+    text: `Bonjour${params.prenom ? ` ${params.prenom}` : ""},\n\nVotre compte ${role} est prêt.\nE-mail : ${params.email}\nMot de passe temporaire : ${params.temporaryPassword}\n${
+      params.role === "PARENT" ? "Ouvrez l’application EduParent" : `Connexion : ${href}`
+    }\n\nChangez ce mot de passe dès la première connexion.\n`,
     html,
   };
 }
@@ -266,6 +268,33 @@ export function passwordResetMail(params: {
   };
 }
 
+export function childLinkedMail(params: {
+  prenom?: string;
+  eleveNom: string;
+  ecoleNom?: string | null;
+}) {
+  const href = loginPathForRole("PARENT");
+  const html = renderMailLayout({
+    preheader: `${params.eleveNom} a été ajouté à votre espace parent`,
+    title: "Nouvel élève sur votre espace",
+    greeting: params.prenom?.trim() || undefined,
+    bodyHtml: `
+      <p style="margin:0 0 14px"><strong>${escapeHtml(params.eleveNom)}</strong> a été inscrit${
+        params.ecoleNom ? ` à <strong>${escapeHtml(params.ecoleNom)}</strong>` : ""
+      } et ajouté à votre compte EduParent.</p>
+      <p style="margin:0;color:${BRAND.muted};font-size:14px">Connectez-vous avec vos identifiants habituels pour suivre sa scolarité.</p>
+    `,
+    cta: { label: "Ouvrir EduParent", href },
+  });
+  return {
+    subject: `${params.eleveNom} — ajouté à votre espace parent`,
+    text: `Bonjour${params.prenom ? ` ${params.prenom}` : ""},\n\n${params.eleveNom} a été ajouté à votre compte EduParent${
+      params.ecoleNom ? ` (${params.ecoleNom})` : ""
+    }.\nConnexion : ${href}\n`,
+    html,
+  };
+}
+
 export function passwordChangedMail(params: { prenom?: string; email: string }) {
   const html = renderMailLayout({
     preheader: "Votre mot de passe EduApps a été modifié",
@@ -290,7 +319,11 @@ export function convocationMail(params: {
   classe: string;
   dateLabel: string;
   motif: string;
+  message?: string;
 }) {
+  const messageBlock = params.message?.trim()
+    ? `<div style="margin-top:8px"><span style="color:${BRAND.muted}">Message</span><br />${escapeHtml(params.message.trim())}</div>`
+    : "";
   const html = renderMailLayout({
     preheader: `Convocation pour ${params.nomEleve}`,
     title: "Convocation",
@@ -302,16 +335,19 @@ export function convocationMail(params: {
           <td style="padding:16px 18px;font-size:14px;line-height:1.6;color:${BRAND.ink}">
             <div style="margin:0 0 8px"><span style="color:${BRAND.muted}">Date</span><br /><strong>${escapeHtml(params.dateLabel)}</strong></div>
             <div><span style="color:${BRAND.muted}">Motif</span><br /><strong>${escapeHtml(params.motif)}</strong></div>
+            ${messageBlock}
           </td>
         </tr>
       </table>
       <p style="margin:0;color:${BRAND.muted};font-size:14px">Le détail est aussi disponible dans l’application EduParent.</p>
     `,
-    cta: { label: "Ouvrir EduParent", href: appUrl() },
+    cta: { label: "Ouvrir EduParent", href: `${appUrl()}/app` },
   });
   return {
     subject: `Convocation — ${params.nomEleve}`,
-    text: `Convocation pour ${params.nomEleve} (${params.classe}).\nDate : ${params.dateLabel}\nMotif : ${params.motif}\n`,
+    text: `Convocation pour ${params.nomEleve} (${params.classe}).\nDate : ${params.dateLabel}\nMotif : ${params.motif}${
+      params.message?.trim() ? `\nMessage : ${params.message.trim()}` : ""
+    }\n`,
     html,
   };
 }

@@ -32,7 +32,16 @@ type Classe = {
   effectif: number;
 };
 
-type Statut = "PRESENT" | "ABSENT" | "RETARD";
+type Statut = "PRESENT" | "ABSENT" | "RETARD" | "ABSENT_RETARD";
+
+type Creneau = {
+  id: string;
+  heureDebut: string;
+  heureFin: string;
+  matiereId: string;
+  matiereNom: string;
+  salle: string | null;
+};
 
 type Ligne = {
   eleveId: string;
@@ -42,6 +51,7 @@ type Ligne = {
   sexe?: "M" | "F";
   statut: Statut;
   justifiee?: boolean;
+  statutPrecedent?: Statut;
 };
 
 const PAGE_SIZE = 30;
@@ -50,6 +60,7 @@ const STATUT_LABEL: Record<Statut, string> = {
   PRESENT: "Présent",
   ABSENT: "Absent",
   RETARD: "Retard",
+  ABSENT_RETARD: "Abs. + retard",
 };
 
 function todayIso() {
@@ -78,6 +89,10 @@ function snapshotOf(lignes: Ligne[]) {
   return JSON.stringify(lignes.map((ligne) => ({ id: ligne.eleveId, statut: ligne.statut })));
 }
 
+function creneauKey(c: { heureDebut: string; heureFin: string }) {
+  return `${c.heureDebut}|${c.heureFin}`;
+}
+
 export default function ProfesseurAppelPage() {
   return (
     <Suspense fallback={<p className="text-sm text-muted-foreground">Chargement…</p>}>
@@ -94,6 +109,15 @@ function ProfesseurAppelForm() {
   const [classes, setClasses] = useState<Classe[]>([]);
   const [classeId, setClasseId] = useState(classeFromUrl);
   const [date, setDate] = useState(todayIso);
+  const [creneaux, setCreneaux] = useState<Creneau[]>([]);
+  const [creneauId, setCreneauId] = useState("");
+  const [precedent, setPrecedent] = useState<{
+    heureDebut: string;
+    heureFin: string;
+    matiereNom: string;
+    professeurNom: string | null;
+  } | null>(null);
+  const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [snapshot, setSnapshot] = useState("[]");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -105,9 +129,14 @@ function ProfesseurAppelForm() {
   const [filtreStatut, setFiltreStatut] = useState("");
   const [page, setPage] = useState(1);
   const [tousPresentsOpen, setTousPresentsOpen] = useState(false);
-  const [pending, setPending] = useState<{ type: "classe" | "date"; value: string } | null>(null);
+  const [pending, setPending] = useState<{
+    type: "classe" | "date" | "creneau";
+    value: string;
+  } | null>(null);
+  const [locked, setLocked] = useState(false);
 
   const dirty = snapshotOf(lignes) !== snapshot;
+  const creneau = creneaux.find((c) => creneauKey(c) === creneauId) ?? null;
 
   const loadClasses = useCallback(async () => {
     setStatus("loading");
@@ -129,30 +158,55 @@ function ProfesseurAppelForm() {
     }
   }, [classeFromUrl]);
 
-  const loadSheet = useCallback(async (nextClasseId: string, nextDate: string) => {
-    if (!nextClasseId) {
-      setLignes([]);
-      setSnapshot("[]");
-      setSheetStatus("ready");
-      return;
-    }
-    setSheetStatus("loading");
-    try {
-      const res = await fetch(
-        `/api/staff/prof/appel?classeId=${encodeURIComponent(nextClasseId)}&date=${nextDate}`
-      );
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error);
-      const list = (body.data.eleves ?? []) as Ligne[];
-      setLignes(list);
-      setSnapshot(snapshotOf(list));
-      setSheetStatus("ready");
-    } catch {
-      setLignes([]);
-      setSnapshot("[]");
-      setSheetStatus("error");
-    }
-  }, []);
+  const loadSheet = useCallback(
+    async (nextClasseId: string, nextDate: string, nextCreneauKey?: string) => {
+      if (!nextClasseId) {
+        setLignes([]);
+        setSnapshot("[]");
+        setCreneaux([]);
+        setCreneauId("");
+        setPrecedent(null);
+        setEmptyMessage(null);
+        setSheetStatus("ready");
+        return;
+      }
+      setSheetStatus("loading");
+      try {
+        const params = new URLSearchParams({ classeId: nextClasseId, date: nextDate });
+        if (nextCreneauKey) {
+          const [hd, hf] = nextCreneauKey.split("|");
+          if (hd && hf) {
+            params.set("heureDebut", hd);
+            params.set("heureFin", hf);
+          }
+        }
+        const res = await fetch(`/api/staff/prof/appel?${params}`);
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error);
+        const listCreneaux = (body.data.creneaux ?? []) as Creneau[];
+        setCreneaux(listCreneaux);
+        const selected = body.data.creneau as Creneau | null;
+        setCreneauId(selected ? creneauKey(selected) : "");
+        setPrecedent(body.data.precedent ?? null);
+        setEmptyMessage(body.data.message ?? null);
+        const list = (body.data.eleves ?? []) as Ligne[];
+        setLignes(list);
+        setSnapshot(snapshotOf(list));
+        setLocked(Boolean(body.data?.verrouille));
+        setSheetStatus("ready");
+      } catch {
+        setLignes([]);
+        setSnapshot("[]");
+        setCreneaux([]);
+        setCreneauId("");
+        setPrecedent(null);
+        setEmptyMessage(null);
+        setLocked(false);
+        setSheetStatus("error");
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     loadClasses();
@@ -165,7 +219,7 @@ function ProfesseurAppelForm() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, filtreSexe, filtreStatut, classeId, date]);
+  }, [search, filtreSexe, filtreStatut, classeId, date, creneauId]);
 
   const niveaux = useMemo(() => uniqueNiveaux(classes), [classes]);
   const classesFiltrees = useMemo(
@@ -191,8 +245,8 @@ function ProfesseurAppelForm() {
   const to = Math.min(pageSafe * PAGE_SIZE, filtered.length);
 
   const presents = lignes.filter((ligne) => ligne.statut === "PRESENT").length;
-  const absents = lignes.filter((ligne) => ligne.statut === "ABSENT").length;
-  const retards = lignes.filter((ligne) => ligne.statut === "RETARD").length;
+  const absents = lignes.filter((ligne) => ligne.statut === "ABSENT" || ligne.statut === "ABSENT_RETARD").length;
+  const retards = lignes.filter((ligne) => ligne.statut === "RETARD" || ligne.statut === "ABSENT_RETARD").length;
 
   const requestClasse = (next: string) => {
     if (next === classeId) return;
@@ -206,21 +260,35 @@ function ProfesseurAppelForm() {
     else setDate(next);
   };
 
+  const requestCreneau = (next: string) => {
+    if (!next || next === creneauId) return;
+    if (dirty) setPending({ type: "creneau", value: next });
+    else {
+      setCreneauId(next);
+      void loadSheet(classeId, date, next);
+    }
+  };
+
   const applyPending = () => {
     if (!pending) return;
     if (pending.type === "classe") setClasseId(pending.value);
-    else setDate(pending.value);
+    else if (pending.type === "date") setDate(pending.value);
+    else {
+      setCreneauId(pending.value);
+      void loadSheet(classeId, date, pending.value);
+    }
     setPending(null);
   };
 
   const setStatut = (eleveId: string, next: Statut) => {
+    if (locked) return;
     setLignes((current) =>
       current.map((ligne) => (ligne.eleveId === eleveId ? { ...ligne, statut: next } : ligne))
     );
   };
 
   const save = async () => {
-    if (!classeId) return;
+    if (!classeId || !creneau || locked) return;
     setSaving(true);
     try {
       const res = await fetch("/api/staff/prof/appel", {
@@ -229,15 +297,19 @@ function ProfesseurAppelForm() {
         body: JSON.stringify({
           classeId,
           date,
+          heureDebut: creneau.heureDebut,
+          heureFin: creneau.heureFin,
+          matiereId: creneau.matiereId,
           lignes: lignes.map((ligne) => ({ eleveId: ligne.eleveId, statut: ligne.statut })),
         }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
       setSnapshot(snapshotOf(lignes));
+      setLocked(true);
       toast({
-        title: "Feuille d’appel enregistrée",
-        description: `${body.data?.parentsNotifies ?? 0} parent(s) notifié(s) · le bilan direction se met à jour.`,
+        title: "Liste de présence enregistrée",
+        description: `Créneau ${creneau.heureDebut}–${creneau.heureFin} · définitif · ${body.data?.parentsNotifies ?? 0} parent(s) notifié(s).`,
       });
     } catch (error) {
       toast({
@@ -254,9 +326,13 @@ function ProfesseurAppelForm() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Appel</h1>
+          <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Liste de présence</h1>
           <p className={`${portalMutedClass} mt-1 capitalize`}>
-            {classe ? `${classe.nom} · ${formatJour(date)}` : "Présent, absent ou retard — vos classes uniquement."}
+            {classe && creneau
+              ? `${classe.nom} · ${formatJour(date)} · ${creneau.heureDebut}–${creneau.heureFin} · ${creneau.matiereNom}`
+              : classe
+                ? `${classe.nom} · ${formatJour(date)}`
+                : "Appel par créneau EDT — l’heure précédente est visible."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -264,11 +340,15 @@ function ProfesseurAppelForm() {
             type="button"
             variant="outline"
             onClick={() => setTousPresentsOpen(true)}
-            disabled={lignes.length === 0 || presents === lignes.length}
+            disabled={lignes.length === 0 || presents === lignes.length || locked || !creneau}
           >
             Tous présents
           </Button>
-          <Button type="button" onClick={save} disabled={saving || lignes.length === 0 || !dirty}>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={saving || lignes.length === 0 || !dirty || locked || !creneau}
+          >
             {saving ? <Loader2 className="animate-spin" /> : <Save />}
             Enregistrer
           </Button>
@@ -330,6 +410,23 @@ function ProfesseurAppelForm() {
               </Button>
             ) : null}
             <select
+              className="edu-select min-w-[14rem]"
+              aria-label="Créneau"
+              value={creneauId}
+              onChange={(e) => requestCreneau(e.target.value)}
+              disabled={creneaux.length === 0}
+            >
+              {creneaux.length === 0 ? (
+                <option value="">Aucun créneau</option>
+              ) : (
+                creneaux.map((c) => (
+                  <option key={c.id} value={creneauKey(c)}>
+                    {c.heureDebut}–{c.heureFin} · {c.matiereNom}
+                  </option>
+                ))
+              )}
+            </select>
+            <select
               className="edu-select"
               aria-label="Filtrer par statut"
               value={filtreStatut}
@@ -365,6 +462,21 @@ function ProfesseurAppelForm() {
         </div>
       ) : (
         <>
+          {precedent ? (
+            <p className={`${portalMutedClass} text-sm`}>
+              Heure précédente : {precedent.heureDebut}-{precedent.heureFin} · {precedent.matiereNom}
+              {precedent.professeurNom ? ` (${precedent.professeurNom})` : ""}
+            </p>
+          ) : creneau ? (
+            <p className={`${portalMutedClass} text-sm`}>Premier créneau de la journée — pas d’heure précédente.</p>
+          ) : null}
+
+          {locked ? (
+            <p className="text-sm font-medium text-amber-800">
+              L&apos;appel pour ce cours a été validé et ne peut plus être modifié.
+            </p>
+          ) : null}
+
           <div className="flex flex-wrap gap-2">
             <span className={portalChipClass}>{presents} présent{presents > 1 ? "s" : ""}</span>
             <span className={portalChipClass}>{absents} absent{absents > 1 ? "s" : ""}</span>
@@ -372,10 +484,14 @@ function ProfesseurAppelForm() {
             {dirty ? <span className={portalChipClass}>Non enregistré</span> : null}
           </div>
 
+          {emptyMessage && !creneau ? (
+            <p className="text-sm font-medium text-amber-800">{emptyMessage}</p>
+          ) : null}
+
           {sheetStatus === "error" ? (
             <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
               <p className="text-sm leading-6 text-foreground">Impossible de charger la feuille d’appel.</p>
-              <Button type="button" onClick={() => loadSheet(classeId, date)}>
+              <Button type="button" onClick={() => loadSheet(classeId, date, creneauId || undefined)}>
                 Réessayer
               </Button>
             </div>
@@ -399,6 +515,7 @@ function ProfesseurAppelForm() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="px-4">Élève</TableHead>
+                    {precedent ? <TableHead className="px-4">H. préc.</TableHead> : null}
                     <TableHead className="px-4 text-right">Présence</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -423,6 +540,21 @@ function ProfesseurAppelForm() {
                           </div>
                         </div>
                       </TableCell>
+                      {precedent ? (
+                        <TableCell className="px-4 py-3.5">
+                          <span
+                            className={
+                              ligne.statutPrecedent === "ABSENT" || ligne.statutPrecedent === "ABSENT_RETARD"
+                                ? "text-sm font-medium text-destructive"
+                                : ligne.statutPrecedent === "RETARD"
+                                  ? "text-sm font-medium text-amber-700"
+                                  : "text-sm text-muted-foreground"
+                            }
+                          >
+                            {STATUT_LABEL[ligne.statutPrecedent ?? "PRESENT"]}
+                          </span>
+                        </TableCell>
+                      ) : null}
                       <TableCell className="px-4 py-3.5">
                         <div className="flex justify-end">
                           <div className="inline-flex rounded-2xl border border-border bg-muted/40 p-1">
@@ -434,6 +566,8 @@ function ProfesseurAppelForm() {
                                   type="button"
                                   size="sm"
                                   variant={active ? "default" : "ghost"}
+                                  disabled={locked}
+                                  title={locked ? "Liste déjà enregistrée (définitif)" : STATUT_LABEL[statut]}
                                   className={
                                     active && statut === "ABSENT"
                                       ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -496,7 +630,7 @@ function ProfesseurAppelForm() {
         open={tousPresentsOpen}
         onOpenChange={setTousPresentsOpen}
         title="Marquer toute la classe présente ?"
-        description="Les absences et retards déjà cochés pour cette date seront remplacés. Pensez à enregistrer ensuite."
+        description="Les absences et retards déjà cochés pour ce créneau seront remplacés. Pensez à enregistrer ensuite."
         confirmText="Tous présents"
         onConfirm={() => {
           setLignes((current) => current.map((ligne) => ({ ...ligne, statut: "PRESENT" })));

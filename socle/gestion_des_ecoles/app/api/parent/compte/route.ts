@@ -7,17 +7,6 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
 }
 
-function mapParams(rows: Array<{ cle: string; valeur: string | null }>) {
-  const map = Object.fromEntries(rows.map((row) => [row.cle, row.valeur ?? ""]));
-  return {
-    nom: map.nom_etablissement || "",
-    adresse: map.adresse_etablissement || "",
-    telephone: map.telephone_etablissement || "",
-    email: map.email_etablissement || "",
-    anneeScolaire: map.annee_scolaire || "",
-  };
-}
-
 function relationLabel(relation: string) {
   if (relation === "pere") return "Père";
   if (relation === "mere") return "Mère";
@@ -30,7 +19,7 @@ export async function GET() {
     const authResult = await requireParent();
     if (!authResult.ok) return authResult.response;
 
-    const [user, parametres, unread] = await Promise.all([
+    const [user, unread] = await Promise.all([
       prisma.user.findUnique({
         where: { id: authResult.user.id },
         select: {
@@ -40,9 +29,20 @@ export async function GET() {
           email: true,
           telephone: true,
           adresse: true,
+          photo: true,
           twoFactorEnabled: true,
+          termsAcceptedAt: true,
           role: true,
-          ecole: { select: { nom: true, ville: true } },
+          ecole: {
+            select: {
+              nom: true,
+              nomOfficiel: true,
+              ville: true,
+              adresse: true,
+              telephone: true,
+              email: true,
+            },
+          },
           parentEleves: {
             where: { eleve: { deletedAt: null } },
             include: {
@@ -52,24 +52,21 @@ export async function GET() {
                   nom: true,
                   prenom: true,
                   matricule: true,
-                  classe: { select: { nom: true } },
+                  ecole: {
+                    select: {
+                      nom: true,
+                      nomOfficiel: true,
+                      ville: true,
+                      adresse: true,
+                      telephone: true,
+                      email: true,
+                    },
+                  },
+                  classe: { select: { nom: true, anneeScolaire: true } },
                 },
               },
             },
             orderBy: { createdAt: "asc" },
-          },
-        },
-      }),
-      prisma.parametre.findMany({
-        where: {
-          cle: {
-            in: [
-              "nom_etablissement",
-              "adresse_etablissement",
-              "telephone_etablissement",
-              "email_etablissement",
-              "annee_scolaire",
-            ],
           },
         },
       }),
@@ -82,7 +79,10 @@ export async function GET() {
       return NextResponse.json({ error: "Compte introuvable" }, { status: 404 });
     }
 
-    const etablissement = mapParams(parametres);
+    // Priorité: école du premier enfant, sinon école du compte parent (jamais le seed global).
+    const ecoleEnfant = user.parentEleves[0]?.eleve.ecole;
+    const ecole = ecoleEnfant || user.ecole;
+    const anneeScolaire = user.parentEleves[0]?.eleve.classe.anneeScolaire || "";
 
     return NextResponse.json({
       data: {
@@ -93,16 +93,18 @@ export async function GET() {
           email: user.email,
           telephone: user.telephone,
           adresse: user.adresse,
+          photo: user.photo,
           twoFactorEnabled: user.twoFactorEnabled,
+          termsAccepted: Boolean(user.termsAcceptedAt),
           role: "Parent",
         },
         etablissement: {
-          nom: etablissement.nom || user.ecole?.nom || "Établissement",
-          ville: user.ecole?.ville || "",
-          adresse: etablissement.adresse,
-          telephone: etablissement.telephone,
-          email: etablissement.email,
-          anneeScolaire: etablissement.anneeScolaire,
+          nom: ecole?.nomOfficiel || ecole?.nom || "Établissement",
+          ville: ecole?.ville || "",
+          adresse: ecole?.adresse || "",
+          telephone: ecole?.telephone || "",
+          email: ecole?.email || "",
+          anneeScolaire,
         },
         enfants: user.parentEleves.map((lien) => ({
           id: lien.eleve.id,

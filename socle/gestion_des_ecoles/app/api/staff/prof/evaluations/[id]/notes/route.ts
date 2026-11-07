@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireProfesseur } from "@/lib/request-auth";
 import { canAccessMatiere, forbiddenClasse, getProfAssignments } from "@/lib/prof-scope";
 import { recalculerMoyennesPourClasse } from "@/lib/notes-moyennes";
+import { notifyUsers } from "@/lib/notify";
 
 const schema = z.object({
   notes: z.array(
@@ -106,16 +107,29 @@ export async function PUT(
       }),
     ]);
     const nomById = new Map(elevesNotif.map((e) => [e.id, `${e.prenom} ${e.nom}`]));
+    const noteByEleve = new Map(parsed.data.notes.map((row) => [row.eleveId, row]));
+    const noteSur = Number(evaluation.noteSur);
+    const matiereNom = matiere?.nom ?? "la matière";
     if (liens.length > 0) {
-      await prisma.notification.createMany({
-        data: liens.map((lien) => ({
-          userId: lien.parentId,
-          type: "note",
-          title: `Note · ${nomById.get(lien.eleveId) ?? "élève"}`,
-          message: `${matiere?.nom ?? "Matière"} · ${evaluation.titre} — visible dans EduParent.`,
-          data: { eleveId: lien.eleveId, evaluationId: evaluation.id },
-        })),
-      });
+      await notifyUsers(
+        liens.map((lien) => {
+          const enfant = nomById.get(lien.eleveId) ?? "votre enfant";
+          const row = noteByEleve.get(lien.eleveId);
+          const valeur =
+            row && !row.absent && row.note != null
+              ? ` Note : ${row.note}/${Number.isFinite(noteSur) ? noteSur : 20}.`
+              : row?.absent
+                ? " L’élève était absent à cette évaluation."
+                : "";
+          return {
+            userId: lien.parentId,
+            type: "note",
+            title: `Note · ${enfant}`,
+            message: `Une nouvelle note a été publiée pour votre enfant ${enfant} en ${matiereNom}.${valeur}`,
+            data: { eleveId: lien.eleveId, evaluationId: evaluation.id },
+          };
+        })
+      );
     }
 
     return NextResponse.json({ data: { saved: results.length, parentsNotifies: liens.length } });

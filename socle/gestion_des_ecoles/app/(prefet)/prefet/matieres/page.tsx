@@ -1,12 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EleveToolbar } from "@/components/shared/eleve-toolbar";
 import { useToast } from "@/hooks/use-toast";
 import {
+  portalLinkClass,
   portalMutedClass,
   portalPanelClass,
   portalTitleClass,
@@ -36,6 +47,9 @@ export default function PrefetMatieresPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newNom, setNewNom] = useState("");
 
   const load = async () => {
     const res = await fetch("/api/staff/prefet/matieres");
@@ -104,13 +118,53 @@ export default function PrefetMatieresPage() {
     }
   };
 
+  const createMatiere = async () => {
+    const nom = newNom.trim();
+    if (nom.length < 2) {
+      toast({ variant: "destructive", title: "Indiquez un nom de matière" });
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch("/api/staff/prefet/matieres", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Création impossible");
+      toast({
+        title: "Matière créée",
+        description: "Affectez-la aux classes depuis la page Classes.",
+      });
+      setCreateOpen(false);
+      setNewNom("");
+      await load();
+      setStatus("ready");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Création refusée",
+        description: error instanceof Error ? error.message : "Réessayez",
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className={portalTitleClass}>Matières</h1>
-        <p className={`mt-1 ${portalMutedClass}`}>
-          Professeurs affectés et coefficients par classe. Seul le préfet règle les coefficients.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className={portalTitleClass}>Matières</h1>
+          <p className={`mt-1 ${portalMutedClass}`}>
+            Affectations et coefficients par classe. Seul le préfet modifie les coefficients.
+          </p>
+        </div>
+        <Button type="button" onClick={() => setCreateOpen(true)}>
+          <Plus />
+          Ajouter une matière
+        </Button>
       </div>
 
       <EleveToolbar
@@ -135,8 +189,16 @@ export default function PrefetMatieresPage() {
           <BookOpen className="h-8 w-8 text-primary" aria-hidden="true" />
           <p className="font-medium text-foreground">Aucune matière affectée</p>
           <p className={portalMutedClass}>
-            Affectez des professeurs aux matières depuis la page Classes.
+            Créez une matière puis affectez-la depuis{" "}
+            <Link href="/prefet/classes" className={portalLinkClass}>
+              Classes
+            </Link>
+            .
           </p>
+          <Button type="button" onClick={() => setCreateOpen(true)}>
+            <Plus />
+            Ajouter une matière
+          </Button>
         </div>
       ) : null}
 
@@ -194,6 +256,34 @@ export default function PrefetMatieresPage() {
           </article>
         ))}
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ajouter une matière</DialogTitle>
+            <DialogDescription>
+              La matière sera disponible pour affectation aux classes de votre cycle.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="grid gap-2 text-sm">
+            <span className="font-medium">Nom</span>
+            <Input
+              value={newNom}
+              onChange={(e) => setNewNom(e.target.value)}
+              placeholder="Ex. Mathématiques"
+              autoFocus
+            />
+          </label>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+              Annuler
+            </Button>
+            <Button type="button" onClick={createMatiere} disabled={creating}>
+              {creating ? "Création…" : "Créer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

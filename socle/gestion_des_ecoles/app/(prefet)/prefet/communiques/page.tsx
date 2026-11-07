@@ -50,7 +50,7 @@ const PAGE_SIZE = 30;
 const DESTINATAIRES: { value: Destinataire; label: string }[] = [
   { value: "PARENTS", label: "Parents du cycle" },
   { value: "PROFESSEURS", label: "Professeurs du cycle" },
-  { value: "TOUS", label: "Parents et professeurs" },
+  { value: "TOUS", label: "Parents, professeurs et direction" },
 ];
 
 const EMPTY_FORM = {
@@ -66,7 +66,8 @@ function destLabel(value: Destinataire) {
 
 function destPublishHint(value: Destinataire) {
   if (value === "PROFESSEURS") return "Les professeurs du cycle recevront une alerte.";
-  if (value === "TOUS") return "Les parents le verront dans EduParent. Les professeurs du cycle recevront une alerte.";
+  if (value === "TOUS")
+    return "Parents (EduParent), professeurs du cycle et direction seront notifiés.";
   return "Les parents du cycle le verront dans EduParent.";
 }
 
@@ -162,13 +163,23 @@ export default function PrefetCommuniquesPage() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
-      const n = body.data.envoyes ?? 0;
+      const detail = body.data.detail as
+        | { total?: number; parents?: number; professeurs?: number; direction?: number }
+        | undefined;
+      const n = detail?.total ?? body.data.envoyes ?? 0;
+      const parts = [
+        detail?.parents ? `${detail.parents} parent${detail.parents > 1 ? "s" : ""}` : null,
+        detail?.professeurs ? `${detail.professeurs} professeur${detail.professeurs > 1 ? "s" : ""}` : null,
+        detail?.direction ? `${detail.direction} direction` : null,
+      ].filter(Boolean);
       toast({
         title: "Communiqué publié",
         description:
           n === 0
             ? "Aucun destinataire trouvé pour ce cycle."
-            : `${n} destinataire${n > 1 ? "s" : ""} notifié${n > 1 ? "s" : ""}.`,
+            : parts.length
+              ? `${parts.join(" · ")} notifié${n > 1 ? "s" : ""}.`
+              : `${n} destinataire${n > 1 ? "s" : ""} notifié${n > 1 ? "s" : ""}.`,
       });
       setConfirmPublish(false);
       setFormOpen(false);
@@ -219,9 +230,9 @@ export default function PrefetCommuniquesPage() {
         <div>
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Communiqués</h1>
           <p className={`${portalMutedClass} mt-1`}>
-            Uniquement votre cycle
+            Communiqués de votre cycle
             {status === "ready" ? ` · ${items.length} communiqué${items.length > 1 ? "s" : ""}` : ""}.
-            Un envoi parents apparaît dans EduParent.
+            Les messages destinés aux parents sont visibles dans EduParent.
           </p>
         </div>
         <Button type="button" onClick={() => openCreate()}>

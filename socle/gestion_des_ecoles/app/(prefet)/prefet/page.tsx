@@ -113,7 +113,7 @@ export default function PrefetHome() {
       : "—";
   const bilanDetail =
     data?.moyenneCycle != null
-      ? `${data.elevesDifficulte} élève${data.elevesDifficulte > 1 ? "s" : ""} sous 10${data.periode ? ` · ${data.periode.nom}` : ""}`
+      ? `${data.elevesDifficulte} élève${data.elevesDifficulte > 1 ? "s" : ""} en dessous de 10${data.periode ? ` · ${data.periode.nom}` : ""}`
       : data?.periode
         ? `Notes pas encore consolidées · ${data.periode.nom}`
         : "Aucune période active.";
@@ -124,25 +124,25 @@ export default function PrefetHome() {
           href: "/prefet/eleves",
           value: data.totalEleves,
           title: "Élèves",
-          detail: "Inscriptions de votre cycle uniquement.",
+          detail: "Élèves inscrits dans votre cycle.",
         },
         {
           href: "/prefet/classes",
           value: data.totalClasses,
           title: "Classes",
-          detail: "Création limitée aux niveaux du cycle.",
+          detail: "Classes gérées pour ce niveau.",
         },
         {
           href: "/prefet/bulletins",
           value: data.totalBulletins,
           title: "Bulletins",
-          detail: "Génération PDF via le moteur du socle.",
+          detail: "Bulletins générés en PDF.",
         },
         {
           href: "/prefet/edt",
           value: data.totalCreneaux,
           title: "Créneaux EDT",
-          detail: "Grille Lundi–Vendredi, visible dans EduParent.",
+          detail: "Emploi du temps du lundi au samedi, visible par les parents.",
         },
         {
           href: "/prefet/bilan",
@@ -154,7 +154,7 @@ export default function PrefetHome() {
           href: "/prefet/communiques",
           value: data.totalCommuniques,
           title: "Communiqués",
-          detail: "Fan-out vers les notifications parents.",
+          detail: "Messages envoyés aux parents.",
         },
       ]
     : [];

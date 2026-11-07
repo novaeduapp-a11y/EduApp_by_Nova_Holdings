@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -83,9 +84,12 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 const VOIE_LABEL: Record<string, string> = {
-  web: "Web",
-  eduadmins: "EduAdmins",
-  eduparent: "EduParent",
+  web: "Site web",
+  web_login: "Site web",
+  eduadmins: "Application EduAdmins",
+  eduparent: "Application EduParent",
+  mobile: "Application",
+  app: "Application",
 };
 
 function actionLabel(action: string) {
@@ -114,6 +118,10 @@ export default function AdminLogsPage() {
   const [filtreRole, setFiltreRole] = useState("");
   const [filtreVoie, setFiltreVoie] = useState("");
   const [filtreActif, setFiltreActif] = useState("");
+  const [filtreEcole, setFiltreEcole] = useState("");
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [ecoles, setEcoles] = useState<{ id: string; nom: string }[]>([]);
   const [page, setPage] = useState(1);
   const [reading, setReading] = useState<LogRow | null>(null);
 
@@ -123,11 +131,15 @@ export default function AdminLogsPage() {
     if (filtreAction) query.set("action", filtreAction);
     if (filtreRole) query.set("role", filtreRole);
     if (filtreVoie) query.set("voie", filtreVoie);
+    if (filtreEcole) query.set("ecoleId", filtreEcole);
+    if (dateDebut) query.set("dateDebut", dateDebut);
+    if (dateFin) query.set("dateFin", dateFin);
     const res = await fetch(`/api/admin/logs?${query.toString()}`);
     const body = await res.json();
     if (!res.ok) throw new Error(body.error);
     setLogs(body.data?.logs ?? []);
     setActions(body.data?.actions ?? []);
+    setEcoles(body.data?.ecoles ?? []);
   };
 
   const loadSuivi = async () => {
@@ -155,11 +167,11 @@ export default function AdminLogsPage() {
 
   useEffect(() => {
     void refresh();
-  }, [onglet, filtreAction, filtreRole, filtreVoie, filtreActif]);
+  }, [onglet, filtreAction, filtreRole, filtreVoie, filtreActif, filtreEcole, dateDebut, dateFin]);
 
   useEffect(() => {
     setPage(1);
-  }, [onglet, search, filtreAction, filtreRole, filtreVoie, filtreActif]);
+  }, [onglet, search, filtreAction, filtreRole, filtreVoie, filtreActif, filtreEcole, dateDebut, dateFin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -246,12 +258,36 @@ export default function AdminLogsPage() {
               ))}
             </select>
             {onglet === "journal" ? (
-              <select className="edu-select" aria-label="Filtrer par voie" value={filtreVoie} onChange={(e) => setFiltreVoie(e.target.value)}>
-                <option value="">Toutes les voies</option>
-                <option value="web">Web</option>
-                <option value="eduadmins">EduAdmins</option>
-                <option value="eduparent">EduParent</option>
-              </select>
+              <>
+                <select className="edu-select" aria-label="Filtrer par voie" value={filtreVoie} onChange={(e) => setFiltreVoie(e.target.value)}>
+                  <option value="">Toutes les voies</option>
+                  <option value="web">Site web</option>
+                  <option value="eduadmins">Application EduAdmins</option>
+                  <option value="eduparent">Application EduParent</option>
+                </select>
+                <select className="edu-select" aria-label="Filtrer par établissement" value={filtreEcole} onChange={(e) => setFiltreEcole(e.target.value)}>
+                  <option value="">Tous les établissements</option>
+                  {ecoles.map((ecole) => (
+                    <option key={ecole.id} value={ecole.id}>
+                      {ecole.nom}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  type="date"
+                  value={dateDebut}
+                  onChange={(e) => setDateDebut(e.target.value)}
+                  aria-label="Date de début"
+                  className="w-auto"
+                />
+                <Input
+                  type="date"
+                  value={dateFin}
+                  onChange={(e) => setDateFin(e.target.value)}
+                  aria-label="Date de fin"
+                  className="w-auto"
+                />
+              </>
             ) : (
               <select className="edu-select" aria-label="Filtrer par statut" value={filtreActif} onChange={(e) => setFiltreActif(e.target.value)}>
                 <option value="">Tous les statuts</option>
@@ -292,6 +328,8 @@ export default function AdminLogsPage() {
                 <TableHead>Qui</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Voie</TableHead>
+                <TableHead>IP</TableHead>
+                <TableHead className="text-right">Détails</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -301,21 +339,21 @@ export default function AdminLogsPage() {
                     {formatWhen(row.createdAt)}
                   </TableCell>
                   <TableCell>
-                    <button
-                      type="button"
-                      className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => setReading(row)}
-                    >
-                      <span className="font-medium text-foreground">{row.user?.nom ?? "Système"}</span>
-                      <span className={`${portalMutedClass} mt-0.5 block`}>
-                        {row.user ? `${ROLE_LABEL[row.user.role]}${row.user.ecole ? ` · ${row.user.ecole}` : ""}` : row.ipAddress ?? "—"}
-                      </span>
-                    </button>
+                    <span className="font-medium text-foreground">{row.user?.nom ?? "Système"}</span>
+                    <span className={`${portalMutedClass} mt-0.5 block`}>
+                      {row.user ? `${ROLE_LABEL[row.user.role]}${row.user.ecole ? ` · ${row.user.ecole}` : ""}` : "—"}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <span className={portalChipClass}>{actionLabel(row.action)}</span>
                   </TableCell>
                   <TableCell>{row.voie ? VOIE_LABEL[row.voie] ?? row.voie : "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.ipAddress ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setReading(row)}>
+                      Voir les détails
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -418,7 +456,24 @@ export default function AdminLogsPage() {
                   <dd className="font-mono text-xs">{reading.ipAddress ?? "—"}</dd>
                 </div>
               </dl>
-              {Object.keys(reading.details).length > 0 ? (
+              {reading.details.ancienneNote != null || reading.details.nouvelleNote != null ? (
+                <dl className="grid gap-2 rounded-2xl bg-muted p-3 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Ancienne note</dt>
+                    <dd className="tabular-nums">{String(reading.details.ancienneNote ?? "—")}</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">Nouvelle note</dt>
+                    <dd className="tabular-nums">{String(reading.details.nouvelleNote ?? "—")}</dd>
+                  </div>
+                  {reading.details.eleve ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Élève</dt>
+                      <dd>{String(reading.details.eleve)}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              ) : Object.keys(reading.details).length > 0 ? (
                 <pre className="max-h-40 overflow-auto rounded-2xl bg-muted p-3 text-xs">
                   {JSON.stringify(reading.details, null, 2)}
                 </pre>

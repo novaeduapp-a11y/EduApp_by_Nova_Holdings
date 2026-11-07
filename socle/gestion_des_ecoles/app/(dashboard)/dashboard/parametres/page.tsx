@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -17,43 +16,6 @@ import {
 } from "@/components/eduadmins/portal-shell";
 
 type Params = Record<string, string>;
-
-type Periode = {
-  id: string;
-  nom: string;
-  numero: number;
-  dateDebut: string;
-  dateFin: string;
-  anneeScolaire: string;
-  actif: boolean;
-};
-
-const SOLUTIONS = [
-  {
-    nom: "EduParent",
-    texte: "Application mobile parents : notes, absences, bulletins, EDT, messages.",
-  },
-  {
-    nom: "Espace parent web",
-    texte: "Même consultation sur le site, pour un parent sans l’app.",
-  },
-  {
-    nom: "EduAdmins — Direction",
-    texte: "Bilan du jour, personnel, communiqués, agenda.",
-  },
-  {
-    nom: "EduAdmins — Préfet",
-    texte: "Élèves, classes, EDT, bulletins, communiqués de cycle.",
-  },
-  {
-    nom: "EduAdmins — Professeur",
-    texte: "Classes, notes, appel, planning, messagerie parents.",
-  },
-  {
-    nom: "Administration NOVA",
-    texte: "Établissements, comptes staff, paramètres globaux, journal.",
-  },
-];
 
 function Field({
   label,
@@ -76,21 +38,15 @@ function Field({
 export default function AdminParametresPage() {
   const { toast } = useToast();
   const [params, setParams] = useState<Params>({});
-  const [periodes, setPeriodes] = useState<Periode[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     setStatus("loading");
     try {
-      const [p, per] = await Promise.all([
-        fetch("/api/admin/parametres").then((res) => res.json()),
-        fetch("/api/admin/periodes").then((res) => res.json()),
-      ]);
+      const p = await fetch("/api/admin/parametres").then((res) => res.json());
       if (p.error) throw new Error(p.error);
-      if (per.error) throw new Error(per.error);
       setParams(p.data ?? {});
-      setPeriodes(per.data ?? []);
       setStatus("ready");
     } catch {
       setStatus("error");
@@ -118,32 +74,6 @@ export default function AdminParametresPage() {
       toast({
         variant: "destructive",
         title: "Enregistrement refusé",
-        description: error instanceof Error ? error.message : undefined,
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const setPeriode = async (periode: Periode, actif: boolean) => {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/admin/periodes", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: periode.id, actif }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error);
-      toast({
-        title: actif ? "Période activée" : "Période désactivée",
-        description: periode.nom,
-      });
-      await load();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Période refusée",
         description: error instanceof Error ? error.message : undefined,
       });
     } finally {
@@ -181,73 +111,36 @@ export default function AdminParametresPage() {
       ) : (
         <>
           <section className={portalPanelClass}>
-            <h2 className="font-bold tracking-tight text-foreground">Solutions</h2>
-            <p className={`${portalMutedClass} mt-1`}>Couverture actuelle du forfait V1.1 — pas un interrupteur de coupure.</p>
-            <ul className="mt-4 grid gap-3 md:grid-cols-2">
-              {SOLUTIONS.map((item) => (
-                <li key={item.nom} className="rounded-2xl bg-muted px-4 py-3">
-                  <p className="font-medium text-foreground">{item.nom}</p>
-                  <p className={`${portalMutedClass} mt-1`}>{item.texte}</p>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className={portalPanelClass}>
             <h2 className="font-bold tracking-tight text-foreground">Plateforme</h2>
-            <p className={`${portalMutedClass} mt-1 mb-4`}>Nom affiché et contact support NOVA, pour toutes les écoles.</p>
+            <p className={`${portalMutedClass} mt-1 mb-4`}>Identité globale du service technique</p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Nom de la plateforme">
                 <Input value={params.nom_plateforme ?? ""} onChange={(e) => set("nom_plateforme", e.target.value)} />
               </Field>
-              <Field label="Année scolaire">
+              <Field
+                label="Année scolaire"
+                hint="Modifiable ici pour basculer toutes les plateformes."
+              >
                 <Input value={params.annee_scolaire ?? ""} onChange={(e) => set("annee_scolaire", e.target.value)} />
               </Field>
-              <Field label="E-mail support">
+              <Field
+                label="E-mail support"
+                hint="Contact technique NOVA affiché aux écoles et parents (aide, mails système)."
+              >
                 <Input type="email" value={params.support_email ?? ""} onChange={(e) => set("support_email", e.target.value)} />
               </Field>
-              <Field label="Téléphone support">
+              <Field
+                label="Téléphone support"
+                hint="Numéro technique NOVA pour l’assistance aux établissements."
+              >
                 <Input value={params.support_telephone ?? ""} onChange={(e) => set("support_telephone", e.target.value)} />
               </Field>
             </div>
           </section>
 
           <section className={portalPanelClass}>
-            <h2 className="font-bold tracking-tight text-foreground">Périodes</h2>
-            <p className={`${portalMutedClass} mt-1 mb-4`}>
-              Une seule période active à la fois : notes, moyennes et accueil parent s’appuient dessus.
-            </p>
-            {periodes.length === 0 ? (
-              <p className={portalMutedClass}>Aucune période en base.</p>
-            ) : (
-              <ul className="space-y-2">
-                {periodes.map((periode) => (
-                  <li key={periode.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-muted px-4 py-3">
-                    <div>
-                      <p className="font-medium text-foreground">{periode.nom}</p>
-                      <p className={portalMutedClass}>
-                        {periode.anneeScolaire} · du{" "}
-                        {new Date(`${periode.dateDebut}T12:00:00`).toLocaleDateString("fr-FR")} au{" "}
-                        {new Date(`${periode.dateFin}T12:00:00`).toLocaleDateString("fr-FR")}
-                      </p>
-                    </div>
-                    <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
-                      <Switch
-                        checked={periode.actif}
-                        disabled={busy}
-                        onCheckedChange={(checked) => void setPeriode(periode, checked)}
-                      />
-                      {periode.actif ? "Active" : "Inactive"}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className={portalPanelClass}>
             <h2 className="font-bold tracking-tight text-foreground">Notation</h2>
-            <p className={`${portalMutedClass} mt-1 mb-4`}>Barème commun aux portails professeur, préfet, parent et bulletins.</p>
+            <p className={`${portalMutedClass} mt-1 mb-4`}>Configuration globale du système d&apos;évaluation</p>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Note maximale par défaut">
                 <Input type="number" value={params.note_max ?? "20"} onChange={(e) => set("note_max", e.target.value)} />
@@ -276,7 +169,7 @@ export default function AdminParametresPage() {
                 [
                   ["notif_absences", "Alertes absences", "Les parents voient les absences dans l’app et les alertes."],
                   ["notif_rappel_notes", "Alertes notes / communiqués", "Notes, bulletins et communiqués dans le fil d’alertes."],
-                  ["notif_email", "E-mail", "Envoi via Resend (codes 2FA, notifications). Domaine eduadmin.net."],
+                  ["notif_email", "E-mail", "Envoi via Resend (codes de sécurité, notifications). Domaine eduadmin.net."],
                   ["notif_sms", "SMS", "Non branché. Resend gère l’e-mail uniquement — prévoir un opérateur SMS (Twilio, etc.)."],
                 ] as const
               ).map(([cle, titre, hint]) => (
@@ -291,33 +184,6 @@ export default function AdminParametresPage() {
                   />
                 </label>
               ))}
-            </div>
-          </section>
-
-          <section className={portalPanelClass}>
-            <h2 className="font-bold tracking-tight text-foreground">En-tête bulletins (pilote)</h2>
-            <p className={`${portalMutedClass} mt-1 mb-4`}>
-              Texte imprimé sur les PDF tant que l’identité n’est pas lue depuis chaque établissement.
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Nom">
-                <Input value={params.nom_etablissement ?? ""} onChange={(e) => set("nom_etablissement", e.target.value)} />
-              </Field>
-              <Field label="Téléphone">
-                <Input value={params.telephone_etablissement ?? ""} onChange={(e) => set("telephone_etablissement", e.target.value)} />
-              </Field>
-              <Field label="E-mail">
-                <Input type="email" value={params.email_etablissement ?? ""} onChange={(e) => set("email_etablissement", e.target.value)} />
-              </Field>
-              <div className="md:col-span-2">
-                <Field label="Adresse">
-                  <Textarea
-                    rows={2}
-                    value={params.adresse_etablissement ?? ""}
-                    onChange={(e) => set("adresse_etablissement", e.target.value)}
-                  />
-                </Field>
-              </div>
             </div>
           </section>
         </>

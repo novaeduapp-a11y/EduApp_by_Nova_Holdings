@@ -6,10 +6,12 @@ import {
   cycleIdPourNiveau,
   familleWhere,
   forbiddenCycle,
+  matieresDuCycleWhere,
   niveauxPourFamille,
+  profTypeWhere,
 } from "@/lib/prefet-scope";
 import { ANNEE_SCOLAIRE_COURANTE } from "@/lib/constants";
-import { matiereIdsDuProfesseur, profPeutEnseigner } from "@/lib/prof-competences";
+import { profPeutEnseignerMatiere } from "@/lib/prof-competences";
 
 const optionalProfPrincipal = z.preprocess(
   (value) => (value === "" ? null : value),
@@ -47,7 +49,7 @@ export async function GET() {
     const { ecoleId, familleCycle } = authResult.user;
 
     const classes = await prisma.classe.findMany({
-      where: familleWhere(ecoleId, familleCycle),
+      where: { ...familleWhere(ecoleId, familleCycle), deletedAt: null },
       include: {
         cycle: { select: { id: true, nom: true, famille: true } },
         professeurPrincipal: { select: { id: true, prenom: true, nom: true } },
@@ -75,9 +77,7 @@ export async function GET() {
           role: "PROFESSEUR",
           actif: true,
           deletedAt: null,
-          ...(familleCycle === "PRIMAIRE"
-            ? { typeProfesseur: "PRIMAIRE" }
-            : { typeProfesseur: "MATIERE" }),
+          ...profTypeWhere(familleCycle),
         },
         select: {
           id: true,
@@ -89,6 +89,7 @@ export async function GET() {
         orderBy: [{ nom: "asc" }, { prenom: "asc" }],
       }),
       prisma.matiere.findMany({
+        where: matieresDuCycleWhere(ecoleId, familleCycle),
         select: { id: true, nom: true },
         orderBy: { nom: "asc" },
       }),
@@ -171,8 +172,10 @@ export async function POST(request: NextRequest) {
       const byId = new Map(matieres.map((m) => [m.id, m]));
       for (const row of parsed.data.affectations) {
         if (!byId.has(row.matiereId)) continue;
-        const competences = await matiereIdsDuProfesseur(row.professeurId);
-        if (!profPeutEnseigner(competences, row.matiereId)) {
+        const matiere = byId.get(row.matiereId);
+        if (!matiere) continue;
+        const peut = await profPeutEnseignerMatiere(row.professeurId, matiere);
+        if (!peut) {
           return NextResponse.json(
             { error: "Un professeur n’enseigne pas la matière qui lui est attribuée" },
             { status: 403 }
@@ -273,7 +276,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const classe = await prisma.classe.findFirst({
-      where: { id: classeId, ...familleWhere(ecoleId, familleCycle) },
+      where: { id: classeId, deletedAt: null, ...familleWhere(ecoleId, familleCycle) },
       include: {
         _count: { select: { eleves: true, evaluations: true } },
       },
@@ -292,11 +295,10 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await prisma.$transaction([
-      prisma.classeMatiere.deleteMany({ where: { classeId: classe.id } }),
-      prisma.creneauEdt.deleteMany({ where: { classeId: classe.id } }),
-      prisma.classe.delete({ where: { id: classe.id } }),
-    ]);
+    await prisma.classe.update({
+      where: { id: classe.id },
+      data: { deletedAt: new Date() },
+    });
 
     return NextResponse.json({ data: { id: classe.id } });
   } catch (error) {
@@ -318,9 +320,7 @@ async function resolveProfesseurPrincipal(
       role: "PROFESSEUR",
       actif: true,
       deletedAt: null,
-      ...(familleCycle === "PRIMAIRE"
-        ? { typeProfesseur: "PRIMAIRE" }
-        : { typeProfesseur: "MATIERE" }),
+      ...profTypeWhere(familleCycle),
     },
     select: { id: true },
   });

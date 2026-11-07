@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { matchesEleveSearch } from "@/lib/eleve-filter";
 import { useToast } from "@/hooks/use-toast";
 import { portalMutedClass, portalPanelClass } from "@/components/eduadmins/portal-shell";
 
@@ -13,6 +16,7 @@ type Convocation = {
   id: string;
   dateConvocation: string;
   motif: string;
+  message: string | null;
   nomTuteur: string | null;
   eleve: string;
   classe: string;
@@ -36,6 +40,8 @@ export default function PrefetConvocationsPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [dateConvocation, setDateConvocation] = useState("");
   const [motif, setMotif] = useState("");
+  const [message, setMessage] = useState("");
+  const [eleveSearch, setEleveSearch] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = async (nextClasse = classeId) => {
@@ -66,6 +72,7 @@ export default function PrefetConvocationsPage() {
   useEffect(() => {
     if (!classeId) return;
     setSelected([]);
+    setEleveSearch("");
     fetch("/api/staff/prefet/eleves")
       .then((res) => res.json())
       .then((body) => {
@@ -82,9 +89,14 @@ export default function PrefetConvocationsPage() {
     [convocations, classeId, classes]
   );
 
+  const elevesFiltres = useMemo(
+    () => eleves.filter((eleve) => matchesEleveSearch(eleve, eleveSearch)),
+    [eleves, eleveSearch]
+  );
+
   const envoyer = async () => {
-    if (!classeId || selected.length === 0 || !dateConvocation || motif.trim().length < 4) {
-      toast({ variant: "destructive", title: "Classe, élèves, date et motif sont requis" });
+    if (!classeId || selected.length === 0 || !dateConvocation || motif.trim().length < 3 || message.trim().length < 8) {
+      toast({ variant: "destructive", title: "Classe, élèves, date, motif et message sont requis" });
       return;
     }
     setBusy(true);
@@ -97,12 +109,14 @@ export default function PrefetConvocationsPage() {
           eleveIds: selected,
           dateConvocation,
           motif: motif.trim(),
+          message: message.trim(),
         }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
       toast({ title: `${body.data.count} convocation${body.data.count > 1 ? "s" : ""} envoyée${body.data.count > 1 ? "s" : ""}` });
       setMotif("");
+      setMessage("");
       setSelected([]);
       await load(classeId);
     } catch (error) {
@@ -125,7 +139,7 @@ export default function PrefetConvocationsPage() {
       <div>
         <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Convocations</h1>
         <p className={`${portalMutedClass} mt-1`}>
-          Choisissez la classe, les élèves, la date et le motif. Le tuteur reçoit l’avis dans EduParent.
+          Sélectionnez la classe, les élèves, la date, le motif et le message. Le tuteur sera notifié dans EduParent.
         </p>
       </div>
 
@@ -145,12 +159,41 @@ export default function PrefetConvocationsPage() {
           </Field>
           <div className="sm:col-span-2">
             <Field label="Motif">
-              <Input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Retards répétés, conseil de discipline…" />
+              <Input
+                value={motif}
+                onChange={(e) => setMotif(e.target.value)}
+                placeholder="Ex. Retards répétés, comportement, suivi pédagogique…"
+                maxLength={200}
+              />
+            </Field>
+          </div>
+          <div className="sm:col-span-2">
+            <Field label="Message">
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Précisez ce que le tuteur doit savoir ou apporter pour le rendez-vous."
+                rows={5}
+                maxLength={800}
+              />
             </Field>
           </div>
         </div>
         <div>
           <p className="mb-2 text-sm font-medium">Élèves</p>
+          <div className="relative mb-2">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={eleveSearch}
+              onChange={(e) => setEleveSearch(e.target.value)}
+              placeholder="Rechercher un élève…"
+              className="pl-9"
+              aria-label="Rechercher un élève"
+            />
+          </div>
           <div className="mb-2 flex gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setSelected(eleves.map((e) => e.id))}>
               Toute la classe
@@ -160,7 +203,7 @@ export default function PrefetConvocationsPage() {
             </Button>
           </div>
           <ul className="max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-border p-3">
-            {eleves.map((eleve) => (
+            {elevesFiltres.map((eleve) => (
               <li key={eleve.id}>
                 <label className="flex min-h-11 items-center gap-3 text-sm">
                   <input
@@ -172,8 +215,19 @@ export default function PrefetConvocationsPage() {
                 </label>
               </li>
             ))}
-            {eleves.length === 0 ? <li className={portalMutedClass}>Aucun élève dans cette classe.</li> : null}
+            {eleves.length === 0 ? (
+              <li className={portalMutedClass}>Aucun élève dans cette classe.</li>
+            ) : elevesFiltres.length === 0 ? (
+              <li className={portalMutedClass}>Aucun élève ne correspond à la recherche.</li>
+            ) : null}
           </ul>
+          {selected.length > 0 ? (
+            <p className={`${portalMutedClass} mt-2`}>
+              {selected.length} élève{selected.length > 1 ? "s" : ""} sélectionné
+              {selected.length > 1 ? "s" : ""}
+              {eleveSearch.trim() ? " (conservés pendant la recherche)" : ""}.
+            </p>
+          ) : null}
         </div>
         <Button type="button" onClick={envoyer} disabled={busy}>
           {busy ? "Envoi…" : "Envoyer sur EduParent"}
@@ -195,7 +249,8 @@ export default function PrefetConvocationsPage() {
                   {new Date(row.dateConvocation).toLocaleString("fr-FR")}
                   {row.nomTuteur ? ` · ${row.nomTuteur}` : ""}
                 </p>
-                <p className="mt-1">{row.motif}</p>
+                <p className="mt-1 font-medium">{row.motif}</p>
+                {row.message ? <p className="mt-1 text-muted-foreground">{row.message}</p> : null}
               </li>
             ))}
           </ul>

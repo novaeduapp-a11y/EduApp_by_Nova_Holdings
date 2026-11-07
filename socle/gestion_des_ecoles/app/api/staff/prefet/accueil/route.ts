@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePrefet } from "@/lib/request-auth";
 import { familleWhere, niveauxPourFamille } from "@/lib/prefet-scope";
 import { FAMILLES_CYCLE, getMention } from "@/lib/constants";
+import { getPeriodeActiveForEcole } from "@/lib/periodes";
 
 const MENTION_LABELS = ["Très Bien", "Bien", "Assez Bien", "Passable", "Insuffisant"] as const;
 
@@ -33,10 +34,7 @@ export async function GET() {
             _count: { select: { eleves: { where: { deletedAt: null, actif: true } } } },
           },
         }),
-        prisma.periode.findFirst({
-          where: { actif: true },
-          orderBy: { numero: "desc" },
-        }),
+        getPeriodeActiveForEcole(ecoleId),
       ]);
 
     const parNiveau = niveaux.map((niveau) => {
