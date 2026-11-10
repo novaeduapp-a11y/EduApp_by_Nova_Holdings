@@ -118,7 +118,6 @@ function AdminComptesForm() {
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [ecoles, setEcoles] = useState<Ecole[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
-  const [matieres, setMatieres] = useState<{ id: string; nom: string }[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -151,7 +150,6 @@ function AdminComptesForm() {
     const c = await fetch(comptesUrl).then((res) => res.json());
     if (!Array.isArray(c.data) && c.error) throw new Error(c.error);
     setComptes(c.data ?? []);
-    setMatieres(c.matieres ?? []);
   };
 
   const refresh = async () => {
