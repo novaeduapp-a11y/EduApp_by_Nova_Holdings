@@ -34,7 +34,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eduapps}
+      # Prefer explicit DATABASE_URL from .env (password may contain @, :, etc.).
+      DATABASE_URL: ${DATABASE_URL}
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       AUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
