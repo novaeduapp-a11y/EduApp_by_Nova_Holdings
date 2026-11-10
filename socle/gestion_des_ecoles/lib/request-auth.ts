@@ -3,9 +3,27 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyMobileToken, type MobileUser } from "@/lib/mobile-token";
+import {
+  ECOLE_ACCESS_BLOCKED_MESSAGE,
+  isEcoleAccessBlockedForUser,
+} from "@/lib/ecole-access";
 
 type AuthOk = { ok: true; user: MobileUser };
 type AuthFail = { ok: false; response: NextResponse };
+
+async function rejectIfEcoleBlocked(user: {
+  id: string;
+  role: MobileUser["role"];
+  ecoleId?: string | null;
+}): Promise<AuthFail | null> {
+  if (await isEcoleAccessBlockedForUser(user)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: ECOLE_ACCESS_BLOCKED_MESSAGE }, { status: 403 }),
+    };
+  }
+  return null;
+}
 
 async function resolveUser(): Promise<AuthOk | AuthFail> {
   // SECURITY: Check Bearer token FIRST if present
@@ -29,6 +47,8 @@ async function resolveUser(): Promise<AuthOk | AuthFail> {
       select: {
         id: true,
         actif: true,
+        role: true,
+        ecoleId: true,
         tokenRevocations: {
           orderBy: { createdAt: "desc" },
           take: 1,
@@ -56,12 +76,31 @@ async function resolveUser(): Promise<AuthOk | AuthFail> {
       };
     }
 
+    const blocked = await rejectIfEcoleBlocked(dbUser);
+    if (blocked) return blocked;
+
     return { ok: true, user };
   }
 
   // No Bearer token - check for NextAuth session
   const session = await auth();
   if (session?.user?.id) {
+    // Impersonation NOVA : ne pas bloquer l'admin qui assiste une école.
+    if (!session.user.impersonatorId) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true, actif: true, role: true, ecoleId: true },
+      });
+      if (!dbUser?.actif) {
+        return {
+          ok: false,
+          response: NextResponse.json({ error: "Compte désactivé" }, { status: 401 }),
+        };
+      }
+      const blocked = await rejectIfEcoleBlocked(dbUser);
+      if (blocked) return blocked;
+    }
+
     return {
       ok: true,
       user: {

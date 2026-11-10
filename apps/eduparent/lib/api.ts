@@ -51,14 +51,30 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(`${getApiUrl()}${path}`, { ...init, headers });
   } catch {
-    throw new Error("Réseau indisponible. iPhone et Mac doivent être sur le même Wi-Fi.");
+    throw new Error("Réseau indisponible. Vérifiez votre connexion internet.");
   }
 
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Trop de tentatives. Réessayez dans quelques minutes.");
+    }
     throw new Error(body.error || "Une erreur est survenue");
   }
   return body as T;
+}
+
+type ForcedPasswordPending = { userId: string; currentPassword: string };
+let forcedPasswordPending: ForcedPasswordPending | null = null;
+
+export function setForcedPasswordPending(pending: ForcedPasswordPending | null) {
+  forcedPasswordPending = pending;
+}
+
+export function takeForcedPasswordPending(): ForcedPasswordPending | null {
+  const next = forcedPasswordPending;
+  forcedPasswordPending = null;
+  return next;
 }
 
 export type ParentUser = {
@@ -81,23 +97,75 @@ export type Enfant = {
 };
 
 export async function login(identifier: string, password: string) {
-  const body = await request<{
-    data:
-      | { requires2fa: true; challengeId: string; debugCode?: string }
-      | { requires2fa?: false; token: string; user: ParentUser };
-  }>("/api/mobile/login", {
-    method: "POST",
-    body: JSON.stringify({ identifier, password }),
-  });
-  if ("requires2fa" in body.data && body.data.requires2fa) {
+  let response: Response;
+  try {
+    response = await fetch(`${getApiUrl()}/api/mobile/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier, password }),
+    });
+  } catch {
+    throw new Error("Réseau indisponible. Vérifiez votre connexion internet.");
+  }
+
+  const body = await response.json().catch(() => ({}));
+
+  if (response.status === 403 && body.code === "PASSWORD_CHANGE_REQUIRED" && body.userId) {
+    setForcedPasswordPending({ userId: String(body.userId), currentPassword: password });
+    return { requiresPasswordChange: true as const, userId: String(body.userId) };
+  }
+
+  if (response.status === 429) {
+    throw new Error("Trop de tentatives. Réessayez dans quelques minutes.");
+  }
+
+  if (!response.ok) {
+    throw new Error(body.error || "Une erreur est survenue");
+  }
+
+  const data = body.data as
+    | { requires2fa: true; challengeId: string; debugCode?: string }
+    | { requires2fa?: false; token: string; user: ParentUser };
+
+  if ("requires2fa" in data && data.requires2fa) {
     return {
       requires2fa: true as const,
-      challengeId: body.data.challengeId,
-      debugCode: body.data.debugCode,
+      challengeId: data.challengeId,
+      debugCode: data.debugCode,
     };
   }
-  await setToken(body.data.token, body.data.user);
-  return { requires2fa: false as const, user: body.data.user };
+
+  await setToken(data.token, data.user);
+  return { requires2fa: false as const, user: data.user };
+}
+
+/** Changement forcé avant première session (sans token). */
+export async function changeForcedPassword(input: {
+  userId: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) {
+  let response: Response;
+  try {
+    response = await fetch(`${getApiUrl()}/api/auth/change-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    throw new Error("Réseau indisponible. Vérifiez votre connexion internet.");
+  }
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      body?.error?.message ||
+      body?.error ||
+      (response.status === 400 ? "Mot de passe invalide" : "Impossible de changer le mot de passe");
+    throw new Error(typeof message === "string" ? message : "Impossible de changer le mot de passe");
+  }
+  return body as { success: boolean; message?: string };
 }
 
 export async function verifyParent2fa(challengeId: string, code: string) {
@@ -164,7 +232,13 @@ export async function fetchNotes(eleveId: string) {
         periode: string;
         coefficient: number;
       }>;
-      moyennesMatieres: Array<{ matiere: string; moyenne: number | null; periode: string }>;
+      moyennesMatieres: Array<{
+        matiere: string;
+        moyenne: number | null;
+        periode: string;
+        coefficient?: number;
+        professeur?: string | null;
+      }>;
       moyennesGenerales: Array<{
         moyenne: number | null;
         rang: number | null;
@@ -183,6 +257,9 @@ export async function fetchAbsences(eleveId: string) {
         date: string;
         periode: string;
         heures: number | null;
+        heureDebut?: string | null;
+        heureFin?: string | null;
+        creneau?: string | null;
         motif: string | null;
         justifiee: boolean;
         kind: "ABSENCE" | "RETARD";
@@ -240,6 +317,10 @@ export async function fetchBulletin(eleveId: string, bulletinId: string) {
   }>(`/api/parent/enfants/${eleveId}/bulletins/${bulletinId}`);
 }
 
+export async function acceptTerms() {
+  return request<{ data: { ok: boolean } }>("/api/parent/terms", { method: "POST" });
+}
+
 export async function fetchCompte() {
   return request<{
     data: {
@@ -250,7 +331,9 @@ export async function fetchCompte() {
         email: string;
         telephone: string | null;
         adresse?: string | null;
+        photo?: string | null;
         twoFactorEnabled?: boolean;
+        termsAccepted?: boolean;
         role: string;
       };
       etablissement: {
@@ -272,6 +355,24 @@ export async function fetchCompte() {
       notificationsNonLues: number;
     };
   }>("/api/parent/compte");
+}
+
+export async function updateComptePhoto(photo: string) {
+  return request<{ data: { photo: string } }>("/api/parent/compte/photo", {
+    method: "PUT",
+    body: JSON.stringify({ photo }),
+  });
+}
+
+export async function closeCompte(mode: "desactiver" | "supprimer", password: string) {
+  return request<{ data: { mode: string } }>("/api/parent/compte/fermeture", {
+    method: "POST",
+    body: JSON.stringify({ mode, password }),
+  });
+}
+
+export async function deleteComptePhoto() {
+  return request<{ data: { photo: null } }>("/api/parent/compte/photo", { method: "DELETE" });
 }
 
 export async function downloadBulletinPdf(eleveId: string, bulletinId: string, filename: string): Promise<string> {
@@ -309,9 +410,15 @@ export async function fetchAccueil(eleveId: string) {
         evaluation: string;
       }>;
       absences: { total: number; retards: number; nonJustifiees: number };
-      moyenne: { valeur: number | null; periode: string; mention: string | null } | null;
+      moyenne: {
+        valeur: number | null;
+        periode: string;
+        mention: string | null;
+        rang?: number | null;
+      } | null;
+      matieresSuivies?: number;
       notificationsNonLues: number;
-      coursDuJour: Array<{ matiere: string; horaire: string; salle: string | null }>;
+      coursDuJour: Array<{ matiere: string; horaire: string; salle: string | null; professeur?: string | null }>;
     };
   }>(`/api/parent/enfants/${eleveId}/accueil`);
 }
@@ -325,7 +432,15 @@ export async function fetchNotifications() {
       message: string;
       readAt: string | null;
       createdAt: string;
-      data: { eleveId?: string; filId?: string; bulletinId?: string; date?: string } | null;
+      data: {
+        eleveId?: string;
+        filId?: string;
+        bulletinId?: string;
+        date?: string;
+        auteur?: string | null;
+        convocationId?: string;
+        communiqueId?: string;
+      } | null;
     }>;
   }>("/api/parent/notifications");
 }
@@ -334,6 +449,63 @@ export async function markNotificationsRead(payload: { ids?: string[]; all?: boo
   return request<{ data: { unread: number } }>("/api/parent/notifications", {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchConvocation(id: string) {
+  return request<{
+    data: {
+      id: string;
+      motif: string;
+      message: string | null;
+      dateConvocation: string;
+      statut: "ENVOYEE" | "VUE" | "CONFIRMEE";
+      confirmedAt: string | null;
+      eleveNom: string;
+      classeNom: string;
+      demandePar: string;
+    };
+  }>(`/api/parent/convocations/${id}`);
+}
+
+export async function confirmConvocation(id: string) {
+  return request<{
+    data: { id: string; statut: "CONFIRMEE"; confirmedAt: string | null };
+  }>(`/api/parent/convocations/${id}/confirm`, { method: "POST" });
+}
+
+export async function fetchCommunique(id: string) {
+  return request<{
+    data: {
+      id: string;
+      titre: string;
+      corps: string;
+      urgent: boolean;
+      auteur: string;
+      createdAt: string;
+      ackedAt: string | null;
+      notificationId: string | null;
+    };
+  }>(`/api/parent/communiques/${id}`);
+}
+
+export async function accuseCommunique(id: string) {
+  return request<{ data: { ackedAt: string } }>(`/api/parent/communiques/${id}/accuse`, {
+    method: "POST",
+  });
+}
+
+export async function registerPushToken(token: string, platform: "ios" | "android") {
+  return request<{ data: { id: string; platform: string } }>("/api/parent/push-token", {
+    method: "POST",
+    body: JSON.stringify({ token, platform }),
+  });
+}
+
+export async function deletePushToken(token?: string) {
+  return request<{ data: { ok: boolean } }>("/api/parent/push-token", {
+    method: "DELETE",
+    body: JSON.stringify(token ? { token } : {}),
   });
 }
 

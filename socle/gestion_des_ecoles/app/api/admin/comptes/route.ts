@@ -164,10 +164,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (user.role === "PROFESSEUR" && typeProfesseur === "MATIERE" && parsed.data.matiereIds?.length) {
-      const { remplacerCompetences } = await import("@/lib/prof-competences");
-      await remplacerCompetences(user.id, parsed.data.matiereIds);
-    }
+    // Affectation des matières = rôle du préfet, pas de l’admin NOVA.
 
     await logActivite({
       userId: authResult.user.id,

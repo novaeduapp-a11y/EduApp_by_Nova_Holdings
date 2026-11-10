@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       titre: communique.titre,
       corps: communique.corps,
       urgent: communique.urgent,
+      excludeUserId: id,
     });
 
     return NextResponse.json({ data: { id: communique.id, envoyes } }, { status: 201 });

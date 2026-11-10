@@ -8,7 +8,15 @@ import { useSession } from "@/context/session";
 import { matchesQuery, uniqueValues } from "@/lib/filter";
 import { colors, font, hit, pressStyle, radius, useReduceMotion } from "@/lib/theme";
 
-export function ChildSwitcher({ light = false }: { light?: boolean }) {
+export function ChildSwitcher({
+  light = false,
+  variant = "compact",
+}: {
+  light?: boolean;
+  /** cards = toujours prénom + classe (style portail) */
+  variant?: "compact" | "cards";
+}) {
+  const alwaysLabel = variant === "cards";
   const { enfants, selected, selectChild } = useSession();
   const reduceMotion = useReduceMotion();
   const [query, setQuery] = useState("");
@@ -20,7 +28,8 @@ export function ChildSwitcher({ light = false }: { light?: boolean }) {
   const cycles = useMemo(() => uniqueValues(enfants.map((enfant) => enfant.cycle)), [enfants]);
   const canFilter = cycles.length > 1 || classes.length > 1;
   const filterActive = Boolean(cycle || classe);
-  const showSearch = enfants.length > 2;
+  /** Dès 2 enfants : recherche + filtre pour les distinguer facilement. */
+  const showSearch = enfants.length > 1;
 
   const visible = useMemo(() => {
     return enfants.filter((enfant) => {
@@ -32,7 +41,7 @@ export function ChildSwitcher({ light = false }: { light?: boolean }) {
 
   if (enfants.length === 0) return null;
 
-  if (!light && enfants.length === 1) {
+  if (!light && !alwaysLabel && enfants.length === 1) {
     return (
       <Text style={[styles.solo, font.regular]}>
         {selected ? `${selected.prenom} · ${selected.classe}` : ""}
@@ -119,11 +128,13 @@ export function ChildSwitcher({ light = false }: { light?: boolean }) {
       >
         {visible.map((enfant) => {
           const active = enfant.id === selected?.id;
+          const prenom = (enfant.prenom || "").trim() || enfant.nom;
+          const initiales = prenom.slice(0, 2).toUpperCase();
           return (
             <Pressable
               key={enfant.id}
               accessibilityRole="button"
-              accessibilityLabel={`${enfant.prenom}, ${enfant.classe}`}
+              accessibilityLabel={`${prenom}, ${enfant.classe}`}
               accessibilityState={{ selected: active }}
               onPress={() => {
                 if (active) return;
@@ -132,25 +143,35 @@ export function ChildSwitcher({ light = false }: { light?: boolean }) {
               }}
               style={({ pressed }) => [
                 styles.chip,
+                alwaysLabel && styles.chipCard,
                 light && styles.chipLight,
                 active && (light ? styles.chipOnLight : styles.chipOn),
+                alwaysLabel && active && styles.chipCardOn,
                 pressStyle(pressed, reduceMotion),
               ]}
             >
               <View style={[styles.avatar, light && styles.avatarLight, active && styles.avatarOn]}>
                 <Text style={[styles.initial, font.bold, light && styles.initialLight, active && styles.initialOn]}>
-                  {enfant.prenom.slice(0, 1)}
+                  {initiales}
                 </Text>
               </View>
-              {active ? (
+              {active || alwaysLabel ? (
                 <View style={styles.copy}>
                   <Text
-                    style={[styles.name, font.semibold, light && styles.nameOnLight]}
+                    style={[
+                      styles.name,
+                      font.semibold,
+                      light && styles.nameOnLight,
+                      alwaysLabel && !active && styles.nameIdle,
+                    ]}
                     numberOfLines={1}
                   >
-                    {enfant.prenom}
+                    {prenom}
                   </Text>
-                  <Text style={[styles.meta, font.medium]} numberOfLines={1}>
+                  <Text
+                    style={[styles.meta, font.medium, alwaysLabel && !active && styles.metaIdle]}
+                    numberOfLines={1}
+                  >
                     {enfant.classe}
                   </Text>
                 </View>
@@ -220,6 +241,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.white,
   },
+  chipCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingRight: 14,
+    minWidth: 148,
+  },
+  chipCardOn: {
+    borderColor: colors.primary,
+    backgroundColor: colors.tint,
+  },
   chipLight: {
     backgroundColor: "rgba(255,255,255,0.14)",
     paddingRight: 4,
@@ -227,21 +261,23 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.tint, paddingRight: 12 },
   chipOnLight: { backgroundColor: colors.white, paddingRight: 14 },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
   },
   avatarLight: { backgroundColor: "rgba(255,255,255,0.22)" },
   avatarOn: { backgroundColor: colors.primary },
-  initial: { fontSize: 14, color: colors.primary },
+  initial: { fontSize: 12, color: colors.primary },
   initialLight: { color: colors.white },
   initialOn: { color: colors.white },
   copy: { paddingRight: 2 },
   name: { fontSize: 14, color: colors.text },
   nameOnLight: { color: colors.text },
+  nameIdle: { color: colors.text },
   meta: { fontSize: 11, color: colors.muted },
+  metaIdle: { color: colors.muted },
   empty: { fontSize: 14, color: colors.muted, paddingVertical: 10 },
 });

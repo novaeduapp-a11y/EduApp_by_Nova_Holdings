@@ -156,7 +156,7 @@ export default function DirecteurPersonnelPage() {
             {" · "}
             Mode consultation. Les absences et retards sont renseignés par la Préfecture.{" "}
             <Link href="/directeur" className={portalLinkClass}>
-              Voir le bilan
+              Bilan du jour
             </Link>
           </p>
         </div>

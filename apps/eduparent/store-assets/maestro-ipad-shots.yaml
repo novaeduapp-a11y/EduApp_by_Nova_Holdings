@@ -1,0 +1,23 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible: "Accueil"
+    timeout: 60000
+- waitForAnimationToEnd
+- tapOn:
+    text: "Accueil"
+    index: 0
+- waitForAnimationToEnd
+- takeScreenshot: 01-accueil
+- tapOn:
+    accessibilityText: "Notes"
+- waitForAnimationToEnd
+- takeScreenshot: 02-notes
+- tapOn:
+    accessibilityText: "Absences"
+- waitForAnimationToEnd
+- takeScreenshot: 03-absences
+- tapOn:
+    accessibilityText: "Bulletins"
+- waitForAnimationToEnd
+- takeScreenshot: 04-bulletins

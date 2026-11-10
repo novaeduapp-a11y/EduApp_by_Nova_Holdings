@@ -125,7 +125,7 @@ export default function AbsencesScreen() {
   if (!selected) {
     return (
       <Screen scroll={false}>
-        <PageTitle title="Absences" switchChild />
+        <PageTitle title="Absences" switchChild showBack />
         <EmptyState
           icon="person-outline"
           title="Aucun enfant sélectionné"
@@ -152,7 +152,7 @@ export default function AbsencesScreen() {
         }
       }}
     >
-      <PageTitle title="Absences" switchChild />
+      <PageTitle title="Absences" switchChild showBack />
 
       <SearchBar
         value={query}
@@ -193,109 +193,110 @@ export default function AbsencesScreen() {
 
       {payload && periode ? (
         <Enter>
-        <Card style={styles.hero}>
-          <Text style={[styles.heroKicker, font.medium]}>{periode}</Text>
-          <View style={styles.heroRow}>
-            <View>
-              <Text
-                style={[styles.heroValue, font.bold, stats.nonJustifiees > 0 && { color: colors.fail }]}
-                accessibilityLabel={`${stats.total} absence${stats.total > 1 ? "s" : ""}`}
-              >
-                {stats.total}
-              </Text>
-              <Text style={[styles.heroOut, font.medium]}>
-                absence{stats.total > 1 ? "s" : ""}
-              </Text>
-            </View>
-            <View style={styles.heroSide}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: filter === "justifiee" }}
-                onPress={() => toggleFilter("justifiee")}
-                style={({ pressed }) => [
-                  styles.mini,
-                  filter === "justifiee" && styles.miniOn,
-                  pressStyle(pressed, reduceMotion),
-                ]}
-              >
-                <Text style={[styles.miniValue, font.bold]}>{stats.justifiees}</Text>
-                <Text style={[styles.miniLabel, font.medium]}>Justifiées</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: filter === "nonJustifiee" }}
-                onPress={() => toggleFilter("nonJustifiee")}
-                style={({ pressed }) => [
-                  styles.mini,
-                  filter === "nonJustifiee" && styles.miniOn,
-                  pressStyle(pressed, reduceMotion),
-                ]}
-              >
-                <Text style={[styles.miniValue, font.bold, stats.nonJustifiees > 0 && { color: colors.fail }]}>
-                  {stats.nonJustifiees}
+          <Card style={styles.hero}>
+            <View style={styles.heroRow}>
+              <Text style={[styles.heroValue, font.bold]}>{stats.total}</Text>
+              <View style={styles.heroCopy}>
+                <Text style={[styles.heroOut, font.semibold]}>
+                  absence{stats.total > 1 ? "s" : ""}
                 </Text>
-                <Text style={[styles.miniLabel, font.medium]}>Non justifiées</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: filter === "retard" }}
-                onPress={() => toggleFilter("retard")}
-                style={({ pressed }) => [
-                  styles.mini,
-                  filter === "retard" && styles.miniOn,
-                  pressStyle(pressed, reduceMotion),
-                ]}
-              >
-                <Text style={[styles.miniValue, font.bold]}>{stats.retards}</Text>
-                <Text style={[styles.miniLabel, font.medium]}>Retards</Text>
-              </Pressable>
+                <Text style={[styles.heroKicker, font.regular]}>{periode}</Text>
+              </View>
             </View>
-          </View>
-          <Text style={[styles.explain, font.regular]}>
-            Les retards sont comptés à part. Une absence justifiée (mot, certificat) n’est pas sanctionnée.
-          </Text>
-        </Card>
+            <View style={styles.tiles}>
+              {(
+                [
+                  { key: "justifiee", value: stats.justifiees, label: "Justifiées", tone: "ok" },
+                  {
+                    key: "nonJustifiee",
+                    value: stats.nonJustifiees,
+                    label: "À justifier",
+                    tone: stats.nonJustifiees > 0 ? "fail" : "neutral",
+                  },
+                  { key: "retard", value: stats.retards, label: "Retards", tone: "neutral" },
+                ] as const
+              ).map((tile) => {
+                const on = filter === tile.key;
+                const tone = TONES[tile.tone];
+                return (
+                  <Pressable
+                    key={tile.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${tile.value} ${tile.label}. ${on ? "Filtre actif" : "Filtrer"}`}
+                    accessibilityState={{ selected: on }}
+                    onPress={() => toggleFilter(tile.key)}
+                    style={({ pressed }) => [
+                      styles.tile,
+                      { backgroundColor: tone.soft },
+                      on && { borderColor: tone.fg },
+                      pressStyle(pressed, reduceMotion),
+                    ]}
+                  >
+                    <Text style={[styles.tileValue, font.bold, { color: tone.fg }]}>{tile.value}</Text>
+                    <Text style={[styles.tileLabel, font.medium]} numberOfLines={1}>
+                      {tile.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={[styles.explain, font.regular]}>
+              Touchez un compteur pour filtrer. Les retards sont comptés à part.
+            </Text>
+          </Card>
         </Enter>
       ) : null}
 
       {grouped.map(([month, rows], monthIndex) => (
-        <View key={month} style={styles.monthBlock}>
-          <Text style={[styles.month, font.semibold]}>{month}</Text>
-          {rows.map((absence, rowIndex) => {
-            const isRetard = absence.kind === "RETARD";
-            const chip = isRetard ? "Retard" : absence.justifiee ? "Justifiée" : "Non justifiée";
-            return (
-              <Enter key={absence.id} index={monthIndex + rowIndex + 1}>
-              <Card style={styles.row}>
-                <View style={styles.rowTop}>
-                  <Text style={[styles.date, font.bold]}>{formatDate(absence.date)}</Text>
-                  <View
-                    style={[
-                      styles.chip,
-                      isRetard ? styles.chipNeutral : absence.justifiee ? styles.chipOk : styles.chipFail,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        font.bold,
-                        isRetard ? styles.chipTextNeutral : absence.justifiee ? styles.chipTextOk : styles.chipTextFail,
-                      ]}
-                    >
-                      {chip}
-                    </Text>
+        <Enter key={month} index={monthIndex + 1}>
+          <View style={styles.monthBlock}>
+            <Text style={[styles.month, font.semibold]}>
+              {month} · {rows.length}
+            </Text>
+            <Card style={styles.monthCard}>
+              {rows.map((absence, rowIndex) => {
+                const isRetard = absence.kind === "RETARD";
+                const tone = TONES[isRetard ? "neutral" : absence.justifiee ? "ok" : "fail"];
+                const chip = isRetard ? "Retard" : absence.justifiee ? "Justifiée" : "À justifier";
+                const d = new Date(absence.date);
+                const valid = !Number.isNaN(d.getTime());
+                return (
+                  <View key={absence.id} style={[styles.row, rowIndex > 0 && styles.rowDivider]}>
+                    <View style={[styles.dateBox, { backgroundColor: tone.soft }]}>
+                      <Text style={[styles.dateDay, font.bold, { color: tone.fg }]}>
+                        {valid ? d.getDate() : "—"}
+                      </Text>
+                      <Text style={[styles.dateDow, font.medium, { color: tone.fg }]}>
+                        {valid ? d.toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "") : ""}
+                      </Text>
+                    </View>
+                    <View style={styles.rowCopy}>
+                      <Text style={[styles.rowTitle, font.semibold]} numberOfLines={1}>
+                        {isRetard ? "Retard" : absence.matiere ?? "Absence"}
+                      </Text>
+                      <Text style={[styles.meta, font.regular]} numberOfLines={1}>
+                        {absence.creneau
+                          ? absence.creneau
+                          : `${momentLabel(absence.periode)} (demi-journée)`}
+                        {!absence.creneau && absence.heures != null
+                          ? ` · ${Number(absence.heures)} h`
+                          : ""}
+                      </Text>
+                      {absence.motif ? (
+                        <Text style={[styles.meta, font.regular]} numberOfLines={2}>
+                          {absence.motif}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={[styles.chip, { backgroundColor: tone.soft }]}>
+                      <Text style={[styles.chipText, font.bold, { color: tone.fg }]}>{chip}</Text>
+                    </View>
                   </View>
-                </View>
-                <Text style={[styles.meta, font.regular]}>
-                  {isRetard ? "Retard" : absence.matiere ?? "Absence"} · {momentLabel(absence.periode)}
-                  {absence.heures != null ? ` · ${Number(absence.heures)} h` : ""}
-                </Text>
-                {absence.motif ? <Text style={[styles.meta, font.regular]}>{absence.motif}</Text> : null}
-              </Card>
-              </Enter>
-            );
-          })}
-        </View>
+                );
+              })}
+            </Card>
+          </View>
+        </Enter>
       ))}
 
       {!loading && !error && payload && filtered.length === 0 ? (
@@ -327,38 +328,44 @@ export default function AbsencesScreen() {
 
 const styles = StyleSheet.create({
   periodes: { flexDirection: "row", gap: 8 },
-  hero: { gap: 8 },
+  hero: { gap: 14 },
+  heroRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  heroValue: { fontSize: 44, color: colors.text, fontVariant: ["tabular-nums"], letterSpacing: -1, lineHeight: 48 },
+  heroCopy: { gap: 1 },
+  heroOut: { fontSize: type.body, color: colors.text },
   heroKicker: { fontSize: type.meta, color: colors.muted },
-  heroRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 12 },
-  heroValue: { fontSize: 40, color: colors.text, fontVariant: ["tabular-nums"], letterSpacing: -1, lineHeight: 44 },
-  heroOut: { fontSize: 14, color: colors.muted, marginTop: 2 },
-  heroSide: { flex: 1, gap: 6 },
-  mini: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    minHeight: 32,
+  tiles: { flexDirection: "row", gap: 8 },
+  tile: {
+    flex: 1,
+    minHeight: 64,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "transparent",
     paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: colors.background,
+    paddingVertical: 8,
+    justifyContent: "center",
+    gap: 2,
   },
-  miniOn: { backgroundColor: colors.tint },
-  miniValue: { fontSize: 16, color: colors.text, fontVariant: ["tabular-nums"] },
-  miniLabel: { fontSize: 12, color: colors.muted },
-  explain: { fontSize: 13, color: colors.muted, lineHeight: 19, marginTop: 4 },
-  monthBlock: { gap: 10 },
-  month: { fontSize: 13, color: colors.muted, textTransform: "capitalize", marginTop: 4 },
-  row: { gap: 6 },
-  rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-  date: { fontSize: type.body, color: colors.text },
+  tileValue: { fontSize: 22, fontVariant: ["tabular-nums"], lineHeight: 26 },
+  tileLabel: { fontSize: 12, color: colors.text },
+  explain: { fontSize: 13, color: colors.muted, lineHeight: 19 },
+  monthBlock: { gap: 8 },
+  month: { fontSize: type.meta, color: colors.muted, textTransform: "uppercase", letterSpacing: 0.6, marginStart: 4 },
+  monthCard: { paddingVertical: 4 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12 },
+  rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  dateBox: { width: 46, height: 50, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  dateDay: { fontSize: 18, fontVariant: ["tabular-nums"], lineHeight: 22 },
+  dateDow: { fontSize: 11, textTransform: "capitalize" },
+  rowCopy: { flex: 1, gap: 2 },
+  rowTitle: { fontSize: 15, color: colors.text },
   chip: { borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  chipOk: { backgroundColor: colors.tint },
-  chipFail: { backgroundColor: colors.failSoft },
-  chipNeutral: { backgroundColor: colors.background },
   chipText: { fontSize: 11 },
-  chipTextOk: { color: colors.primary },
-  chipTextFail: { color: colors.fail },
-  chipTextNeutral: { color: colors.muted },
-  meta: { fontSize: 14, color: colors.muted, lineHeight: 20 },
+  meta: { fontSize: type.meta, color: colors.muted, lineHeight: 18 },
 });
+
+const TONES = {
+  ok: { fg: colors.good, soft: colors.goodSoft },
+  fail: { fg: colors.fail, soft: colors.failSoft },
+  neutral: { fg: colors.muted, soft: colors.background },
+} as const;

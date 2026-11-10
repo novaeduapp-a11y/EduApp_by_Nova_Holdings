@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signStaffToken, toStaffUser, verifyTwoFactorCode } from "@/lib/staff-auth";
+import {
+  ECOLE_ACCESS_BLOCKED_MESSAGE,
+  isEcoleAccessBlockedForUser,
+} from "@/lib/ecole-access";
 import { logActivite } from "@/lib/activity-log";
 import {
   recordLoginAttempt,
@@ -48,6 +52,15 @@ export async function POST(request: Request) {
     });
     if (!full) {
       return NextResponse.json({ error: "Compte introuvable" }, { status: 404 });
+    }
+
+    if (await isEcoleAccessBlockedForUser(full)) {
+      await logActivite({
+        userId: full.id,
+        action: "connexion_refusee",
+        details: { voie: "eduadmins", motif: "ecole_bloquee", a2f: true },
+      });
+      return NextResponse.json({ error: ECOLE_ACCESS_BLOCKED_MESSAGE }, { status: 403 });
     }
 
     // Vérifier si changement de mot de passe requis

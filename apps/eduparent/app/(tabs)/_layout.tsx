@@ -4,7 +4,7 @@ import { useSession } from "@/context/session";
 import { FloatingTabBar } from "@/components/FloatingTabBar";
 
 export default function TabsLayout() {
-  const { unreadCount } = useSession();
+  const { messagesUnread } = useSession();
 
   return (
     <Tabs
@@ -17,17 +17,18 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: "Accueil" }} />
       <Tabs.Screen name="notes" options={{ title: "Notes" }} />
-      <Tabs.Screen name="absences" options={{ title: "Absences" }} />
-      <Tabs.Screen name="bulletins" options={{ title: "Bulletins" }} />
+      <Tabs.Screen name="edt" options={{ title: "Emploi" }} />
       <Tabs.Screen
-        name="plus"
+        name="messagerie"
         options={{
-          title: "Plus",
-          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
+          title: "Messages",
+          tabBarBadge: messagesUnread > 0 ? messagesUnread : undefined,
         }}
       />
-      <Tabs.Screen name="edt" options={{ href: null }} />
-      <Tabs.Screen name="messagerie" options={{ href: null }} />
+      <Tabs.Screen name="plus" options={{ href: null }} />
+      <Tabs.Screen name="notifs" options={{ href: null }} />
+      <Tabs.Screen name="absences" options={{ href: null }} />
+      <Tabs.Screen name="bulletins" options={{ href: null }} />
     </Tabs>
   );
 }

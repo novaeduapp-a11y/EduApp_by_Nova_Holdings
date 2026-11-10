@@ -117,7 +117,7 @@ function Option({
 const styles = StyleSheet.create({
   frame: { flex: 1, justifyContent: "flex-end" },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(18, 32, 58, 0.45)",
   },
   sheet: {

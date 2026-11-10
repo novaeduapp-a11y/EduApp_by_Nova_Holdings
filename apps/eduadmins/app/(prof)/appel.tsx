@@ -7,6 +7,7 @@ import {
   fetchAppel,
   fetchProfClasses,
   saveAppel,
+  type AppelCreneau,
   type AppelStatut,
   type ProfClasse,
 } from "@/lib/api";
@@ -20,13 +21,36 @@ const STATUTS: { id: AppelStatut; label: string }[] = [
   { id: "RETARD", label: "Retard" },
 ];
 
+const PREV_LABEL: Record<AppelStatut, string> = {
+  PRESENT: "Présent",
+  ABSENT: "Absent",
+  RETARD: "Retard",
+  ABSENT_RETARD: "Abs.+retard",
+};
+
+function creneauKey(c: { heureDebut: string; heureFin: string }) {
+  return `${c.heureDebut}|${c.heureFin}`;
+}
+
 export default function AppelScreen() {
   const date = useMemo(() => todayIso(), []);
   const params = useLocalSearchParams<{ classeId?: string }>();
   const [classes, setClasses] = useState<ProfClasse[]>([]);
   const [classeId, setClasseId] = useState<string | null>(params.classeId ?? null);
+  const [creneaux, setCreneaux] = useState<AppelCreneau[]>([]);
+  const [creneau, setCreneau] = useState<AppelCreneau | null>(null);
+  const [precedentLabel, setPrecedentLabel] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [emptyMessage, setEmptyMessage] = useState<string | null>(null);
   const [lignes, setLignes] = useState<
-    Array<{ eleveId: string; nom: string; prenom: string; matricule: string; statut: AppelStatut }>
+    Array<{
+      eleveId: string;
+      nom: string;
+      prenom: string;
+      matricule: string;
+      statut: AppelStatut;
+      statutPrecedent?: AppelStatut;
+    }>
   >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -45,8 +69,20 @@ export default function AppelScreen() {
     return res.data;
   };
 
-  const loadAppel = async (id: string) => {
-    const res = await fetchAppel(id, date);
+  const loadAppel = async (id: string, slot?: AppelCreneau | null) => {
+    const res = await fetchAppel(
+      id,
+      date,
+      slot ? { heureDebut: slot.heureDebut, heureFin: slot.heureFin } : undefined
+    );
+    setCreneaux(res.data.creneaux ?? []);
+    setCreneau(res.data.creneau);
+    setLocked(Boolean(res.data.verrouille));
+    setEmptyMessage(res.data.message ?? null);
+    const prev = res.data.precedent;
+    setPrecedentLabel(
+      prev ? `${prev.heureDebut}–${prev.heureFin} · ${prev.matiereNom}` : null
+    );
     setLignes(res.data.eleves);
   };
 
@@ -76,6 +112,18 @@ export default function AppelScreen() {
     }
   };
 
+  const selectCreneau = async (next: AppelCreneau) => {
+    if (!classeId) return;
+    setLoading(true);
+    try {
+      await loadAppel(classeId, next);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Impossible de charger l’appel");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const niveaux = useMemo(() => uniqueValues(classes.map((classe) => classe.niveau)), [classes]);
   const classesVisibles = useMemo(
     () => (niveau ? classes.filter((classe) => classe.niveau === niveau) : classes),
@@ -95,16 +143,22 @@ export default function AppelScreen() {
   };
 
   const onSave = async () => {
-    if (!classeId) return;
+    if (!classeId || !creneau || locked) return;
     setSaving(true);
     setMessage(null);
     try {
       await saveAppel(
         classeId,
         date,
-        lignes.map((ligne) => ({ eleveId: ligne.eleveId, statut: ligne.statut }))
+        lignes.map((ligne) => ({ eleveId: ligne.eleveId, statut: ligne.statut })),
+        {
+          heureDebut: creneau.heureDebut,
+          heureFin: creneau.heureFin,
+          matiereId: creneau.matiereId,
+        }
       );
-      setMessage("Feuille d’appel enregistrée.");
+      setLocked(true);
+      setMessage("Feuille d’appel enregistrée (créneau définitif).");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Enregistrement impossible");
     } finally {
@@ -124,7 +178,7 @@ export default function AppelScreen() {
             if (!classeId) return;
             setRefreshing(true);
             try {
-              await loadAppel(classeId);
+              await loadAppel(classeId, creneau);
             } finally {
               setRefreshing(false);
             }
@@ -133,8 +187,16 @@ export default function AppelScreen() {
         />
       }
     >
-      <Text style={styles.title}>Feuille d’appel</Text>
-      <Text style={styles.lead}>Aujourd’hui · présent, absent ou retard.</Text>
+      <Text style={styles.title}>Liste de présence</Text>
+      <Text style={styles.lead}>
+        {creneau
+          ? `Aujourd’hui · ${creneau.heureDebut}–${creneau.heureFin} · ${creneau.matiereNom}`
+          : "Aujourd’hui · appel par créneau EDT."}
+      </Text>
+      {precedentLabel ? (
+        <Text style={styles.muted}>Heure précédente : {precedentLabel}</Text>
+      ) : null}
+      {locked ? <Text style={styles.warn}>Créneau déjà enregistré (définitif).</Text> : null}
       <SearchBar value={query} onChangeText={setQuery} />
       <FilterChips options={niveaux} value={niveau} onChange={selectNiveau} allLabel="Tous les niveaux" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
@@ -153,7 +215,28 @@ export default function AppelScreen() {
           );
         })}
       </ScrollView>
+      {creneaux.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {creneaux.map((slot) => {
+            const active = creneau ? creneauKey(slot) === creneauKey(creneau) : false;
+            return (
+              <Pressable
+                key={slot.id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                onPress={() => selectCreneau(slot)}
+                style={[styles.classChip, active && styles.classChipActive]}
+              >
+                <Text style={[styles.classChipText, active && styles.classChipTextActive]}>
+                  {slot.heureDebut}–{slot.heureFin}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      ) : null}
       {loading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 16 }} /> : null}
+      {!loading && emptyMessage && !creneau ? <Text style={styles.muted}>{emptyMessage}</Text> : null}
       {!loading && lignes.length > 0 && lignesVisibles.length === 0 ? (
         <Text style={styles.muted}>Aucun élève ne correspond à cette recherche.</Text>
       ) : null}
@@ -162,6 +245,9 @@ export default function AppelScreen() {
           <Text style={styles.name}>
             {ligne.prenom} {ligne.nom}
           </Text>
+          {ligne.statutPrecedent && ligne.statutPrecedent !== "PRESENT" ? (
+            <Text style={styles.prev}>H. préc. : {PREV_LABEL[ligne.statutPrecedent]}</Text>
+          ) : null}
           <View style={styles.row}>
             {STATUTS.map((statut) => {
               const active = ligne.statut === statut.id;
@@ -170,6 +256,7 @@ export default function AppelScreen() {
                   key={statut.id}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
+                  disabled={locked}
                   onPress={() =>
                     setLignes((prev) =>
                       prev.map((item) => (item.eleveId === ligne.eleveId ? { ...item, statut: statut.id } : item))
@@ -180,6 +267,7 @@ export default function AppelScreen() {
                     active && statut.id === "PRESENT" && styles.present,
                     active && statut.id === "ABSENT" && styles.absent,
                     active && statut.id === "RETARD" && styles.retard,
+                    locked && { opacity: 0.55 },
                   ]}
                 >
                   <Text
@@ -203,11 +291,11 @@ export default function AppelScreen() {
       <Pressable
         accessibilityRole="button"
         onPress={onSave}
-        disabled={saving || !classeId || lignes.length === 0}
+        disabled={saving || !classeId || !creneau || lignes.length === 0 || locked}
         style={({ pressed }) => [
           styles.save,
           pressed && { opacity: 0.9 },
-          (saving || !classeId || lignes.length === 0) && { opacity: 0.6 },
+          (saving || !classeId || !creneau || lignes.length === 0 || locked) && { opacity: 0.6 },
         ]}
       >
         <Text style={styles.saveText}>{saving ? "Enregistrement..." : "Enregistrer l’appel"}</Text>
@@ -243,6 +331,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   name: { fontWeight: "700", color: colors.text, fontSize: 16 },
+  prev: { color: colors.muted, fontSize: 13, fontWeight: "600" },
+  warn: { color: colors.warn, fontWeight: "700", fontSize: 13 },
   row: { flexDirection: "row", gap: 8 },
   statut: {
     flex: 1,

@@ -6,7 +6,7 @@ CDC V2 §7 · phases : [planning/phases/02-lot-b-eduparent.md](../../planning/ph
 ## Lancer (Expo)
 
 Le socle Next.js doit tourner sur http://localhost:3000.  
-Expo SDK **54** (compatible Expo Go actuel).
+Expo SDK **57** (compatible Expo Go actuel).
 
 ```bash
 cd apps/eduparent

@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       corps: communique.corps,
       urgent: communique.urgent,
       auteurNom: `${prenom ?? ""} ${nom ?? ""}`.trim() || "Préfet",
+      excludeUserId: id,
     });
 
     return NextResponse.json(

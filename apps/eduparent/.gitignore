@@ -15,3 +15,5 @@ npm-debug.*
 
 expo-env.d.ts
 # @end expo-cli
+store-assets/*.aab
+store-assets/*.apk

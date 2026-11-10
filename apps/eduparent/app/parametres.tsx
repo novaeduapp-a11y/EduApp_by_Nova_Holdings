@@ -1,20 +1,21 @@
-import { useCallback, useMemo, useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { BrandFooter } from "@/components/BrandLockup";
+import { useCallback, useState } from "react";
+import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import Constants from "expo-constants";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
+import { BrandFooter } from "@/components/BrandLockup";
 import { Card } from "@/components/Card";
 import { Enter } from "@/components/Enter";
 import { LoadError, loadErrorMessage } from "@/components/LoadError";
 import { NavRow } from "@/components/NavRow";
 import { PageTitle } from "@/components/PageTitle";
 import { Screen } from "@/components/Screen";
-import { SearchBar } from "@/components/SearchBar";
+import { SectionHead } from "@/components/SectionHead";
 import { Skeleton } from "@/components/Skeleton";
 import { useSession } from "@/context/session";
-import { fetchCompte, updateCompte, updateCompte2fa, updateComptePassword } from "@/lib/api";
-import { matchesQuery } from "@/lib/filter";
-import { colors, font, hit, pressStyle, radius, type, useReduceMotion } from "@/lib/theme";
+import { closeCompte, fetchCompte, updateCompte2fa } from "@/lib/api";
+import { EDUADMIN_CONTACT, LEGAL_URLS, NOVA_CONTACT } from "@/lib/contact";
+import { colors, font, pressStyle, radius, type, useReduceMotion } from "@/lib/theme";
 
 function openTel(value: string) {
   const digits = value.replace(/\s/g, "");
@@ -27,33 +28,31 @@ function openMail(value: string) {
   Linking.openURL(`mailto:${value}`).catch(() => undefined);
 }
 
+function openUrl(url: string) {
+  Linking.openURL(url).catch(() => undefined);
+}
+
 export default function ParametresScreen() {
   const router = useRouter();
   const reduceMotion = useReduceMotion();
-  const { logout, selectChild } = useSession();
+  const { logout } = useSession();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [compte, setCompte] = useState<Awaited<ReturnType<typeof fetchCompte>>["data"] | null>(null);
-  const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ prenom: "", nom: "", email: "", telephone: "" });
-  const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "" });
   const [code, setCode] = useState("");
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [disablePassword, setDisablePassword] = useState("");
-  const version = Constants.expoConfig?.version ?? "1.0.0";
+  const [closing, setClosing] = useState<"desactiver" | "supprimer" | null>(null);
+  const [closePassword, setClosePassword] = useState("");
+  const [closeConfirm, setCloseConfirm] = useState("");
+  const version = Constants.expoConfig?.version ?? "1.0.2";
 
   const load = useCallback(async () => {
     setError(null);
     const res = await fetchCompte();
     setCompte(res.data);
-    const profil = res.data.profil;
-    setForm({
-      prenom: profil.prenom,
-      nom: profil.nom,
-      email: profil.email,
-      telephone: profil.telephone ?? "",
-    });
   }, []);
 
   useFocusEffect(
@@ -65,14 +64,26 @@ export default function ParametresScreen() {
     }, [load])
   );
 
-  const profil = compte?.profil;
+  const run = async (action: () => Promise<void>, fallback: string, success?: string) => {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await action();
+      if (success) setNotice(success);
+    } catch (err) {
+      setError(loadErrorMessage(err, fallback));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const ecole = compte?.etablissement;
-  const enfants = useMemo(() => {
-    const rows = compte?.enfants ?? [];
-    return rows.filter((enfant) =>
-      matchesQuery(query, enfant.prenom, enfant.nom, enfant.classe, enfant.matricule, enfant.relation)
-    );
-  }, [compte, query]);
+  const twoFa = Boolean(compte?.profil.twoFactorEnabled);
+  const canClose =
+    !busy &&
+    closePassword.length > 0 &&
+    (closing !== "supprimer" || closeConfirm.trim().toUpperCase() === "SUPPRIMER");
 
   return (
     <Screen
@@ -86,231 +97,35 @@ export default function ParametresScreen() {
     >
       <PageTitle title="Paramètres" showBack />
 
-      {loading && !compte ? <Skeleton count={4} /> : null}
-      {error ? (
-        <LoadError
-          message={error}
-          onRetry={() => {
-            setLoading(true);
-            load()
-              .catch((err) => setError(loadErrorMessage(err, "Impossible de charger les paramètres")))
-              .finally(() => setLoading(false));
-          }}
+      {loading && !compte ? <Skeleton count={3} /> : null}
+      {error ? <LoadError message={error} onRetry={() => load().catch((err) => setError(loadErrorMessage(err)))} /> : null}
+      {notice ? (
+        <View style={styles.notice}>
+          <Ionicons name="checkmark-circle" size={18} color={colors.good} />
+          <Text style={[styles.noticeText, font.medium]}>{notice}</Text>
+        </View>
+      ) : null}
+
+      <Enter>
+        <NavRow
+          icon="person-circle-outline"
+          title="Profil"
+          subtitle="Photo, nom, e-mail, téléphone, mot de passe"
+          onPress={() => router.push("/profil" as Href)}
         />
-      ) : null}
-
-      {profil ? (
-        <Enter>
-          <Card style={styles.block}>
-            <Text style={[styles.kicker, font.medium]}>Profil</Text>
-            <View style={styles.avatar}>
-              <Text style={[styles.initial, font.bold]}>{profil.prenom.slice(0, 1)}</Text>
-            </View>
-            <Text style={[styles.name, font.bold]}>
-              {profil.prenom} {profil.nom}
-            </Text>
-            <Text style={[styles.meta, font.regular]}>{profil.role}</Text>
-            <Text style={[styles.line, font.regular]}>{profil.email}</Text>
-            {profil.telephone ? (
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`Appeler ${profil.telephone}`}
-                onPress={() => openTel(profil.telephone!)}
-              >
-                <Text style={[styles.link, font.medium]}>{profil.telephone}</Text>
-              </Pressable>
-            ) : null}
-            <Text nativeID="prenom-label" style={[styles.kicker, font.medium, { marginTop: 12 }]}>
-              Prénom
-            </Text>
-            <TextInput
-              accessibilityLabelledBy="prenom-label"
-              value={form.prenom}
-              onChangeText={(prenom) => setForm((current) => ({ ...current, prenom }))}
-              style={styles.input}
-            />
-            <Text nativeID="nom-label" style={[styles.kicker, font.medium, { marginTop: 8 }]}>
-              Nom
-            </Text>
-            <TextInput
-              accessibilityLabelledBy="nom-label"
-              value={form.nom}
-              onChangeText={(nom) => setForm((current) => ({ ...current, nom }))}
-              style={styles.input}
-            />
-            <Text nativeID="email-label" style={[styles.kicker, font.medium, { marginTop: 8 }]}>
-              E-mail
-            </Text>
-            <TextInput
-              accessibilityLabelledBy="email-label"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              value={form.email}
-              onChangeText={(email) => setForm((current) => ({ ...current, email }))}
-              style={styles.input}
-            />
-            <Text nativeID="tel-label" style={[styles.kicker, font.medium, { marginTop: 8 }]}>
-              Téléphone
-            </Text>
-            <TextInput
-              accessibilityLabelledBy="tel-label"
-              keyboardType="phone-pad"
-              value={form.telephone}
-              onChangeText={(telephone) => setForm((current) => ({ ...current, telephone }))}
-              style={styles.input}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enregistrer le profil"
-              disabled={busy}
-              onPress={async () => {
-                setBusy(true);
-                setError(null);
-                try {
-                  await updateCompte({
-                    prenom: form.prenom,
-                    nom: form.nom,
-                    email: form.email,
-                    telephone: form.telephone || null,
-                  });
-                  await load();
-                } catch (err) {
-                  setError(loadErrorMessage(err, "Impossible d’enregistrer le profil"));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-              style={({ pressed }) => [styles.save, pressStyle(pressed, reduceMotion)]}
-            >
-              <Text style={[styles.saveText, font.bold]}>{busy ? "Enregistrement…" : "Enregistrer le profil"}</Text>
-            </Pressable>
-          </Card>
-        </Enter>
-      ) : null}
-
-      {compte?.enfants.length ? (
-        <Enter index={1}>
-          <Card style={styles.block}>
-            <Text style={[styles.kicker, font.medium]}>Enfants liés</Text>
-            {compte.enfants.length > 2 ? (
-              <SearchBar
-                inset
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Nom, classe, matricule…"
-                accessibilityLabel="Rechercher un enfant"
-              />
-            ) : null}
-            {enfants.map((enfant) => (
-              <Pressable
-                key={enfant.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${enfant.prenom} ${enfant.nom}, ${enfant.classe}`}
-                onPress={() => selectChild(enfant.id)}
-                style={styles.child}
-              >
-                <View style={styles.childAvatar}>
-                  <Text style={[styles.childInitial, font.bold]}>{enfant.prenom.slice(0, 1)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.childName, font.semibold]}>
-                    {enfant.prenom} {enfant.nom}
-                  </Text>
-                  <Text style={[styles.meta, font.regular]}>
-                    {enfant.classe} · {enfant.relation} · {enfant.matricule}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-            {query.trim() && enfants.length === 0 ? (
-              <Text style={[styles.meta, font.regular]}>Aucun enfant ne correspond.</Text>
-            ) : null}
-          </Card>
-        </Enter>
-      ) : null}
-
-      {ecole ? (
-        <Enter index={2}>
-          <Card style={styles.block}>
-            <Text style={[styles.kicker, font.medium]}>Établissement</Text>
-            <Text style={[styles.name, font.bold]}>{ecole.nom}</Text>
-            {ecole.anneeScolaire ? (
-              <Text style={[styles.meta, font.regular]}>Année scolaire {ecole.anneeScolaire}</Text>
-            ) : null}
-            {ecole.adresse ? <Text style={[styles.line, font.regular]}>{ecole.adresse}</Text> : null}
-            {ecole.ville ? <Text style={[styles.line, font.regular]}>{ecole.ville}</Text> : null}
-            {ecole.telephone ? (
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`Appeler l’établissement ${ecole.telephone}`}
-                onPress={() => openTel(ecole.telephone)}
-              >
-                <Text style={[styles.link, font.medium]}>{ecole.telephone}</Text>
-              </Pressable>
-            ) : null}
-            {ecole.email ? (
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`Écrire à ${ecole.email}`}
-                onPress={() => openMail(ecole.email)}
-              >
-                <Text style={[styles.link, font.medium]}>{ecole.email}</Text>
-              </Pressable>
-            ) : null}
-          </Card>
-        </Enter>
-      ) : null}
-
-      <Enter index={3}>
-        <Card style={styles.block}>
-          <Text style={[styles.kicker, font.medium]}>Mot de passe</Text>
-          <TextInput
-            accessibilityLabel="Mot de passe actuel"
-            secureTextEntry
-            value={passwords.currentPassword}
-            onChangeText={(currentPassword) => setPasswords((current) => ({ ...current, currentPassword }))}
-            placeholder="Mot de passe actuel"
-            placeholderTextColor={colors.muted}
-            style={styles.input}
-          />
-          <TextInput
-            accessibilityLabel="Nouveau mot de passe"
-            secureTextEntry
-            value={passwords.newPassword}
-            onChangeText={(newPassword) => setPasswords((current) => ({ ...current, newPassword }))}
-            placeholder="Nouveau mot de passe"
-            placeholderTextColor={colors.muted}
-            style={[styles.input, { marginTop: 8 }]}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Modifier le mot de passe"
-            disabled={busy}
-            onPress={async () => {
-              setBusy(true);
-              setError(null);
-              try {
-                await updateComptePassword(passwords.currentPassword, passwords.newPassword);
-                setPasswords({ currentPassword: "", newPassword: "" });
-              } catch (err) {
-                setError(loadErrorMessage(err, "Impossible de modifier le mot de passe"));
-              } finally {
-                setBusy(false);
-              }
-            }}
-            style={({ pressed }) => [styles.save, pressStyle(pressed, reduceMotion)]}
-          >
-            <Text style={[styles.saveText, font.bold]}>Modifier le mot de passe</Text>
-          </Pressable>
-        </Card>
       </Enter>
 
-      <Enter index={4}>
-        <Card style={styles.block}>
-          <Text style={[styles.kicker, font.medium]}>Authentification à deux facteurs</Text>
-          <Text style={[styles.meta, font.regular]}>
-            {compte?.profil.twoFactorEnabled ? "A2F activée. Un code sera demandé à la connexion." : "A2F désactivée."}
-          </Text>
+      <Enter index={1}>
+        <Card>
+          <SectionHead icon="shield-checkmark-outline" title="Sécurité du compte" chevron={false} />
+          <View style={styles.statusRow}>
+            <View style={[styles.statusDot, { backgroundColor: twoFa ? colors.good : colors.muted }]} />
+            <Text style={[styles.body, font.regular]}>
+              {twoFa
+                ? "Protection activée."
+                : "Protection désactivée. Activez-la pour mieux protéger le compte."}
+            </Text>
+          </View>
           {challengeId ? (
             <>
               <TextInput
@@ -319,103 +134,272 @@ export default function ParametresScreen() {
                 maxLength={6}
                 value={code}
                 onChangeText={(value) => setCode(value.replace(/\D/g, "").slice(0, 6))}
-                style={[styles.input, { marginTop: 8, letterSpacing: 6, textAlign: "center" }]}
+                placeholder="Code à 6 chiffres"
+                placeholderTextColor={colors.muted}
+                style={[styles.input, styles.code, font.semibold]}
               />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Confirmer l’activation de l’A2F"
-                onPress={async () => {
-                  setBusy(true);
-                  setError(null);
-                  try {
-                    await updateCompte2fa({ action: "enable", challengeId, code });
-                    setChallengeId(null);
-                    setCode("");
-                    await load();
-                  } catch (err) {
-                    setError(loadErrorMessage(err, "Code A2F refusé"));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                style={({ pressed }) => [styles.save, pressStyle(pressed, reduceMotion)]}
+                disabled={busy || code.length !== 6}
+                onPress={() =>
+                  run(
+                    async () => {
+                      await updateCompte2fa({ action: "enable", challengeId, code });
+                      setChallengeId(null);
+                      setCode("");
+                      await load();
+                    },
+                    "Code refusé",
+                    "Sécurité du compte activée"
+                  )
+                }
+                style={({ pressed }) => [styles.primary, (busy || code.length !== 6) && styles.off, pressStyle(pressed, reduceMotion)]}
               >
-                <Text style={[styles.saveText, font.bold]}>Activer l’A2F</Text>
+                <Text style={[styles.primaryText, font.bold]}>Confirmer</Text>
               </Pressable>
             </>
-          ) : compte?.profil.twoFactorEnabled ? (
+          ) : twoFa ? (
             <>
               <TextInput
-                accessibilityLabel="Mot de passe pour désactiver l’A2F"
+                accessibilityLabel="Mot de passe pour désactiver"
                 secureTextEntry
                 value={disablePassword}
                 onChangeText={setDisablePassword}
                 placeholder="Mot de passe"
                 placeholderTextColor={colors.muted}
-                style={[styles.input, { marginTop: 8 }]}
+                style={[styles.input, { marginTop: 12 }, font.regular]}
               />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Désactiver l’A2F"
-                onPress={async () => {
-                  setBusy(true);
-                  setError(null);
-                  try {
-                    await updateCompte2fa({ action: "disable", password: disablePassword });
-                    setDisablePassword("");
-                    await load();
-                  } catch (err) {
-                    setError(loadErrorMessage(err, "Impossible de désactiver l’A2F"));
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-                style={({ pressed }) => [styles.save, pressStyle(pressed, reduceMotion)]}
+                disabled={busy || !disablePassword}
+                onPress={() =>
+                  run(
+                    async () => {
+                      await updateCompte2fa({ action: "disable", password: disablePassword });
+                      setDisablePassword("");
+                      await load();
+                    },
+                    "Impossible de désactiver",
+                    "Sécurité du compte désactivée"
+                  )
+                }
+                style={({ pressed }) => [styles.secondary, (busy || !disablePassword) && styles.off, pressStyle(pressed, reduceMotion)]}
               >
-                <Text style={[styles.saveText, font.bold]}>Désactiver l’A2F</Text>
+                <Text style={[styles.secondaryText, font.bold]}>Désactiver</Text>
               </Pressable>
             </>
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Activer l’A2F"
-              onPress={async () => {
-                setBusy(true);
-                setError(null);
-                try {
+              disabled={busy}
+              onPress={() =>
+                run(async () => {
                   const res = await updateCompte2fa({ action: "start" });
                   setChallengeId(res.data.challengeId ?? null);
                   setCode("");
-                } catch (err) {
-                  setError(loadErrorMessage(err, "Impossible d’activer l’A2F"));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-              style={({ pressed }) => [styles.save, pressStyle(pressed, reduceMotion)]}
+                }, "Impossible d’activer")
+              }
+              style={({ pressed }) => [styles.primary, busy && styles.off, pressStyle(pressed, reduceMotion)]}
             >
-              <Text style={[styles.saveText, font.bold]}>Activer l’A2F</Text>
+              <Text style={[styles.primaryText, font.bold]}>Activer</Text>
             </Pressable>
           )}
         </Card>
       </Enter>
 
-      <Enter index={5}>
-        <NavRow
-          icon="notifications-outline"
-          title="Notifications"
-          subtitle={
-            compte && compte.notificationsNonLues > 0
-              ? `${compte.notificationsNonLues} non lue${compte.notificationsNonLues > 1 ? "s" : ""}`
-              : "Notes, absences et messages"
-          }
-          onPress={() => router.replace("/(tabs)/plus")}
-        />
+      {ecole ? (
+        <Enter index={2}>
+          <Card>
+            <SectionHead icon="school-outline" title="Établissement" chevron={false} />
+            <Text style={[styles.schoolName, font.bold]}>{ecole.nom}</Text>
+            {ecole.anneeScolaire ? (
+              <Text style={[styles.meta, font.regular]}>Année scolaire {ecole.anneeScolaire}</Text>
+            ) : null}
+            {ecole.adresse || ecole.ville ? (
+              <Text style={[styles.body, font.regular, { marginTop: 6 }]}>
+                {[ecole.adresse, ecole.ville].filter(Boolean).join(", ")}
+              </Text>
+            ) : null}
+            <View style={styles.contactRow}>
+              {ecole.telephone ? (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={`Appeler l’établissement ${ecole.telephone}`}
+                  onPress={() => openTel(ecole.telephone)}
+                  style={({ pressed }) => [styles.contact, pressStyle(pressed, reduceMotion)]}
+                >
+                  <Ionicons name="call-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.contactText, font.semibold]}>Appeler</Text>
+                </Pressable>
+              ) : null}
+              {ecole.email ? (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={`Écrire à ${ecole.email}`}
+                  onPress={() => openMail(ecole.email)}
+                  style={({ pressed }) => [styles.contact, pressStyle(pressed, reduceMotion)]}
+                >
+                  <Ionicons name="mail-outline" size={18} color={colors.primary} />
+                  <Text style={[styles.contactText, font.semibold]}>E-mail</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Card>
+        </Enter>
+      ) : null}
+
+      <Enter index={ecole ? 3 : 2}>
+        <Card>
+          <SectionHead icon="help-circle-outline" title="Assistance et documents légaux" chevron={false} />
+          <Text style={[styles.body, font.regular]}>Support technique EduParent · NOVA HOLDINGS</Text>
+          {NOVA_CONTACT.phones.map((phone) => (
+            <Pressable
+              key={phone.href}
+              accessibilityRole="link"
+              accessibilityLabel={`Appeler ${phone.label}`}
+              onPress={() => Linking.openURL(phone.href).catch(() => undefined)}
+              style={({ pressed }) => [styles.phoneRow, pressStyle(pressed, reduceMotion)]}
+            >
+              <Ionicons name="call-outline" size={18} color={colors.primary} />
+              <Text style={[styles.contactText, font.semibold]}>{phone.label}</Text>
+            </Pressable>
+          ))}
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Écrire à ${EDUADMIN_CONTACT.email}`}
+            onPress={() => Linking.openURL(EDUADMIN_CONTACT.emailHref).catch(() => undefined)}
+            style={({ pressed }) => [styles.contact, pressStyle(pressed, reduceMotion)]}
+          >
+            <Ionicons name="mail-outline" size={18} color={colors.primary} />
+            <Text style={[styles.contactText, font.semibold]}>{EDUADMIN_CONTACT.email}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Conditions d’utilisation"
+            onPress={() => openUrl(LEGAL_URLS.conditions)}
+            style={({ pressed }) => [styles.legalRow, pressStyle(pressed, reduceMotion)]}
+          >
+            <Ionicons name="document-text-outline" size={18} color={colors.primary} />
+            <Text style={[styles.legalText, font.semibold]}>Conditions d’utilisation</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Politique de confidentialité"
+            onPress={() => openUrl(LEGAL_URLS.confidentialite)}
+            style={({ pressed }) => [styles.legalRow, styles.divider, pressStyle(pressed, reduceMotion)]}
+          >
+            <Ionicons name="shield-outline" size={18} color={colors.primary} />
+            <Text style={[styles.legalText, font.semibold]}>Politique de confidentialité</Text>
+            <Ionicons name="open-outline" size={16} color={colors.muted} />
+          </Pressable>
+        </Card>
       </Enter>
 
-      <Enter index={6}>
+      <Enter index={ecole ? 4 : 3}>
         <Card>
-          <BrandFooter version={version} />
+          <SectionHead icon="warning-outline" title="Gestion du compte" chevron={false} />
+          {closing ? (
+            <View style={styles.fields}>
+              <View style={[styles.warnBox, closing === "supprimer" && styles.warnBoxDanger]}>
+                <Text style={[styles.warnTitle, font.bold, closing === "supprimer" && { color: colors.fail }]}>
+                  {closing === "supprimer" ? "Suppression définitive" : "Désactivation"}
+                </Text>
+                <Text style={[styles.warnBody, font.regular]}>
+                  {closing === "supprimer"
+                    ? "Votre nom, e-mail, téléphone et photo seront effacés, ainsi que vos notifications et le lien avec vos enfants. Cette action est irréversible. Les notes et absences restent gérées par l’établissement."
+                    : "Vous serez déconnecté et ne pourrez plus vous connecter. Vos données sont conservées : l’établissement pourra réactiver votre compte sur demande."}
+                </Text>
+              </View>
+              <TextInput
+                accessibilityLabel="Mot de passe pour confirmer"
+                secureTextEntry
+                value={closePassword}
+                onChangeText={setClosePassword}
+                placeholder="Votre mot de passe"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="none"
+                style={[styles.input, font.regular]}
+              />
+              {closing === "supprimer" ? (
+                <TextInput
+                  accessibilityLabel="Tapez SUPPRIMER pour confirmer"
+                  value={closeConfirm}
+                  onChangeText={setCloseConfirm}
+                  placeholder="Tapez SUPPRIMER pour confirmer"
+                  placeholderTextColor={colors.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  style={[styles.input, font.semibold]}
+                />
+              ) : null}
+              <View style={styles.closeRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setClosing(null);
+                    setClosePassword("");
+                    setCloseConfirm("");
+                  }}
+                  style={({ pressed }) => [styles.ghost, pressStyle(pressed, reduceMotion)]}
+                >
+                  <Text style={[styles.ghostText, font.bold]}>Annuler</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !canClose }}
+                  disabled={!canClose}
+                  onPress={() =>
+                    run(async () => {
+                      await closeCompte(closing, closePassword);
+                      Alert.alert(
+                        closing === "supprimer" ? "Compte supprimé" : "Compte désactivé",
+                        closing === "supprimer"
+                          ? "Vos données personnelles ont été effacées."
+                          : "Contactez l’établissement pour le réactiver."
+                      );
+                      await logout();
+                    }, closing === "supprimer" ? "Impossible de supprimer le compte" : "Impossible de désactiver le compte")
+                  }
+                  style={({ pressed }) => [styles.danger, styles.dangerFlex, !canClose && styles.off, pressStyle(pressed, reduceMotion)]}
+                >
+                  <Text style={[styles.dangerText, font.bold]}>
+                    {busy ? "Patientez…" : closing === "supprimer" ? "Supprimer" : "Désactiver"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.body, font.regular]}>
+                Vous pouvez suspendre votre compte ou le supprimer avec vos données personnelles.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setClosing("desactiver")}
+                style={({ pressed }) => [styles.closeOption, pressStyle(pressed, reduceMotion)]}
+              >
+                <Ionicons name="pause-circle-outline" size={20} color={colors.text} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.closeTitle, font.semibold]}>Désactiver mon compte</Text>
+                  <Text style={[styles.meta, font.regular]}>Réactivable par l’établissement</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setClosing("supprimer")}
+                style={({ pressed }) => [styles.closeOption, styles.divider, pressStyle(pressed, reduceMotion)]}
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.fail} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.closeTitle, font.semibold, { color: colors.fail }]}>Supprimer mon compte</Text>
+                  <Text style={[styles.meta, font.regular]}>Définitif, données personnelles effacées</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+              </Pressable>
+            </>
+          )}
         </Card>
       </Enter>
 
@@ -425,72 +409,125 @@ export default function ParametresScreen() {
         onPress={() => logout()}
         style={({ pressed }) => [styles.out, pressStyle(pressed, reduceMotion)]}
       >
+        <Ionicons name="log-out-outline" size={20} color={colors.fail} />
         <Text style={[styles.outText, font.bold]}>Se déconnecter</Text>
       </Pressable>
+
+      <BrandFooter version={version} compact />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  block: { gap: 4 },
-  kicker: { fontSize: type.meta, color: colors.muted, marginBottom: 4 },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: colors.tint,
+  notice: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  initial: { fontSize: 22, color: colors.primary },
-  name: { fontSize: type.body, color: colors.text },
-  meta: { fontSize: type.meta, color: colors.muted },
-  line: { fontSize: 15, color: colors.text, lineHeight: 22, marginTop: 2 },
-  link: { fontSize: 15, color: colors.primary, lineHeight: 22, marginTop: 4, minHeight: 22 },
-  input: {
-    minHeight: 48,
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 14,
     borderRadius: radius.control,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.goodSoft,
+  },
+  noticeText: { fontSize: 14, color: colors.good },
+  fields: { gap: 10 },
+  input: {
+    minHeight: 50,
+    borderRadius: radius.control,
     paddingHorizontal: 14,
     fontSize: 16,
     color: colors.text,
     backgroundColor: colors.background,
   },
-  save: {
-    minHeight: 48,
+  code: { marginTop: 12, letterSpacing: 8, textAlign: "center", fontSize: 20 },
+  primary: {
+    minHeight: 50,
     borderRadius: radius.control,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.primary,
     marginTop: 12,
   },
-  saveText: { color: colors.white, fontSize: type.body },
-  child: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    minHeight: hit.min,
-    paddingVertical: 8,
-  },
-  childAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    backgroundColor: colors.tint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  childInitial: { fontSize: 16, color: colors.primary },
-  childName: { fontSize: 15, color: colors.text },
-  out: {
-    minHeight: 52,
+  primaryText: { color: colors.white, fontSize: type.body },
+  secondary: {
+    minHeight: 50,
     borderRadius: radius.control,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.white,
-    marginTop: 4,
+    backgroundColor: colors.failSoft,
+    marginTop: 12,
+  },
+  secondaryText: { color: colors.fail, fontSize: type.body },
+  off: { opacity: 0.45 },
+  statusRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginTop: 7 },
+  body: { flex: 1, fontSize: 15, color: colors.text, lineHeight: 22 },
+  schoolName: { fontSize: type.body, color: colors.text },
+  meta: { fontSize: type.meta, color: colors.muted, marginTop: 2 },
+  contactRow: { flexDirection: "row", gap: 8, marginTop: 14 },
+  assistRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 44,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    borderRadius: radius.control,
+    backgroundColor: colors.tint,
+  },
+  contact: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 44,
+    borderRadius: radius.control,
+    backgroundColor: colors.tint,
+  },
+  contactText: { fontSize: 15, color: colors.primary },
+  legalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 48,
+    marginTop: 8,
+  },
+  legalText: { flex: 1, fontSize: 15, color: colors.text },
+  out: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 52,
+    borderRadius: radius.control,
+    backgroundColor: colors.failSoft,
   },
   outText: { color: colors.fail, fontSize: type.body },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  closeOption: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 60, paddingVertical: 8 },
+  closeTitle: { fontSize: 15, color: colors.text },
+  warnBox: { borderRadius: 14, padding: 14, gap: 6, backgroundColor: colors.background },
+  warnBoxDanger: { backgroundColor: colors.failSoft },
+  warnTitle: { fontSize: 15, color: colors.text },
+  warnBody: { fontSize: 14, color: colors.text, lineHeight: 20 },
+  closeRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  ghost: {
+    flex: 1,
+    minHeight: 50,
+    borderRadius: radius.control,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+  },
+  ghostText: { color: colors.text, fontSize: type.body },
+  danger: {
+    minHeight: 50,
+    borderRadius: radius.control,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.fail,
+  },
+  dangerFlex: { flex: 1 },
+  dangerText: { color: colors.white, fontSize: type.body },
 });

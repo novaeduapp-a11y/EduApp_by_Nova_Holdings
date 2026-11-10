@@ -13,6 +13,10 @@ import {
   is2FABlocked,
   getClientIp,
 } from "@/lib/rate-limit";
+import {
+  ECOLE_ACCESS_BLOCKED_MESSAGE,
+  isEcoleAccessBlockedForUser,
+} from "@/lib/ecole-access";
 
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60;
 const SESSION_COOKIE = "authjs.session-token";
@@ -98,6 +102,14 @@ export async function POST(request: Request) {
       }
       if (ecoleId && user.role !== "ADMIN" && user.ecoleId !== ecoleId) {
         return NextResponse.json({ error: "Ce compte n'appartient pas à cet établissement" }, { status: 403 });
+      }
+      if (await isEcoleAccessBlockedForUser(user)) {
+        await logActivite({
+          userId: user.id,
+          action: "connexion_refusee",
+          details: { voie: "web-login", motif: "ecole_bloquee", a2f: true },
+        });
+        return NextResponse.json({ error: ECOLE_ACCESS_BLOCKED_MESSAGE }, { status: 403 });
       }
       if (user.mustChangePassword) {
         return NextResponse.json(
@@ -201,6 +213,15 @@ export async function POST(request: Request) {
 
     if (ecoleMismatch(user, ecoleId || null)) {
       return NextResponse.json({ error: "Ce compte n'appartient pas à cet établissement" }, { status: 403 });
+    }
+
+    if (await isEcoleAccessBlockedForUser(user)) {
+      await logActivite({
+        userId: user.id,
+        action: "connexion_refusee",
+        details: { voie: "web-login", motif: "ecole_bloquee" },
+      });
+      return NextResponse.json({ error: ECOLE_ACCESS_BLOCKED_MESSAGE }, { status: 403 });
     }
 
     if (user.mustChangePassword) {

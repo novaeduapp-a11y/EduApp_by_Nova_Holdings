@@ -10,6 +10,10 @@ import {
   isIdentifierBlocked,
   getClientIp,
 } from "@/lib/rate-limit";
+import {
+  ECOLE_ACCESS_BLOCKED_MESSAGE,
+  isEcoleAccessBlockedForUser,
+} from "@/lib/ecole-access";
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204 });
@@ -93,6 +97,15 @@ export async function POST(request: Request) {
         { error: "Cet espace est réservé aux parents" },
         { status: 403 }
       );
+    }
+
+    if (await isEcoleAccessBlockedForUser(user)) {
+      await logActivite({
+        userId: user.id,
+        action: "connexion_refusee",
+        details: { voie: "eduparent", motif: "ecole_bloquee" },
+      });
+      return NextResponse.json({ error: ECOLE_ACCESS_BLOCKED_MESSAGE }, { status: 403 });
     }
 
     if (user.twoFactorEnabled) {

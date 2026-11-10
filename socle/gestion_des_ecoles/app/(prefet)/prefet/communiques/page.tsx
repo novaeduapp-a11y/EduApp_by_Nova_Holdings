@@ -32,6 +32,7 @@ import {
   portalPanelClass,
   portalTitleClass,
 } from "@/components/eduadmins/portal-shell";
+import { emitNotificationsChanged } from "@/lib/notifications-client";
 
 type Destinataire = "PARENTS" | "PROFESSEURS" | "TOUS";
 
@@ -97,7 +98,7 @@ export default function PrefetCommuniquesPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [search, setSearch] = useState("");
   const [filtreDest, setFiltreDest] = useState("");
-  const [filtreUrgent, setFiltreUrgent] = useState("");
+  const [filtreUrgent, setFiltreUrgent] = useState("normal");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
@@ -209,6 +210,8 @@ export default function PrefetCommuniquesPage() {
       toast({ title: "Communiqué retiré" });
       setToDelete(null);
       setReading(null);
+      setItems((current) => current.filter((item) => item.id !== toDelete.id));
+      emitNotificationsChanged();
       await load();
       setStatus("ready");
     } catch (error) {
@@ -272,9 +275,8 @@ export default function PrefetCommuniquesPage() {
           value={filtreUrgent}
           onChange={(e) => setFiltreUrgent(e.target.value)}
         >
-          <option value="">Toutes les priorités</option>
-          <option value="urgent">Urgents</option>
           <option value="normal">Non urgents</option>
+          <option value="urgent">Urgents</option>
         </select>
       </div>
 
@@ -342,7 +344,7 @@ export default function PrefetCommuniquesPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label={`Recopier ${item.titre}`}
+                        aria-label={`Copier ${item.titre}`}
                         onClick={() =>
                           openCreate({
                             titre: item.titre,
@@ -511,7 +513,7 @@ export default function PrefetCommuniquesPage() {
                       setReading(null);
                     }}
                   >
-                    Recopier
+                    Copier
                   </Button>
                 </div>
               </DialogFooter>

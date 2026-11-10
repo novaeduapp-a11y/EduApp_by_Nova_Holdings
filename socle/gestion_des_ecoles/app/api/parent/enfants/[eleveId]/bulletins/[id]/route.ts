@@ -28,7 +28,12 @@ export async function GET(
     }
 
     const bulletin = await prisma.bulletin.findFirst({
-      where: { id: params.id, eleveId: params.eleveId, deletedAt: null },
+      where: {
+        id: params.id,
+        eleveId: params.eleveId,
+        deletedAt: null,
+        publieAt: { not: null },
+      },
     });
     if (!bulletin) {
       return NextResponse.json({ error: "Bulletin introuvable" }, { status: 404 });

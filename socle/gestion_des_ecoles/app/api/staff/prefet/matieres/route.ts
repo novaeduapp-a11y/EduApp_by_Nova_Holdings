@@ -7,7 +7,12 @@ import { familleWhere } from "@/lib/prefet-scope";
 const createSchema = z.object({
   nom: z.string().min(2).max(80),
   code: z.string().min(2).max(20).optional(),
-  coefficient: z.number().min(0.25).max(20).optional(),
+  coefficient: z.number().min(0.25).max(20).default(1),
+});
+
+const patchCoefSchema = z.object({
+  matiereId: z.string().min(1),
+  coefficient: z.number().min(0.25).max(20),
 });
 
 export async function GET() {
@@ -16,16 +21,28 @@ export async function GET() {
     if (!authResult.ok) return authResult.response;
     const { ecoleId, familleCycle } = authResult.user;
 
-    const rows = await prisma.classeMatiere.findMany({
-      where: {
-        classe: familleWhere(ecoleId, familleCycle),
-      },
-      include: {
-        matiere: { select: { id: true, nom: true, code: true, coefficient: true } },
-        classe: { select: { id: true, nom: true, niveau: true } },
-      },
-      orderBy: [{ matiere: { nom: "asc" } }, { classe: { nom: "asc" } }],
-    });
+    const [catalogue, rows] = await Promise.all([
+      prisma.matiere.findMany({
+        where: {
+          OR: [
+            { ecoleId, familleCycle },
+            { ecoleId: null, familleCycle: null },
+          ],
+        },
+        select: { id: true, nom: true, code: true, coefficient: true },
+        orderBy: { nom: "asc" },
+      }),
+      prisma.classeMatiere.findMany({
+        where: {
+          classe: familleWhere(ecoleId, familleCycle),
+        },
+        include: {
+          matiere: { select: { id: true, nom: true, code: true, coefficient: true } },
+          classe: { select: { id: true, nom: true, niveau: true } },
+        },
+        orderBy: [{ matiere: { nom: "asc" } }, { classe: { nom: "asc" } }],
+      }),
+    ]);
 
     const profIds = [...new Set(rows.map((row) => row.professeurId).filter(Boolean))] as string[];
     const profs = profIds.length
@@ -55,6 +72,16 @@ export async function GET() {
       }
     >();
 
+    for (const matiere of catalogue) {
+      byMatiere.set(matiere.id, {
+        id: matiere.id,
+        nom: matiere.nom,
+        code: matiere.code,
+        coefficientDefaut: Number(matiere.coefficient) || 1,
+        affectations: [],
+      });
+    }
+
     for (const row of rows) {
       const coef = Number(row.coefficient);
       const prof = row.professeurId ? profById.get(row.professeurId) : null;
@@ -79,7 +106,7 @@ export async function GET() {
 
     return NextResponse.json({
       data: {
-        matieres: [...byMatiere.values()],
+        matieres: [...byMatiere.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr")),
       },
     });
   } catch (error) {
@@ -132,6 +159,47 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: matiere }, { status: 201 });
   } catch (error) {
     console.error("Erreur création matière préfet:", error);
+    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const authResult = await requirePrefet();
+    if (!authResult.ok) return authResult.response;
+    const { ecoleId, familleCycle } = authResult.user;
+
+    const parsed = patchCoefSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Coefficient invalide" }, { status: 400 });
+    }
+
+    const matiere = await prisma.matiere.findFirst({
+      where: {
+        id: parsed.data.matiereId,
+        OR: [
+          { ecoleId, familleCycle },
+          { ecoleId: null },
+        ],
+      },
+    });
+    if (!matiere) {
+      return NextResponse.json({ error: "Matière introuvable" }, { status: 404 });
+    }
+
+    const updated = await prisma.matiere.update({
+      where: { id: matiere.id },
+      data: { coefficient: parsed.data.coefficient },
+    });
+
+    return NextResponse.json({
+      data: {
+        id: updated.id,
+        coefficient: Number(updated.coefficient),
+      },
+    });
+  } catch (error) {
+    console.error("Erreur coefficient matière préfet:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
   }
 }

@@ -170,6 +170,7 @@ model Ecole {
   convocations    Convocation[]
   matieres        Matiere[]
   bulletinTheme   BulletinTheme?
+  annoncesNova    AnnonceNova[]
   periodeActive   Periode? @relation("EcolePeriodeActive", fields: [periodeActiveId], references: [id], onDelete: SetNull)
 
   @@map("ecoles")
@@ -675,6 +676,8 @@ model Bulletin {
   tokenQr          String    @unique @map("token_qr")
   fichierPdf       String?   @map("fichier_pdf")
   hashVerification String?   @map("hash_verification")
+  /// Null = généré pour impression seulement ; renseigné = visible / notifié aux parents.
+  publieAt         DateTime? @map("publie_at")
 
   createdAt DateTime  @default(now())
   generePar String    @map("genere_par")
@@ -707,11 +710,16 @@ model AnnonceNova {
   titre     String
   message   String
   actif     Boolean  @default(true)
+  /// Null = toutes les écoles ; sinon ciblage d’un établissement.
+  ecoleId   String?  @map("ecole_id")
   createdBy String?  @map("created_by")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  ecole Ecole? @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
+
   @@index([createdAt])
+  @@index([ecoleId])
   @@map("annonces_nova")
 }
 
@@ -889,7 +897,7 @@ model FilStaff {
   id           String  @id @default(cuid())
   ecoleId      String  @map("ecole_id")
   directeurId  String? @map("directeur_id")
-  prefetId     String  @map("prefet_id")
+  prefetId     String? @map("prefet_id")
   professeurId String? @map("professeur_id")
 
   createdAt DateTime @default(now())
@@ -897,11 +905,12 @@ model FilStaff {
 
   ecole      Ecole          @relation(fields: [ecoleId], references: [id], onDelete: Cascade)
   directeur  User?          @relation("FilStaffDirecteur", fields: [directeurId], references: [id])
-  prefet     User           @relation("FilStaffPrefet", fields: [prefetId], references: [id])
+  prefet     User?          @relation("FilStaffPrefet", fields: [prefetId], references: [id])
   professeur User?          @relation("FilStaffProfesseur", fields: [professeurId], references: [id])
   messages   MessageStaff[]
 
   @@unique([directeurId, prefetId])
+  @@unique([directeurId, professeurId])
   @@index([ecoleId])
   @@index([prefetId, professeurId])
   @@map("fils_staff")

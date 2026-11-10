@@ -50,6 +50,7 @@ export default function PrefetMatieresPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newNom, setNewNom] = useState("");
+  const [newCoef, setNewCoef] = useState("1");
 
   const load = async () => {
     const res = await fetch("/api/staff/prefet/matieres");
@@ -88,23 +89,18 @@ export default function PrefetMatieresPage() {
     );
   }, [matieres, search]);
 
-  const saveCoef = async (classeMatiereId: string, coefficient: number) => {
-    setBusyId(classeMatiereId);
+  const saveCoefDefaut = async (matiereId: string, coefficient: number) => {
+    setBusyId(matiereId);
     try {
-      const res = await fetch("/api/staff/prefet/matieres/affectations", {
+      const res = await fetch("/api/staff/prefet/matieres", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classeMatiereId, coefficient }),
+        body: JSON.stringify({ matiereId, coefficient }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Enregistrement impossible");
       setMatieres((current) =>
-        current.map((m) => ({
-          ...m,
-          affectations: m.affectations.map((a) =>
-            a.classeMatiereId === classeMatiereId ? { ...a, coefficient } : a
-          ),
-        }))
+        current.map((m) => (m.id === matiereId ? { ...m, coefficientDefaut: coefficient } : m))
       );
       toast({ title: "Coefficient enregistré" });
     } catch (error) {
@@ -120,8 +116,13 @@ export default function PrefetMatieresPage() {
 
   const createMatiere = async () => {
     const nom = newNom.trim();
+    const coefficient = Number(newCoef);
     if (nom.length < 2) {
       toast({ variant: "destructive", title: "Indiquez un nom de matière" });
+      return;
+    }
+    if (!Number.isFinite(coefficient) || coefficient < 0.25 || coefficient > 20) {
+      toast({ variant: "destructive", title: "Coefficient entre 0,25 et 20" });
       return;
     }
     setCreating(true);
@@ -129,16 +130,17 @@ export default function PrefetMatieresPage() {
       const res = await fetch("/api/staff/prefet/matieres", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nom }),
+        body: JSON.stringify({ nom, coefficient }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Création impossible");
       toast({
         title: "Matière créée",
-        description: "Affectez-la aux classes depuis la page Classes.",
+        description: "Elle apparaît dans la liste. Affectez-la aux classes depuis Classes.",
       });
       setCreateOpen(false);
       setNewNom("");
+      setNewCoef("1");
       await load();
       setStatus("ready");
     } catch (error) {
@@ -158,7 +160,7 @@ export default function PrefetMatieresPage() {
         <div>
           <h1 className={portalTitleClass}>Matières</h1>
           <p className={`mt-1 ${portalMutedClass}`}>
-            Affectations et coefficients par classe. Seul le préfet modifie les coefficients.
+            Créez les matières avec leur coefficient, puis affectez-les aux classes.
           </p>
         </div>
         <Button type="button" onClick={() => setCreateOpen(true)}>
@@ -187,9 +189,9 @@ export default function PrefetMatieresPage() {
       {status === "ready" && filtered.length === 0 ? (
         <div className={`${portalPanelClass} flex flex-col items-center gap-3 py-14 text-center`}>
           <BookOpen className="h-8 w-8 text-primary" aria-hidden="true" />
-          <p className="font-medium text-foreground">Aucune matière affectée</p>
+          <p className="font-medium text-foreground">Aucune matière</p>
           <p className={portalMutedClass}>
-            Créez une matière puis affectez-la depuis{" "}
+            Créez une matière avec son coefficient, puis affectez-la depuis{" "}
             <Link href="/prefet/classes" className={portalLinkClass}>
               Classes
             </Link>
@@ -205,54 +207,65 @@ export default function PrefetMatieresPage() {
       <div className="space-y-4">
         {filtered.map((matiere) => (
           <article key={matiere.id} className={portalPanelClass}>
-            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
               <div>
                 <h2 className="text-lg font-semibold text-foreground">{matiere.nom}</h2>
                 <p className={portalMutedClass}>
-                  {matiere.affectations.length} classe
-                  {matiere.affectations.length > 1 ? "s" : ""}
+                  {matiere.affectations.length === 0
+                    ? "Pas encore affectée à une classe"
+                    : `${matiere.affectations.length} classe${matiere.affectations.length > 1 ? "s" : ""}`}
                 </p>
               </div>
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                Coef.
+                <Input
+                  type="number"
+                  min={0.25}
+                  max={20}
+                  step={0.25}
+                  className="h-9 w-20"
+                  defaultValue={matiere.coefficientDefaut}
+                  disabled={busyId === matiere.id}
+                  onBlur={(e) => {
+                    const value = Number(e.target.value);
+                    if (!Number.isFinite(value) || value < 0.25 || value > 20) {
+                      e.target.value = String(matiere.coefficientDefaut);
+                      return;
+                    }
+                    if (value === matiere.coefficientDefaut) return;
+                    void saveCoefDefaut(matiere.id, value);
+                  }}
+                />
+              </label>
             </div>
-            <ul className="mt-3 divide-y divide-border">
-              {matiere.affectations.map((a) => (
-                <li
-                  key={a.classeMatiereId}
-                  className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground">
-                      {a.classe}
-                      <span className="ml-2 text-sm font-normal text-muted-foreground">{a.niveau}</span>
-                    </p>
-                    <p className={`text-sm ${portalMutedClass}`}>
-                      {a.professeur ?? "Aucun professeur affecté"}
-                    </p>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                    Coef.
-                    <Input
-                      type="number"
-                      min={0.25}
-                      max={20}
-                      step={0.25}
-                      className="h-9 w-20"
-                      defaultValue={a.coefficient}
-                      disabled={busyId === a.classeMatiereId}
-                      onBlur={(e) => {
-                        const value = Number(e.target.value);
-                        if (!Number.isFinite(value) || value < 0.25 || value > 20) {
-                          e.target.value = String(a.coefficient);
-                          return;
-                        }
-                        if (value === a.coefficient) return;
-                        void saveCoef(a.classeMatiereId, value);
-                      }}
-                    />
-                  </label>
-                </li>
-              ))}
-            </ul>
+            {matiere.affectations.length === 0 ? (
+              <p className={`mt-3 text-sm ${portalMutedClass}`}>
+                Affectez cette matière depuis{" "}
+                <Link href="/prefet/classes" className={portalLinkClass}>
+                  Classes
+                </Link>
+                .
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-border">
+                {matiere.affectations.map((a) => (
+                  <li
+                    key={a.classeMatiereId}
+                    className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground">
+                        {a.classe}
+                        <span className="ml-2 text-sm font-normal text-muted-foreground">{a.niveau}</span>
+                      </p>
+                      <p className={`text-sm ${portalMutedClass}`}>
+                        {a.professeur ?? "Aucun professeur affecté"}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </article>
         ))}
       </div>
@@ -262,18 +275,31 @@ export default function PrefetMatieresPage() {
           <DialogHeader>
             <DialogTitle>Ajouter une matière</DialogTitle>
             <DialogDescription>
-              La matière sera disponible pour affectation aux classes de votre cycle.
+              Définissez le nom et le coefficient. La matière apparaît tout de suite dans la liste.
             </DialogDescription>
           </DialogHeader>
-          <label className="grid gap-2 text-sm">
-            <span className="font-medium">Nom</span>
-            <Input
-              value={newNom}
-              onChange={(e) => setNewNom(e.target.value)}
-              placeholder="Ex. Mathématiques"
-              autoFocus
-            />
-          </label>
+          <div className="grid gap-4">
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">Nom</span>
+              <Input
+                value={newNom}
+                onChange={(e) => setNewNom(e.target.value)}
+                placeholder="Ex. Mathématiques"
+                autoFocus
+              />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">Coefficient</span>
+              <Input
+                type="number"
+                min={0.25}
+                max={20}
+                step={0.25}
+                value={newCoef}
+                onChange={(e) => setNewCoef(e.target.value)}
+              />
+            </label>
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
               Annuler

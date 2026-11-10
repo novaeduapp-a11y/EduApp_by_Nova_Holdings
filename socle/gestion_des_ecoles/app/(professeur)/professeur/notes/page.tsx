@@ -547,7 +547,7 @@ function ProfesseurNotesForm() {
               <TableRow className="hover:bg-transparent">
                 <TableHead className="px-4">Évaluation</TableHead>
                 <TableHead className="px-4">Classe</TableHead>
-                <TableHead className="hidden px-4 md:table-cell">Matière</TableHead>
+                <TableHead className="px-4">Matière</TableHead>
                 <TableHead className="hidden px-4 sm:table-cell">Date</TableHead>
                 <TableHead className="px-4">Saisie</TableHead>
                 <TableHead className="px-4 text-right">
@@ -576,8 +576,8 @@ function ProfesseurNotesForm() {
                     <TableCell className="px-4 py-3.5">
                       <span className={portalChipClass}>{evaluation.classe.nom}</span>
                     </TableCell>
-                    <TableCell className="hidden px-4 py-3.5 md:table-cell">
-                      {evaluation.matiere.nom}
+                    <TableCell className="px-4 py-3.5">
+                      <span className={portalChipClass}>{evaluation.matiere.nom}</span>
                     </TableCell>
                     <TableCell className="hidden px-4 py-3.5 sm:table-cell text-muted-foreground">
                       {formatDate(evaluation.date)}

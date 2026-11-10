@@ -66,7 +66,15 @@ export function BrandLockup({
   );
 }
 
-export function BrandFooter({ version }: { version?: string }) {
+export function BrandFooter({ version, compact = false }: { version?: string; compact?: boolean }) {
+  if (compact) {
+    return (
+      <View style={styles.footerCompact}>
+        <BrandLogo brand="nova" size="sm" />
+        {version ? <Text style={[styles.footerMeta, font.regular]}>v{version}</Text> : null}
+      </View>
+    );
+  }
   return (
     <View style={styles.footer}>
       <BrandLogo brand="nova" size="lg" />
@@ -84,6 +92,13 @@ const styles = StyleSheet.create({
   dividerStack: { width: 56, height: 1 },
   dividerRow: { width: 1, height: 36 },
   footer: { alignItems: "center", gap: 10, paddingVertical: 6 },
+  footerCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
   footerLine: { fontSize: 14, color: colors.muted, textAlign: "center", lineHeight: 20 },
   footerMeta: { fontSize: 13, color: colors.muted, textAlign: "center" },
 });

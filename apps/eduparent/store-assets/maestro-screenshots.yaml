@@ -1,0 +1,20 @@
+appId: host.exp.Exponent
+---
+- extendedWaitUntil:
+    visible: "Accueil"
+    timeout: 20000
+- waitForAnimationToEnd
+- takeScreenshot: 01-accueil
+# Floating tab bar — 5 equal slots (Accueil, Notes, Absences, Bulletins, Plus)
+- tapOn:
+    point: "30%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 02-notes
+- tapOn:
+    point: "50%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 03-absences
+- tapOn:
+    point: "70%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 04-bulletins

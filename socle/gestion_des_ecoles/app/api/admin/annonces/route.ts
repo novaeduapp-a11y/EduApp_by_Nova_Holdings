@@ -7,6 +7,7 @@ import { logActivite } from "@/lib/activity-log";
 const createSchema = z.object({
   titre: z.string().min(2).max(120),
   message: z.string().min(2).max(4000),
+  ecoleId: z.string().min(1).nullable().optional(),
 });
 
 export async function GET() {
@@ -15,6 +16,7 @@ export async function GET() {
     if (!authResult.ok) return authResult.response;
 
     const annonces = await prisma.annonceNova.findMany({
+      include: { ecole: { select: { id: true, nom: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
     });
@@ -25,6 +27,8 @@ export async function GET() {
         titre: annonce.titre,
         message: annonce.message,
         actif: annonce.actif,
+        ecoleId: annonce.ecoleId,
+        ecoleNom: annonce.ecole?.nom ?? null,
         createdAt: annonce.createdAt.toISOString(),
       })),
     });
@@ -44,13 +48,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Titre et message requis" }, { status: 400 });
     }
 
+    const ecoleId = parsed.data.ecoleId || null;
+    if (ecoleId) {
+      const ecole = await prisma.ecole.findUnique({ where: { id: ecoleId }, select: { id: true } });
+      if (!ecole) return NextResponse.json({ error: "Établissement introuvable" }, { status: 404 });
+    }
+
     const annonce = await prisma.annonceNova.create({
       data: {
         titre: parsed.data.titre.trim(),
         message: parsed.data.message.trim(),
+        ecoleId,
         createdBy: authResult.user.id,
         actif: true,
       },
+      include: { ecole: { select: { nom: true } } },
     });
 
     await logActivite({
@@ -58,7 +70,7 @@ export async function POST(request: NextRequest) {
       action: "annonce_creee",
       table: "annonces_nova",
       recordId: annonce.id,
-      details: { titre: annonce.titre },
+      details: { titre: annonce.titre, ecoleId },
     });
 
     return NextResponse.json(
@@ -68,6 +80,8 @@ export async function POST(request: NextRequest) {
           titre: annonce.titre,
           message: annonce.message,
           actif: annonce.actif,
+          ecoleId: annonce.ecoleId,
+          ecoleNom: annonce.ecole?.nom ?? null,
           createdAt: annonce.createdAt.toISOString(),
         },
       },

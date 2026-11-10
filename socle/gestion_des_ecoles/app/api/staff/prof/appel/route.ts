@@ -293,6 +293,35 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Créneau précédent du jour : si l’élève y était absent (billet), forcer RETARD ici.
+    const creneauxJour = await prisma.creneauEdt.findMany({
+      where: { classeId, jour },
+      orderBy: { heureDebut: "asc" },
+      select: { heureDebut: true, heureFin: true },
+    });
+    const index = creneauxJour.findIndex((c) => c.heureDebut === heureDebut && c.heureFin === heureFin);
+    const creneauPrecedent = index > 0 ? creneauxJour[index - 1] : null;
+    const absencesPrecedent = creneauPrecedent
+      ? await prisma.absence.findMany({
+          where: {
+            deletedAt: null,
+            dateAbsence: { gte: start, lte: end },
+            heureDebut: creneauPrecedent.heureDebut,
+            heureFin: creneauPrecedent.heureFin,
+            eleve: { classeId },
+          },
+          select: { eleveId: true, motif: true },
+        })
+      : [];
+    const absentPrecedent = new Set(
+      absencesPrecedent
+        .filter((row) => {
+          const s = statutFromMotif(row.motif);
+          return s === "ABSENT" || s === "ABSENT_RETARD";
+        })
+        .map((row) => row.eleveId)
+    );
+
     const createdFor: Array<{ eleveId: string; statut: "ABSENT" | "RETARD" }> = [];
 
     await prisma.$transaction(async (tx) => {
@@ -308,6 +337,11 @@ export async function PUT(request: NextRequest) {
       });
 
       for (const ligne of lignes) {
+        let statut = ligne.statut;
+        if (statut === "ABSENT" && absentPrecedent.has(ligne.eleveId)) {
+          statut = "RETARD";
+        }
+
         const existing = await tx.absence.findFirst({
           where: {
             eleveId: ligne.eleveId,
@@ -318,7 +352,7 @@ export async function PUT(request: NextRequest) {
           },
         });
 
-        if (ligne.statut === "PRESENT") {
+        if (statut === "PRESENT") {
           if (existing) {
             await tx.absence.update({
               where: { id: existing.id },
@@ -328,7 +362,7 @@ export async function PUT(request: NextRequest) {
           continue;
         }
 
-        const motif = motifFromStatut(ligne.statut);
+        const motif = motifFromStatut(statut);
         if (existing) {
           await tx.absence.update({
             where: { id: existing.id },
@@ -355,8 +389,8 @@ export async function PUT(request: NextRequest) {
               createdBy: authResult.user.id,
             },
           });
-          if (ligne.statut === "ABSENT" || ligne.statut === "RETARD") {
-            createdFor.push({ eleveId: ligne.eleveId, statut: ligne.statut });
+          if (statut === "ABSENT" || statut === "RETARD") {
+            createdFor.push({ eleveId: ligne.eleveId, statut });
           }
         }
       }

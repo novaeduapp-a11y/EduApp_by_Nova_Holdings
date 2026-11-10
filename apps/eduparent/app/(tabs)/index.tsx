@@ -1,214 +1,292 @@
-import { useCallback, useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "expo-status-bar";
-import { useFocusEffect, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card } from "@/components/Card";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
-import { EmptyState } from "@/components/EmptyState";
-import { Enter } from "@/components/Enter";
-import { LoadError, loadErrorMessage } from "@/components/LoadError";
-import { Skeleton } from "@/components/Skeleton";
-import { useSession } from "@/context/session";
-import { fetchAccueil } from "@/lib/api";
-import {
-  colors,
-  font,
-  greeting,
-  noteColor,
-  noteLabel,
-  pressStyle,
-  radius,
-  shadow,
-  space,
-  type,
-  useReduceMotion,
-} from "@/lib/theme";
-
-type Accueil = Awaited<ReturnType<typeof fetchAccueil>>["data"];
-const MAX_NOTES = 3;
-
-export default function AccueilScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
-  const { user, enfants, selected } = useSession();
-  const [accueil, setAccueil] = useState<Accueil | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hello = greeting();
-
-  const load = useCallback(async () => {
-    if (!selected) {
-      setAccueil(null);
-      setError(null);
-      return;
-    }
-    setError(null);
-    const res = await fetchAccueil(selected.id);
-    setAccueil(res.data);
-  }, [selected?.id]);
-
-  const runLoad = useCallback(() => {
-    setLoading(true);
-    load()
-      .catch((err) => setError(loadErrorMessage(err)))
-      .finally(() => setLoading(false));
-  }, [load]);
-
-  useEffect(() => {
-    if (!selected) {
-      setAccueil(null);
-      setError(null);
-      return;
-    }
-    runLoad();
-  }, [runLoad, selected]);
-
-  useFocusEffect(
-    useCallback(() => {
-      runLoad();
-    }, [runLoad])
-  );
-
-  const notesRecentes = accueil?.notesRecentes.slice(0, MAX_NOTES) ?? [];
-
-  return (
-    <View style={styles.screen}>
-      <StatusBar style="light" />
-      <LinearGradient
-        colors={[colors.primaryDeep, colors.primary, "#3D7AE8"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.hero, { paddingTop: insets.top + 12 }]}
-      >
-        <Text style={[styles.kicker, font.medium]}>{hello}</Text>
-        <Text style={[styles.hello, font.bold]}>{user?.prenom ?? "Parent"}</Text>
-        {enfants.length > 0 ? <ChildSwitcher light /> : null}
-      </LinearGradient>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.body}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => {
-              setRefreshing(true);
-              try {
-                await load();
-              } catch (err) {
-                setError(loadErrorMessage(err));
-              } finally {
-                setRefreshing(false);
-              }
-            }}
-            tintColor={colors.primary}
-          />
-        }
-      >
-        {loading && !accueil ? <Skeleton count={2} /> : null}
-        {error ? <LoadError message={error} onRetry={runLoad} /> : null}
-
-        {accueil ? (
-          <Enter>
-            <View style={styles.kpis}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Moyenne ${accueil.moyenne?.valeur != null ? Number(accueil.moyenne.valeur).toFixed(1) : "non calculée"}. Voir les notes`}
-                onPress={() => router.push("/notes")}
-                style={({ pressed }) => [styles.kpi, styles.kpiMain, shadow.card, pressStyle(pressed, reduceMotion)]}
-              >
-                <Text style={[styles.kpiEyebrow, font.medium]}>Moyenne</Text>
-                <Text style={[styles.kpiHero, font.bold, { color: noteColor(accueil.moyenne?.valeur ?? null) }]}>
-                  {accueil.moyenne?.valeur != null ? Number(accueil.moyenne.valeur).toFixed(1) : "—"}
-                </Text>
-                <Text style={[styles.kpiHint, font.medium]}>{noteLabel(accueil.moyenne?.valeur ?? null)} / 20</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${accueil.absences.total} absences. Voir les absences`}
-                onPress={() => router.push("/absences")}
-                style={({ pressed }) => [styles.kpi, styles.kpiSide, shadow.card, pressStyle(pressed, reduceMotion)]}
-              >
-                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                <Text style={[styles.kpiValue, font.bold]}>{accueil.absences.total}</Text>
-                <Text style={[styles.kpiLabel, font.medium]}>Absences</Text>
-              </Pressable>
-            </View>
-          </Enter>
-        ) : null}
-
-        <Enter index={1}>
-          <Card accessibilityLabel="Voir les notes récentes" onPress={() => router.push("/notes")}>
-            <View style={styles.panelHead}>
-              <Text style={[styles.panelTitle, font.bold]}>Notes récentes</Text>
-              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-            </View>
-            {notesRecentes.map((note) => {
-              const value = note.valeur == null ? null : Number(note.valeur);
-              return (
-                <View key={note.id} style={styles.noteRow}>
-                  <View style={[styles.noteMark, { backgroundColor: noteColor(value) }]} />
-                  <Text style={[styles.row, font.regular]} numberOfLines={1}>
-                    {note.matiere} · {note.evaluation}
-                  </Text>
-                  <Text style={[styles.noteVal, font.bold, { color: noteColor(value) }]}>
-                    {value == null ? "—" : value}
-                  </Text>
-                </View>
-              );
-            })}
-            {accueil && accueil.notesRecentes.length === 0 ? (
-              <Text style={[styles.row, font.regular]}>Aucune note publiée pour le moment.</Text>
-            ) : null}
-            {accueil && accueil.notesRecentes.length > MAX_NOTES ? (
-              <Text style={[styles.more, font.medium]}>Voir toutes les notes</Text>
-            ) : null}
-          </Card>
-        </Enter>
-
-        {!selected ? (
-          <EmptyState
-            icon="people-outline"
-            title="Aucun enfant lié"
-            body="Dès que l’établissement associera un élève à ce compte, le suivi apparaîtra ici."
-          />
-        ) : null}
-      </ScrollView>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  hero: { paddingHorizontal: 20, paddingBottom: 16, gap: 6 },
-  scroll: { flex: 1 },
-  body: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 96, gap: space.section },
-  kicker: { fontSize: 14, color: "rgba(255,255,255,0.78)", letterSpacing: 0.4 },
-  hello: { fontSize: 32, color: colors.white, lineHeight: 38, letterSpacing: -0.7, marginBottom: 4 },
-  kpis: { flexDirection: "row", gap: 10 },
-  kpi: {
-    backgroundColor: colors.white,
-    borderRadius: radius.card,
-    padding: 14,
-  },
-  kpiMain: { flex: 1.2, justifyContent: "center", minHeight: 132 },
-  kpiSide: { flex: 0.9, alignItems: "flex-start", justifyContent: "center", gap: 4 },
-  kpiEyebrow: { fontSize: 12, color: colors.muted },
-  kpiHero: { fontSize: 36, fontVariant: ["tabular-nums"], letterSpacing: -1, marginVertical: 4 },
-  kpiHint: { fontSize: 13, color: colors.muted },
-  kpiValue: { fontSize: 24, color: colors.text, fontVariant: ["tabular-nums"], marginTop: 4 },
-  kpiLabel: { fontSize: 12, color: colors.muted },
-  panelHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  panelTitle: { fontSize: type.body, color: colors.text },
-  row: { fontSize: 15, color: colors.muted, lineHeight: 22, flex: 1 },
-  noteRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 28 },
-  noteMark: { width: 4, height: 22, borderRadius: 2 },
-  noteVal: { fontSize: type.body, fontVariant: ["tabular-nums"] },
-  more: { fontSize: 13, color: colors.primary, marginTop: 8 },
-});
-
+import { useCallback, useEffect, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
+import { Card } from "@/components/Card";
+import { EmptyState } from "@/components/EmptyState";
+import { Enter } from "@/components/Enter";
+import { LoadError, loadErrorMessage } from "@/components/LoadError";
+import { NavRow } from "@/components/NavRow";
+import { PortalHeader } from "@/components/PortalHeader";
+import { Screen } from "@/components/Screen";
+import { Skeleton } from "@/components/Skeleton";
+import { useSession } from "@/context/session";
+import { fetchAccueil, fetchBulletins } from "@/lib/api";
+import { formatDate, formatNoteFr, rangLabel } from "@/lib/format";
+import { colors, font, pressStyle, radius, space, type, useReduceMotion } from "@/lib/theme";
+
+type Accueil = Awaited<ReturnType<typeof fetchAccueil>>["data"];
+
+export default function AccueilScreen() {
+  const router = useRouter();
+  const reduceMotion = useReduceMotion();
+  const { user, selected, unreadCount } = useSession();
+  const [accueil, setAccueil] = useState<Accueil | null>(null);
+  const [bulletin, setBulletin] = useState<Awaited<ReturnType<typeof fetchBulletins>>["data"][number] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!selected) {
+      setAccueil(null);
+      setBulletin(null);
+      return;
+    }
+    setError(null);
+    const [a, b] = await Promise.all([
+      fetchAccueil(selected.id),
+      fetchBulletins(selected.id).catch(() => null),
+    ]);
+    setAccueil(a.data);
+    setBulletin(b?.data?.[0] ?? null);
+  }, [selected?.id]);
+
+  const runLoad = useCallback(() => {
+    if (!selected) return;
+    setLoading(true);
+    load()
+      .catch((err) => setError(loadErrorMessage(err)))
+      .finally(() => setLoading(false));
+  }, [load, selected]);
+
+  useEffect(() => {
+    if (!selected) {
+      setAccueil(null);
+      setError(null);
+      return;
+    }
+    runLoad();
+  }, [runLoad, selected]);
+
+  useFocusEffect(
+    useCallback(() => {
+      runLoad();
+    }, [runLoad])
+  );
+
+  const moyenne = accueil?.moyenne?.valeur != null ? Number(accueil.moyenne.valeur) : null;
+  const rang = accueil?.moyenne?.rang;
+  const absencesJours = accueil?.absences.total ?? 0;
+  const matieres = accueil?.matieresSuivies ?? 0;
+  const parentLabel = user?.prenom ?? "Parent";
+
+  return (
+    <Screen
+      refreshing={refreshing}
+      onRefresh={async () => {
+        setRefreshing(true);
+        try {
+          await load();
+        } catch (err) {
+          setError(loadErrorMessage(err));
+        } finally {
+          setRefreshing(false);
+        }
+      }}
+    >
+      <PortalHeader />
+
+      {loading && !accueil ? <Skeleton count={3} /> : null}
+      {error ? <LoadError message={error} onRetry={runLoad} /> : null}
+
+      {accueil && (unreadCount > 0 || bulletin) ? (
+        <Enter>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Voir les alertes"
+            onPress={() => {
+              if (bulletin && unreadCount === 0) {
+                router.push({
+                  pathname: "/bulletin",
+                  params: { eleveId: selected?.id ?? "", bulletinId: bulletin.id },
+                } as unknown as Href);
+                return;
+              }
+              router.push("/notifications" as Href);
+            }}
+            style={({ pressed }) => [styles.banner, pressStyle(pressed, reduceMotion)]}
+          >
+            <Text style={[styles.bannerText, font.regular]}>
+              Bonjour {parentLabel} !{" "}
+              {unreadCount > 0 ? (
+                <>
+                  Vous avez{" "}
+                  <Text style={[styles.bannerLink, font.semibold]}>
+                    {unreadCount} notification{unreadCount > 1 ? "s" : ""}
+                  </Text>
+                  .
+                </>
+              ) : bulletin ? (
+                <>
+                  {selected?.prenom} a{" "}
+                  <Text style={[styles.bannerLink, font.semibold]}>un nouveau bulletin</Text>. Consultez ses
+                  résultats.
+                </>
+              ) : null}
+            </Text>
+          </Pressable>
+        </Enter>
+      ) : null}
+
+      {accueil ? (
+        <Enter index={1}>
+          <Text style={[styles.sectionLabel, font.bold]}>APERÇU</Text>
+          <View style={styles.grid}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voir les notes"
+              onPress={() => router.push("/notes")}
+              style={({ pressed }) => [styles.kpi, pressStyle(pressed, reduceMotion)]}
+            >
+              <View style={[styles.kpiIcon, { backgroundColor: colors.tint }]}>
+                <Ionicons name="bar-chart" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.kpiValue, font.bold, { color: colors.primary }]}>
+                {moyenne != null ? `${formatNoteFr(moyenne)} / 20` : "—"}
+              </Text>
+              <Text style={[styles.kpiLabel, font.medium]}>Moyenne</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voir les notes"
+              onPress={() => router.push("/notes")}
+              style={({ pressed }) => [styles.kpi, pressStyle(pressed, reduceMotion)]}
+            >
+              <View style={[styles.kpiIcon, { backgroundColor: colors.tint }]}>
+                <Ionicons name="trophy" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.kpiValue, font.bold, { color: colors.primary }]}>
+                {rang != null ? rangLabel(rang, false) : "—"}
+              </Text>
+              <Text style={[styles.kpiLabel, font.medium]}>Rang</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voir les absences"
+              onPress={() => router.push("/absences")}
+              style={({ pressed }) => [styles.kpi, pressStyle(pressed, reduceMotion)]}
+            >
+              <View style={[styles.kpiIcon, { backgroundColor: colors.failSoft }]}>
+                <Ionicons name="calendar" size={18} color={colors.fail} />
+              </View>
+              <Text style={[styles.kpiValue, font.bold, { color: colors.fail }]}>
+                {absencesJours} jour{absencesJours > 1 ? "s" : ""}
+              </Text>
+              <Text style={[styles.kpiLabel, font.medium]}>Absences</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Voir les notes par matière"
+              onPress={() => router.push("/notes")}
+              style={({ pressed }) => [styles.kpi, pressStyle(pressed, reduceMotion)]}
+            >
+              <View style={[styles.kpiIcon, { backgroundColor: colors.tint }]}>
+                <Ionicons name="book" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.kpiValue, font.bold, { color: colors.primary }]}>
+                {matieres} suivie{matieres > 1 ? "s" : ""}
+              </Text>
+              <Text style={[styles.kpiLabel, font.medium]}>Matières</Text>
+            </Pressable>
+          </View>
+        </Enter>
+      ) : null}
+
+      {accueil ? (
+        <Enter index={2}>
+          <Text style={[styles.sectionLabel, font.bold]}>ACCÈS RAPIDE</Text>
+          <Card accessibilityLabel="Voir l’emploi du temps" onPress={() => router.push("/edt")}>
+            <View style={styles.edtRow}>
+              <View style={[styles.kpiIcon, { backgroundColor: colors.tint }]}>
+                <Ionicons name="document-text" size={18} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.edtTitle, font.bold]}>Voir l’emploi du temps</Text>
+                <Text style={[styles.edtMeta, font.regular]}>
+                  Aujourd’hui · {accueil.coursDuJour.length} cours
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </View>
+          </Card>
+        </Enter>
+      ) : null}
+
+      {accueil ? (
+        <Enter index={3}>
+          <View style={styles.links}>
+            <NavRow
+              icon="document-text-outline"
+              title="Bulletins"
+              subtitle={
+                bulletin
+                  ? `${bulletin.periode}${bulletin.dateGeneration ? ` · ${formatDate(bulletin.dateGeneration)}` : ""}`
+                  : "Consulter les bulletins"
+              }
+              onPress={() => router.push("/bulletins")}
+            />
+            <NavRow
+              icon="calendar-outline"
+              title="Absences"
+              subtitle={
+                accueil.absences.nonJustifiees > 0
+                  ? `${accueil.absences.nonJustifiees} à justifier`
+                  : `${accueil.absences.total} absence${accueil.absences.total > 1 ? "s" : ""}`
+              }
+              onPress={() => router.push("/absences")}
+            />
+          </View>
+        </Enter>
+      ) : null}
+
+      {!selected ? (
+        <EmptyState
+          icon="people-outline"
+          title="Aucun enfant lié"
+          body="Dès que l’établissement associera un élève à ce compte, le suivi apparaîtra ici."
+        />
+      ) : null}
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  sectionLabel: {
+    fontSize: 12,
+    color: colors.muted,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  banner: {
+    borderRadius: radius.card,
+    backgroundColor: colors.tint,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  bannerText: { fontSize: 15, color: colors.text, lineHeight: 22 },
+  bannerLink: { color: colors.primary },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  kpi: {
+    width: "47.5%",
+    flexGrow: 1,
+    minWidth: "45%",
+    backgroundColor: colors.white,
+    borderRadius: radius.card,
+    padding: 14,
+    gap: 8,
+  },
+  kpiIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  kpiValue: { fontSize: 20, fontVariant: ["tabular-nums"] },
+  kpiLabel: { fontSize: 13, color: colors.muted },
+  edtRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  edtTitle: { fontSize: type.body, color: colors.text },
+  edtMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  links: { gap: space.group },
+});

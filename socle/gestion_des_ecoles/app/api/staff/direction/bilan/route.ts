@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
       prisma.communique.findMany({
         where: { ecoleId, urgent: true },
         orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { id: true, titre: true, createdAt: true },
+        take: 20,
+        select: { id: true, titre: true, corps: true, createdAt: true },
       }),
       prisma.noteAgenda.findMany({
         where: { ecoleId, date: { gte: start, lte: end } },
@@ -126,6 +126,7 @@ export async function GET(request: NextRequest) {
         alertes: alertes.map((item) => ({
           id: item.id,
           titre: item.titre,
+          corps: item.corps,
           date: item.createdAt.toISOString(),
         })),
         agenda: agenda.map((item) => ({
@@ -153,28 +154,48 @@ export async function POST(request: NextRequest) {
     }
 
     const { date, start } = parseDateIso(parsed.data.date ?? null);
+    const titre = parsed.data.titre.trim();
+    const corps = parsed.data.detail?.trim() || "Perturbation signalée par la direction.";
+
+    // Créer un vrai communiqué (pour relecture + EduParent) + l’événement du jour.
+    const communique = await prisma.communique.create({
+      data: {
+        ecoleId,
+        auteurId: id,
+        titre,
+        corps,
+        urgent: true,
+        destinataires: "TOUS",
+        familleCycle: null,
+      },
+    });
+
     const evenement = await prisma.evenementJour.create({
       data: {
         ecoleId,
         date: start,
         type: "PERTURBATION",
-        titre: parsed.data.titre.trim(),
+        titre,
         detail: parsed.data.detail?.trim() || null,
         auteurId: id,
       },
     });
 
     const envoyes = await fanOutCommunique({
-      communiqueId: evenement.id,
+      communiqueId: communique.id,
       ecoleId,
       familleCycle: null,
       destinataires: "TOUS",
-      titre: parsed.data.titre.trim(),
-      corps: parsed.data.detail?.trim() || "Perturbation signalée par la direction.",
+      titre,
+      corps,
       urgent: true,
+      excludeUserId: id,
     });
 
-    return NextResponse.json({ data: { id: evenement.id, date, envoyes } }, { status: 201 });
+    return NextResponse.json(
+      { data: { id: evenement.id, communiqueId: communique.id, date, envoyes } },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Erreur saisie perturbation:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

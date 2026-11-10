@@ -161,7 +161,7 @@ export type ProfEvaluationDetail = {
   }[];
 };
 
-export type AppelStatut = "PRESENT" | "ABSENT" | "RETARD";
+export type AppelStatut = "PRESENT" | "ABSENT" | "RETARD" | "ABSENT_RETARD";
 
 export async function fetchProfAccueil() {
   return request<{ data: ProfAccueil }>("/api/staff/prof/accueil");
@@ -199,30 +199,70 @@ export async function saveProfNotes(
   });
 }
 
-export async function fetchAppel(classeId: string, date: string) {
+export type AppelCreneau = {
+  id: string;
+  heureDebut: string;
+  heureFin: string;
+  matiereId: string;
+  matiereNom: string;
+  salle: string | null;
+};
+
+export async function fetchAppel(
+  classeId: string,
+  date: string,
+  creneau?: { heureDebut: string; heureFin: string }
+) {
+  const params = new URLSearchParams({
+    classeId,
+    date,
+  });
+  if (creneau) {
+    params.set("heureDebut", creneau.heureDebut);
+    params.set("heureFin", creneau.heureFin);
+  }
   return request<{
     data: {
       classeId: string;
       classeNom: string;
       date: string;
+      verrouille?: boolean;
+      message?: string;
+      creneaux: AppelCreneau[];
+      creneau: AppelCreneau | null;
+      precedent: {
+        heureDebut: string;
+        heureFin: string;
+        matiereNom: string;
+        professeurNom: string | null;
+      } | null;
       eleves: Array<{
         eleveId: string;
         nom: string;
         prenom: string;
         matricule: string;
         statut: AppelStatut;
+        statutPrecedent?: AppelStatut;
       }>;
     };
-  }>(`/api/staff/prof/appel?classeId=${encodeURIComponent(classeId)}&date=${encodeURIComponent(date)}`);
+  }>(`/api/staff/prof/appel?${params}`);
 }
 
 export async function saveAppel(
   classeId: string,
   date: string,
-  lignes: Array<{ eleveId: string; statut: AppelStatut }>
+  lignes: Array<{ eleveId: string; statut: AppelStatut }>,
+  creneau: { heureDebut: string; heureFin: string; matiereId?: string }
 ) {
   return request<{ data: { saved: number } }>("/api/staff/prof/appel", {
     method: "PUT",
-    body: JSON.stringify({ classeId, date, lignes }),
+    body: JSON.stringify({
+      classeId,
+      date,
+      heureDebut: creneau.heureDebut,
+      heureFin: creneau.heureFin,
+      matiereId: creneau.matiereId,
+      lignes,
+    }),
   });
 }

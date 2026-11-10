@@ -11,7 +11,7 @@ import { portalMutedClass, portalPanelClass, portalTitleClass } from "@/componen
 
 type Fil = {
   id: string | null;
-  kind?: "direction" | "professeur";
+  kind?: "direction" | "directeur" | "prefet" | "professeur";
   interlocuteurId: string;
   interlocuteur: string;
   detail: string;
@@ -154,7 +154,14 @@ export function StaffMessagesPage({
         if (!res.ok) throw new Error(body.error);
         await openFil(selected);
       } else {
-        const payloadKey = selected.kind === "professeur" ? "professeurId" : startPayloadKey;
+        const payloadKey =
+          selected.kind === "professeur"
+            ? "professeurId"
+            : selected.kind === "directeur"
+              ? "directeurId"
+              : selected.kind === "prefet"
+                ? "prefetId"
+                : startPayloadKey;
         const res = await fetch(listUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

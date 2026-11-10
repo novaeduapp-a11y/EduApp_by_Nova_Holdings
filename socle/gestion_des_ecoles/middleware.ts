@@ -3,7 +3,23 @@ import { getHomePathForRole } from "@/lib/role-routes";
 import { NextResponse } from "next/server";
 import { adminOrigin, isAdminHostname, isPublicAppHostname } from "@/lib/hosts";
 
-const publicRoutes = ["/", "/login", "/app", "/eduadmins", "/api/auth", "/api/mobile", "/api/parent", "/api/staff", "/api/admin", "/api/ecoles", "/api/public", "/api/bulletins/verifier", "/bulletins/verifier"];
+const publicRoutes = [
+  "/",
+  "/login",
+  "/app",
+  "/eduadmins",
+  "/ouvrir",
+  "/installer-android",
+  "/api/auth",
+  "/api/mobile",
+  "/api/parent",
+  "/api/staff",
+  "/api/admin",
+  "/api/ecoles",
+  "/api/public",
+  "/api/bulletins/verifier",
+  "/bulletins/verifier",
+];
 const authRoutes = ["/login"];
 
 export default auth((req) => {

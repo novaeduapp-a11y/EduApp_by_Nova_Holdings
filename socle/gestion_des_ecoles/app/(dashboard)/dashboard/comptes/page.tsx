@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronLeft, ChevronRight, KeyRound, Pencil, Plus, RotateCcw, Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, KeyRound, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -111,7 +112,10 @@ export default function AdminComptesPage() {
 
 function AdminComptesForm() {
   const { toast } = useToast();
+  const router = useRouter();
+  const { update } = useSession();
   const searchParams = useSearchParams();
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [ecoles, setEcoles] = useState<Ecole[]>([]);
   const [comptes, setComptes] = useState<Compte[]>([]);
   const [matieres, setMatieres] = useState<{ id: string; nom: string }[]>([]);
@@ -124,6 +128,7 @@ function AdminComptesForm() {
   const [ecoleSearch, setEcoleSearch] = useState("");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [editing, setEditing] = useState<Compte | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [toToggle, setToToggle] = useState<Compte | null>(null);
@@ -168,7 +173,7 @@ function AdminComptesForm() {
         await load(ecoleId);
         if (ecoleId) setSelectedEcoleId(ecoleId);
         setStatus("ready");
-        if (searchParams.get("creer") === "1" && ecoleId) setFormOpen(true);
+        if (searchParams.get("creer") === "1" && ecoleId) setOnboardingOpen(true);
       } catch {
         setStatus("error");
         toast({ variant: "destructive", title: "Impossible de charger les comptes" });
@@ -235,12 +240,13 @@ function AdminComptesForm() {
   const from = filtered.length === 0 ? 0 : (pageSafe - 1) * PAGE_SIZE + 1;
   const to = Math.min(pageSafe * PAGE_SIZE, filtered.length);
 
-  const openCreate = () => {
+  const openCreate = (role: Role = (searchParams.get("role") as Role) || "DIRECTEUR") => {
     setEditing(null);
+    setOnboardingOpen(false);
     setForm({
       ...EMPTY_FORM,
       ecoleId: selectedEcoleId || "",
-      role: (searchParams.get("role") as Role) || "DIRECTEUR",
+      role,
     });
     setFormOpen(true);
   };
@@ -276,7 +282,6 @@ function AdminComptesForm() {
             ecoleId: form.role === "ADMIN" ? null : form.ecoleId,
             familleCycle: form.role === "PREFET" ? form.familleCycle : null,
             typeProfesseur: form.role === "PROFESSEUR" ? form.typeProfesseur : null,
-            matiereIds: form.role === "PROFESSEUR" && form.typeProfesseur === "MATIERE" ? form.matiereIds : [],
             password: form.password || undefined,
           }),
         });
@@ -296,7 +301,6 @@ function AdminComptesForm() {
             ecoleId: form.role === "ADMIN" ? null : form.ecoleId,
             familleCycle: form.role === "PREFET" ? form.familleCycle : null,
             typeProfesseur: form.role === "PROFESSEUR" ? form.typeProfesseur : null,
-            matiereIds: form.role === "PROFESSEUR" && form.typeProfesseur === "MATIERE" ? form.matiereIds : [],
             password: form.password || undefined,
           }),
         });
@@ -377,6 +381,32 @@ function AdminComptesForm() {
     }
   };
 
+  const startImpersonation = async (compte: Compte) => {
+    if (compte.role === "ADMIN" || compte.deletedAt || !compte.actif) return;
+    setImpersonatingId(compte.id);
+    try {
+      const res = await fetch("/api/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: compte.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      await update({ impersonateUserId: compte.id });
+      toast({ title: `Vue ${body.data?.label ?? "compte"}` });
+      router.replace(body.data?.redirectTo ?? "/dashboard");
+      router.refresh();
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Impersonation refusée",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setImpersonatingId(null);
+    }
+  };
+
   const confirmRestore = async () => {
     if (!toRestore) return;
     setBusy(true);
@@ -407,8 +437,7 @@ function AdminComptesForm() {
     form.prenom.trim().length >= 2 &&
     form.nom.trim().length >= 2 &&
     (editing || form.email.trim().includes("@")) &&
-    (form.role === "ADMIN" || Boolean(form.ecoleId)) &&
-    (form.role !== "PROFESSEUR" || form.typeProfesseur !== "MATIERE" || form.matiereIds.length >= 1);
+    (form.role === "ADMIN" || Boolean(form.ecoleId));
 
   if (!selectedEcoleId) {
     return (
@@ -496,7 +525,7 @@ function AdminComptesForm() {
             {status === "ready" ? ` · ${comptes.length}` : ""}.
           </p>
         </div>
-        <Button type="button" onClick={openCreate}>
+        <Button type="button" onClick={() => openCreate()}>
           <Plus className="h-4 w-4" aria-hidden />
           Nouveau compte
         </Button>
@@ -542,7 +571,7 @@ function AdminComptesForm() {
         <div className={`${portalPanelClass} py-10 text-center`}>
           <p className="font-medium text-foreground">Aucun compte pour cet établissement</p>
           <p className={`${portalMutedClass} mt-1`}>Créez un directeur ou un préfet.</p>
-          <Button type="button" className="mt-4" onClick={openCreate}>
+          <Button type="button" className="mt-4" onClick={() => openCreate()}>
             Nouveau compte
           </Button>
         </div>
@@ -587,6 +616,18 @@ function AdminComptesForm() {
                         </Button>
                       ) : (
                         <>
+                          {compte.actif ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Voir comme ${compte.prenom}`}
+                              disabled={impersonatingId === compte.id}
+                              onClick={() => void startImpersonation(compte)}
+                            >
+                              <Eye />
+                            </Button>
+                          ) : null}
                           {compte.role !== "PARENT" ? (
                             <Button type="button" variant="ghost" size="icon" aria-label={`Modifier ${compte.prenom}`} onClick={() => openEdit(compte)}>
                               <Pencil />
@@ -637,6 +678,42 @@ function AdminComptesForm() {
           </div>
         </>
       )}
+
+      <Dialog open={onboardingOpen} onOpenChange={setOnboardingOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Établissement créé — comptes à préparer</DialogTitle>
+            <DialogDescription>
+              Créez maintenant le directeur, le(s) préfet(s) puis les professeurs. Les matières
+              seront affectées ensuite par le préfet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {(
+              [
+                { role: "DIRECTEUR" as Role, label: "Créer le directeur" },
+                { role: "PREFET" as Role, label: "Créer un préfet" },
+                { role: "PROFESSEUR" as Role, label: "Créer un professeur" },
+              ] as const
+            ).map((item) => (
+              <Button
+                key={item.role}
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => openCreate(item.role)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setOnboardingOpen(false)}>
+              Plus tard
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={formOpen}
@@ -728,29 +805,9 @@ function AdminComptesForm() {
               </Field>
             ) : null}
             {form.role === "PROFESSEUR" && form.typeProfesseur === "MATIERE" ? (
-              <div className="sm:col-span-2">
-                <p className="mb-2 text-sm font-medium">Matières enseignées</p>
-                <p className="mb-2 text-xs text-muted-foreground">Une par défaut. Cochez une seconde seulement si le prof l’enseigne vraiment.</p>
-                <div className="grid max-h-48 gap-2 overflow-y-auto overscroll-contain rounded-2xl border border-border/60 p-3 sm:grid-cols-2">
-                  {matieres.map((matiere) => (
-                    <label key={matiere.id} className="flex min-h-10 items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={form.matiereIds.includes(matiere.id)}
-                        onChange={() =>
-                          setForm((current) => ({
-                            ...current,
-                            matiereIds: current.matiereIds.includes(matiere.id)
-                              ? current.matiereIds.filter((id) => id !== matiere.id)
-                              : [...current.matiereIds, matiere.id],
-                          }))
-                        }
-                      />
-                      {matiere.nom}
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <p className="sm:col-span-2 text-xs text-muted-foreground">
+                L’affectation des matières aux professeurs se fait côté préfet (page Classes / Matières).
+              </p>
             ) : null}
             {!editing ? (
               <div className="sm:col-span-2">

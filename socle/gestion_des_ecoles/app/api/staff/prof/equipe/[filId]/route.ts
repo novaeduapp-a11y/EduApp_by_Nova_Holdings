@@ -75,12 +75,15 @@ export async function POST(
       include: { auteur: { select: { prenom: true, nom: true, role: true } } },
     });
     await prisma.filStaff.update({ where: { id: filId }, data: { updatedAt: new Date() } });
-    await notifyStaffMessage({
-      destinataireId: fil.prefetId,
-      titre: "Message d’un professeur",
-      message: `${prenom} ${nom} : ${parsed.data.corps.trim().slice(0, 120)}`,
-      filId,
-    });
+    const destinataireId = fil.directeurId ?? fil.prefetId;
+    if (destinataireId) {
+      await notifyStaffMessage({
+        destinataireId,
+        titre: "Message d’un professeur",
+        message: `${prenom} ${nom} : ${parsed.data.corps.trim().slice(0, 120)}`,
+        filId,
+      });
+    }
 
     return NextResponse.json({ data: serializeMessageStaff(message) }, { status: 201 });
   } catch (error) {

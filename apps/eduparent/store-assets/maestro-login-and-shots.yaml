@@ -1,0 +1,40 @@
+appId: host.exp.Exponent
+---
+# App already opened via simctl openurl before this flow runs.
+- extendedWaitUntil:
+    visible: "Se connecter"
+    timeout: 180000
+    optional: true
+- runFlow:
+    when:
+      visible: "Se connecter"
+    commands:
+      - tapOn:
+          text: "E-mail"
+      - eraseText
+      - inputText: "parent@ecole.sn"
+      - tapOn:
+          text: "Mot de passe"
+      - eraseText
+      - inputText: "Admin@123"
+      - tapOn: "Se connecter"
+- extendedWaitUntil:
+    visible: "Accueil"
+    timeout: 120000
+- waitForAnimationToEnd
+- tapOn:
+    point: "10%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 01-accueil
+- tapOn:
+    point: "30%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 02-notes
+- tapOn:
+    point: "50%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 03-absences
+- tapOn:
+    point: "70%,94%"
+- waitForAnimationToEnd
+- takeScreenshot: 04-bulletins

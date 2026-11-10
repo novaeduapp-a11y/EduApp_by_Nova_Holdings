@@ -1,48 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useRouter, type Href } from "expo-router";
 import { Card } from "@/components/Card";
 import { Chip } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { Enter } from "@/components/Enter";
 import { LoadError, loadErrorMessage } from "@/components/LoadError";
-import { PageTitle } from "@/components/PageTitle";
+import { PortalHeader } from "@/components/PortalHeader";
 import { Screen } from "@/components/Screen";
 import { SearchBar } from "@/components/SearchBar";
 import { Skeleton } from "@/components/Skeleton";
 import { useSession } from "@/context/session";
 import { fetchNotes } from "@/lib/api";
-import { matchesQuery, uniqueValues } from "@/lib/filter";
-import { formatDate } from "@/lib/format";
-import { colors, font, noteColor, radius, space, type } from "@/lib/theme";
-
-function evalLabel(type: string) {
-  if (type === "DEVOIR") return "Devoir";
-  if (type === "COMPOSITION") return "Composition";
-  if (type === "INTERROGATION") return "Interrogation";
-  if (type === "TP") return "Travaux pratiques";
-  return type;
-}
-
-function mentionOf(value: number | null) {
-  if (value == null) return "Non calculée";
-  if (value >= 16) return "Très bien";
-  if (value >= 14) return "Bien";
-  if (value >= 12) return "Assez bien";
-  if (value >= 10) return "Passable";
-  return "Insuffisant";
-}
-
-function rangLabel(rang: number) {
-  return rang === 1 ? "1er de la classe" : `${rang}e de la classe`;
-}
-
-function scoreOn20(valeur: number, noteMax: number) {
-  const max = noteMax || 20;
-  return (valeur / max) * 20;
-}
+import { matchesQuery } from "@/lib/filter";
+import { formatNoteFr, rangLabel } from "@/lib/format";
+import { colors, font, noteColor, noteSoft, pressStyle, radius, type, useReduceMotion } from "@/lib/theme";
 
 export default function NotesScreen() {
+  const router = useRouter();
+  const reduceMotion = useReduceMotion();
   const { selected } = useSession();
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -50,7 +27,6 @@ export default function NotesScreen() {
   const [payload, setPayload] = useState<Awaited<ReturnType<typeof fetchNotes>>["data"] | null>(null);
   const [periode, setPeriode] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
 
   const periodes = useMemo(() => {
     const ordered: string[] = [];
@@ -63,34 +39,45 @@ export default function NotesScreen() {
     return ordered;
   }, [payload]);
 
-  const notesFiltrees = useMemo(() => {
-    if (!periode) return [];
-    return (payload?.notes ?? []).filter((note) => {
-      if (note.periode !== periode) return false;
-      if (typeFilter && note.type !== typeFilter) return false;
-      return matchesQuery(query, note.matiere, note.evaluation, evalLabel(note.type));
-    });
-  }, [payload, periode, query, typeFilter]);
-
-  const types = useMemo(
-    () => uniqueValues((payload?.notes ?? []).filter((note) => note.periode === periode).map((note) => note.type)),
-    [payload, periode]
-  );
-
   const generale = useMemo(
     () => payload?.moyennesGenerales.find((m) => m.periode === periode) ?? null,
     [payload, periode]
   );
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, typeof notesFiltrees>();
-    for (const note of notesFiltrees) {
-      const list = map.get(note.matiere) ?? [];
-      list.push(note);
-      map.set(note.matiere, list);
+  const subjects = useMemo(() => {
+    if (!periode || !payload) return [];
+    const map = new Map<
+      string,
+      {
+        matiere: string;
+        moyenne: number | null;
+        coefficient?: number;
+        professeur?: string | null;
+        count: number;
+      }
+    >();
+    for (const m of payload.moyennesMatieres.filter((item) => item.periode === periode)) {
+      map.set(m.matiere, {
+        matiere: m.matiere,
+        moyenne: m.moyenne != null ? Number(m.moyenne) : null,
+        coefficient: m.coefficient,
+        professeur: m.professeur,
+        count: 0,
+      });
     }
-    return Array.from(map.entries());
-  }, [notesFiltrees]);
+    for (const note of payload.notes.filter((n) => n.periode === periode)) {
+      const current = map.get(note.matiere) ?? {
+        matiere: note.matiere,
+        moyenne: null,
+        count: 0,
+      };
+      current.count += 1;
+      map.set(note.matiere, current);
+    }
+    return Array.from(map.values())
+      .filter((item) => matchesQuery(query, item.matiere, item.professeur ?? ""))
+      .sort((a, b) => a.matiere.localeCompare(b.matiere, "fr"));
+  }, [payload, periode, query]);
 
   const load = useCallback(async () => {
     if (!selected) return;
@@ -102,16 +89,11 @@ export default function NotesScreen() {
   useEffect(() => {
     setPeriode(null);
     setQuery("");
-    setTypeFilter("");
   }, [selected?.id]);
 
   useEffect(() => {
     if (periode == null && periodes[0]) setPeriode(periodes[0]);
   }, [periodes, periode]);
-
-  useEffect(() => {
-    setTypeFilter("");
-  }, [periode]);
 
   useFocusEffect(
     useCallback(() => {
@@ -126,7 +108,7 @@ export default function NotesScreen() {
   if (!selected) {
     return (
       <Screen scroll={false}>
-        <PageTitle title="Notes" switchChild />
+        <PortalHeader />
         <EmptyState
           icon="person-outline"
           title="Aucun enfant sélectionné"
@@ -135,6 +117,8 @@ export default function NotesScreen() {
       </Screen>
     );
   }
+
+  const avg = generale?.moyenne != null ? Number(generale.moyenne) : null;
 
   return (
     <Screen
@@ -148,13 +132,13 @@ export default function NotesScreen() {
         }
       }}
     >
-      <PageTitle title="Notes" switchChild />
+      <PortalHeader />
 
       <SearchBar
         value={query}
         onChangeText={setQuery}
-        placeholder="Matière, évaluation…"
-        accessibilityLabel="Rechercher une note"
+        placeholder="Rechercher une matière…"
+        accessibilityLabel="Rechercher une matière"
       />
 
       {periodes.length > 0 ? (
@@ -166,20 +150,6 @@ export default function NotesScreen() {
               label={name.replace("Trimestre", "Trim.")}
               selected={periode === name}
               onPress={() => setPeriode(name)}
-            />
-          ))}
-        </View>
-      ) : null}
-
-      {types.length > 1 ? (
-        <View style={styles.types}>
-          <Chip label="Tous" selected={typeFilter === ""} onPress={() => setTypeFilter("")} />
-          {types.map((item) => (
-            <Chip
-              key={item}
-              label={evalLabel(item)}
-              selected={typeFilter === item}
-              onPress={() => setTypeFilter(typeFilter === item ? "" : item)}
             />
           ))}
         </View>
@@ -198,102 +168,85 @@ export default function NotesScreen() {
         />
       ) : null}
 
-      {generale ? (
+      {generale || avg != null ? (
         <Enter>
-        <Card style={styles.hero}>
-          <Text style={[styles.heroKicker, font.medium]}>{periode}</Text>
-          <View style={styles.heroRow}>
-            <View>
-              <Text
-                style={[styles.heroValue, font.bold, { color: noteColor(generale.moyenne) }]}
-                accessibilityLabel={`Moyenne ${generale.moyenne != null ? Number(generale.moyenne).toFixed(2) : "non calculée"} sur 20, ${generale.mention || mentionOf(generale.moyenne)}`}
-              >
-                {generale.moyenne != null ? Number(generale.moyenne).toFixed(2) : "—"}
-              </Text>
-              <Text style={[styles.heroOut, font.medium]}>/ 20</Text>
-            </View>
-            <View style={styles.heroSide}>
-              <View style={styles.mention}>
-                <Text style={[styles.mentionText, font.bold]}>
-                  {generale.mention || mentionOf(generale.moyenne)}
+          <Card style={styles.hero}>
+            <Text style={[styles.heroKicker, font.medium]}>MOYENNE GÉNÉRALE</Text>
+            <Text style={[styles.heroScore, font.bold, { color: colors.primary }]}>
+              {avg != null ? `${formatNoteFr(avg, 2)} / 20` : "—"}
+            </Text>
+            <View style={styles.pills}>
+              {generale?.rang != null ? (
+                <View style={styles.pill}>
+                  <Text style={[styles.pillText, font.semibold]}>Rang {rangLabel(generale.rang)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.pill}>
+                <Text style={[styles.pillText, font.semibold]}>
+                  {subjects.length} matière{subjects.length > 1 ? "s" : ""}
                 </Text>
               </View>
-              {generale.rang != null ? (
-                <Text style={[styles.rang, font.semibold]}>{rangLabel(generale.rang)}</Text>
-              ) : null}
             </View>
-          </View>
-          <Text style={[styles.explain, font.regular]}>
-            Moyenne générale : chaque matière est pondérée par son coefficient. Les notes absentes ne comptent pas.
-          </Text>
-        </Card>
+          </Card>
         </Enter>
       ) : null}
 
-      {grouped.map(([matiere, notes], index) => {
-        const moyenne = payload?.moyennesMatieres.find((m) => m.matiere === matiere && m.periode === periode);
-        const avg = moyenne?.moyenne != null ? Number(moyenne.moyenne) : null;
+      {subjects.length > 0 ? (
+        <Text style={[styles.section, font.bold]}>Résultats par matière</Text>
+      ) : null}
+
+      {subjects.map((item, index) => {
+        const ratio = item.moyenne == null ? 0 : Math.max(0, Math.min(1, item.moyenne / 20));
         return (
-          <Enter key={matiere} index={index + 1}>
-          <Card style={styles.group}>
-            <View style={styles.groupHead}>
-              <View style={{ flex: 1, paddingEnd: 8 }}>
-                <Text style={[styles.matiere, font.bold]}>{matiere}</Text>
-                <Text style={[styles.meta, font.regular]}>
-                  {notes.length} note{notes.length > 1 ? "s" : ""} · moyenne simple sur 20
+          <Enter key={item.matiere} index={index + 1}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${item.matiere}, moyenne ${item.moyenne != null ? formatNoteFr(item.moyenne) : "non calculée"}. Voir les devoirs`}
+              onPress={() =>
+                router.push({
+                  pathname: "/matiere",
+                  params: { matiere: item.matiere, periode: periode ?? "" },
+                } as unknown as Href)
+              }
+              style={({ pressed }) => [styles.subject, pressStyle(pressed, reduceMotion)]}
+            >
+              <View style={[styles.scoreBox, { backgroundColor: noteSoft(item.moyenne) }]}>
+                <Text style={[styles.scoreText, font.bold, { color: noteColor(item.moyenne) }]}>
+                  {item.moyenne != null ? formatNoteFr(item.moyenne) : "—"}
                 </Text>
               </View>
-              <Text
-                style={[styles.groupAvg, font.bold, { color: noteColor(avg) }]}
-                accessibilityLabel={`Moyenne ${matiere} ${avg != null ? avg.toFixed(2) : "non calculée"}, ${mentionOf(avg)}`}
-              >
-                {avg != null ? avg.toFixed(2) : "—"}
-              </Text>
-            </View>
-            {notes.map((note) => {
-              const value = note.valeur == null ? null : Number(note.valeur);
-              const max = Number(note.noteMax) || 20;
-              const sur20 = value == null ? null : scoreOn20(value, max);
-              return (
-                <View key={note.id} style={styles.row}>
-                  <View style={[styles.mark, { backgroundColor: noteColor(sur20) }]} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.eval, font.semibold]}>{note.evaluation}</Text>
-                    <Text style={[styles.meta, font.regular]}>
-                      {evalLabel(note.type)}
-                      {note.date ? ` · ${formatDate(note.date)}` : ""}
-                    </Text>
-                  </View>
-                  <View style={styles.score}>
-                    <Text
-                      style={[styles.note, font.bold, { color: noteColor(sur20) }]}
-                      accessibilityLabel={
-                        value == null ? "Absent" : `${sur20?.toFixed(1)} sur 20, ${mentionOf(sur20)}`
-                      }
-                    >
-                      {value == null ? "Abs" : sur20?.toFixed(max === 20 && Number.isInteger(value) ? 0 : 1)}
-                    </Text>
-                    {value != null && max !== 20 ? (
-                      <Text style={[styles.meta, font.medium]}>{value}/{max}</Text>
-                    ) : (
-                      <Text style={[styles.meta, font.medium]}>/ 20</Text>
-                    )}
-                  </View>
+              <View style={styles.subjectCopy}>
+                <Text style={[styles.matiere, font.bold]} numberOfLines={1}>
+                  {item.matiere}
+                </Text>
+                <View style={[styles.track, { backgroundColor: noteSoft(item.moyenne) }]}>
+                  <View
+                    style={[styles.fill, { width: `${ratio * 100}%`, backgroundColor: noteColor(item.moyenne) }]}
+                  />
                 </View>
-              );
-            })}
-          </Card>
+                <Text style={[styles.meta, font.regular]} numberOfLines={1}>
+                  {[
+                    item.coefficient != null ? `coeff. ${item.coefficient}` : null,
+                    item.professeur,
+                    `${item.count} note${item.count > 1 ? "s" : ""}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+            </Pressable>
           </Enter>
         );
       })}
 
-      {!loading && !error && payload && notesFiltrees.length === 0 ? (
+      {!loading && !error && payload && subjects.length === 0 ? (
         <EmptyState
           icon="school-outline"
-          title={query.trim() || typeFilter ? "Aucun résultat" : periode ? `Aucune note · ${periode}` : "Aucune note publiée"}
+          title={query.trim() ? "Aucun résultat" : periode ? `Aucune note · ${periode}` : "Aucune note publiée"}
           body={
-            query.trim() || typeFilter
-              ? "Essayez un autre mot, ou touchez Tous pour revoir le trimestre."
+            query.trim()
+              ? "Essayez un autre mot."
               : `Les notes de ${selected.prenom} apparaîtront ici dès que les professeurs les publieront.`
           }
         />
@@ -304,30 +257,37 @@ export default function NotesScreen() {
 
 const styles = StyleSheet.create({
   periodes: { flexDirection: "row", gap: 8 },
-  types: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  hero: { gap: 8 },
-  heroKicker: { fontSize: type.meta, color: colors.muted },
-  heroRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  heroValue: { fontSize: 40, fontVariant: ["tabular-nums"], letterSpacing: -1, lineHeight: 44 },
-  heroOut: { fontSize: 14, color: colors.muted, marginTop: 2 },
-  heroSide: { alignItems: "flex-end", gap: 8, paddingBottom: 4 },
-  mention: {
-    backgroundColor: colors.tint,
+  hero: { gap: 10, backgroundColor: colors.tint, borderWidth: 0 },
+  heroKicker: { fontSize: 12, color: colors.muted, letterSpacing: 0.8 },
+  heroScore: { fontSize: 34, fontVariant: ["tabular-nums"], letterSpacing: -0.5 },
+  pills: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  pill: {
     borderRadius: radius.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: colors.white,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  mentionText: { color: colors.primary, fontSize: 13 },
-  rang: { fontSize: 13, color: colors.text },
-  explain: { fontSize: 13, color: colors.muted, lineHeight: 19, marginTop: 4 },
-  group: { gap: 12 },
-  groupHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  groupAvg: { fontSize: 22, fontVariant: ["tabular-nums"] },
-  row: { flexDirection: "row", alignItems: "center", gap: space.group },
-  mark: { width: 4, height: 40, borderRadius: 2 },
+  pillText: { fontSize: 13, color: colors.primary },
+  section: { fontSize: 16, color: colors.text },
+  subject: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: radius.card,
+    padding: 14,
+  },
+  scoreBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scoreText: { fontSize: 16, fontVariant: ["tabular-nums"] },
+  subjectCopy: { flex: 1, gap: 6 },
   matiere: { fontSize: type.body, color: colors.text },
-  eval: { fontSize: 15, color: colors.text },
-  meta: { fontSize: type.meta, color: colors.muted, marginTop: 2 },
-  score: { alignItems: "flex-end" },
-  note: { fontSize: 20, fontVariant: ["tabular-nums"] },
+  track: { height: 5, borderRadius: 3, overflow: "hidden" },
+  fill: { height: 5, borderRadius: 3 },
+  meta: { fontSize: type.meta, color: colors.muted },
 });

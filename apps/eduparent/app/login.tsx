@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -10,25 +11,35 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "@/context/session";
 import { BrandLogo } from "@/components/BrandLockup";
+import { LEGAL_URLS } from "@/lib/contact";
 import { colors, font, pressStyle, radius, shadow, type, useReduceMotion } from "@/lib/theme";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ reset?: string }>();
   const insets = useSafeAreaInsets();
   const reduceMotion = useReduceMotion();
   const { login, confirm2fa } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [focus, setFocus] = useState<"email" | "password" | "code" | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const [code, setCode] = useState("");
+
+  useEffect(() => {
+    if (params.reset === "1") {
+      setPassword("");
+      setMessage("Mot de passe mis à jour. Connectez-vous avec le nouveau.");
+    }
+  }, [params.reset]);
 
   const onSubmit = async () => {
     setBusy(true);
@@ -39,7 +50,11 @@ export default function LoginScreen() {
         return;
       }
       const result = await login(email.trim(), password);
-      if (result.requires2fa && result.challengeId) {
+      if ("requiresPasswordChange" in result && result.requiresPasswordChange) {
+        router.push("/changer-mot-de-passe");
+        return;
+      }
+      if ("requires2fa" in result && result.requires2fa && result.challengeId) {
         setChallengeId(result.challengeId);
         setCode("");
       }
@@ -75,7 +90,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={[styles.formCard, shadow.card]}>
-            <Text style={[styles.sheetTitle, font.bold]}>{challengeId ? "Code A2F" : "Connexion"}</Text>
+            <Text style={[styles.sheetTitle, font.bold]}>{challengeId ? "Code de sécurité" : "Connexion"}</Text>
             <Text style={[styles.sheetSub, font.regular]}>
               {challengeId
                 ? "Saisissez le code à 6 chiffres pour continuer."
@@ -139,7 +154,7 @@ export default function LoginScreen() {
                   accessibilityLabel="Mot de passe"
                   accessibilityLabelledBy="password-label"
                   accessibilityDescribedBy={message ? "login-error" : undefined}
-                  secureTextEntry
+                  secureTextEntry={!showPassword}
                   autoComplete="password"
                   textContentType="password"
                   value={password}
@@ -150,6 +165,17 @@ export default function LoginScreen() {
                   placeholder="Mot de passe"
                   placeholderTextColor={colors.muted}
                 />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                  onPress={() => setShowPassword((value) => !value)}
+                  hitSlop={8}
+                  style={styles.showPassword}
+                >
+                  <Text style={[styles.forgot, font.semibold]}>
+                    {showPassword ? "Masquer" : "Afficher"} le mot de passe
+                  </Text>
+                </Pressable>
               </>
             )}
 
@@ -196,6 +222,23 @@ export default function LoginScreen() {
 
           {!challengeId ? (
             <View style={styles.footerBrand}>
+              <Text style={[styles.legal, font.regular]}>
+                En vous connectant, vous acceptez les{" "}
+                <Text
+                  style={styles.legalLink}
+                  onPress={() => Linking.openURL(LEGAL_URLS.conditions).catch(() => undefined)}
+                >
+                  Conditions d’utilisation
+                </Text>{" "}
+                et la{" "}
+                <Text
+                  style={styles.legalLink}
+                  onPress={() => Linking.openURL(LEGAL_URLS.confidentialite).catch(() => undefined)}
+                >
+                  Politique de confidentialité
+                </Text>
+                .
+              </Text>
               <BrandLogo brand="nova" size="xl" />
               <Text style={[styles.owner, font.regular]}>Une solution NOVA HOLDINGS</Text>
             </View>
@@ -231,6 +274,7 @@ const styles = StyleSheet.create({
   passwordRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 },
   passwordLabel: { marginTop: 0, flex: 1 },
   forgot: { fontSize: 13, color: colors.primary },
+  showPassword: { minHeight: 36, justifyContent: "center", marginTop: 4 },
   input: {
     minHeight: 52,
     borderWidth: 1.5,
@@ -251,5 +295,7 @@ const styles = StyleSheet.create({
   backBtn: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 4 },
   backText: { color: colors.primary },
   footerBrand: { alignItems: "center", gap: 10, paddingBottom: 8 },
+  legal: { fontSize: 13, color: colors.muted, textAlign: "center", lineHeight: 20, maxWidth: 320 },
+  legalLink: { color: colors.primary, textDecorationLine: "underline" },
   owner: { fontSize: 13, color: colors.muted },
 });

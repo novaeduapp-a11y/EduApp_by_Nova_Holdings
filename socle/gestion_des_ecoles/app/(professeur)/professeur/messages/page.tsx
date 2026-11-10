@@ -96,11 +96,11 @@ function ProfMessagesHub() {
       {tab === "equipe" ? (
         <StaffMessagesPage
           title=""
-          subtitle="Échanges avec le préfet de votre cycle"
+          subtitle="Échanges avec le directeur et le préfet de votre cycle"
           listUrl="/api/staff/prof/equipe"
           startPayloadKey="prefetId"
           myRole="PROFESSEUR"
-          emptyListLabel="Aucun message du préfet pour le moment."
+          emptyListLabel="Aucun contact direction / préfecture pour le moment."
           pickLabel="Sélectionnez une conversation."
           placeholder="Votre réponse"
         />

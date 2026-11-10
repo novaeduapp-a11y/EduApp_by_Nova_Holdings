@@ -4,10 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { requireDirecteur } from "@/lib/request-auth";
 import { notifyStaffMessage } from "@/lib/staff-messagerie";
 
-const startSchema = z.object({
-  prefetId: z.string().min(1),
-  corps: z.string().min(1).max(2000),
-});
+const startSchema = z
+  .object({
+    prefetId: z.string().min(1).optional(),
+    professeurId: z.string().min(1).optional(),
+    corps: z.string().min(1).max(2000),
+  })
+  .refine((data) => Boolean(data.prefetId || data.professeurId), {
+    message: "Destinataire requis",
+  });
 
 export async function GET() {
   try {
@@ -37,12 +42,17 @@ export async function GET() {
         where: { ecoleId, directeurId: id },
         include: {
           prefet: { select: { id: true, prenom: true, nom: true, familleCycle: true, role: true } },
+          professeur: { select: { id: true, prenom: true, nom: true, role: true } },
           messages: { orderBy: { createdAt: "desc" }, take: 1 },
         },
       }),
     ]);
 
-    const filByContact = new Map(fils.map((fil) => [fil.prefetId, fil]));
+    const filByContact = new Map<string, (typeof fils)[number]>();
+    for (const fil of fils) {
+      if (fil.prefetId) filByContact.set(fil.prefetId, fil);
+      if (fil.professeurId) filByContact.set(fil.professeurId, fil);
+    }
 
     const rows = await Promise.all(
       contacts.map(async (contact) => {
@@ -63,6 +73,7 @@ export async function GET() {
               : "Professeur";
         return {
           id: fil?.id ?? null,
+          kind: contact.role === "PROFESSEUR" ? ("professeur" as const) : ("prefet" as const),
           interlocuteurId: contact.id,
           interlocuteur: `${contact.prenom} ${contact.nom}`,
           detail,
@@ -98,9 +109,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Destinataire et message requis" }, { status: 400 });
     }
 
+    const contactId = parsed.data.professeurId ?? parsed.data.prefetId!;
     const contact = await prisma.user.findFirst({
       where: {
-        id: parsed.data.prefetId,
+        id: contactId,
         ecoleId,
         role: { in: ["PREFET", "PROFESSEUR"] },
         actif: true,
@@ -111,11 +123,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Ce contact n’appartient pas à votre établissement" }, { status: 403 });
     }
 
-    const fil = await prisma.filStaff.upsert({
-      where: { directeurId_prefetId: { directeurId: id, prefetId: contact.id } },
-      update: { updatedAt: new Date() },
-      create: { ecoleId, directeurId: id, prefetId: contact.id },
-    });
+    let fil;
+    if (contact.role === "PROFESSEUR") {
+      const existing = await prisma.filStaff.findFirst({
+        where: { directeurId: id, professeurId: contact.id },
+      });
+      fil = existing
+        ? await prisma.filStaff.update({ where: { id: existing.id }, data: { updatedAt: new Date() } })
+        : await prisma.filStaff.create({
+            data: { ecoleId, directeurId: id, professeurId: contact.id },
+          });
+    } else {
+      fil = await prisma.filStaff.upsert({
+        where: { directeurId_prefetId: { directeurId: id, prefetId: contact.id } },
+        update: { updatedAt: new Date() },
+        create: { ecoleId, directeurId: id, prefetId: contact.id },
+      });
+    }
 
     const message = await prisma.messageStaff.create({
       data: { filId: fil.id, auteurId: id, corps: parsed.data.corps.trim() },

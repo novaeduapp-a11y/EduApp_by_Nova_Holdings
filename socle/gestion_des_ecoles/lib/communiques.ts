@@ -73,14 +73,19 @@ export async function fanOutCommunique(params: {
   corps: string;
   urgent: boolean;
   auteurNom?: string;
+  /** Ne pas notifier l’auteur (évite un badge « non lu » sur son propre envoi). */
+  excludeUserId?: string;
 }) {
   const recipients = await resolveCommuniqueRecipients(params);
-  if (recipients.all.length === 0) {
+  const targets = params.excludeUserId
+    ? recipients.all.filter((userId) => userId !== params.excludeUserId)
+    : recipients.all;
+  if (targets.length === 0) {
     return { total: 0, parents: 0, professeurs: 0, direction: 0 };
   }
 
   await notifyUsers(
-    recipients.all.map((userId) => ({
+    targets.map((userId) => ({
       userId,
       type: params.urgent ? "communique_urgent" : "communique",
       title: params.urgent ? `Urgent · ${params.titre}` : params.titre,
@@ -93,9 +98,9 @@ export async function fanOutCommunique(params: {
   );
 
   return {
-    total: recipients.all.length,
-    parents: recipients.parents.length,
-    professeurs: recipients.professeurs.length,
-    direction: recipients.direction.length,
+    total: targets.length,
+    parents: recipients.parents.filter((id) => id !== params.excludeUserId).length,
+    professeurs: recipients.professeurs.filter((id) => id !== params.excludeUserId).length,
+    direction: recipients.direction.filter((id) => id !== params.excludeUserId).length,
   };
 }

@@ -51,7 +51,7 @@ type Bilan = {
     retardsPersonnel: Liste[];
     perturbations: Liste[];
   };
-  alertes: { id: string; titre: string; date: string }[];
+  alertes: { id: string; titre: string; corps?: string; date: string }[];
   agenda: { id: string; titre: string; corps: string }[];
 };
 
@@ -105,6 +105,25 @@ export default function DirecteurBilanPage() {
   const [detail, setDetail] = useState("");
   const [busy, setBusy] = useState(false);
   const [toDelete, setToDelete] = useState<Liste | null>(null);
+  const [reading, setReading] = useState<{ titre: string; detail?: string | null; date?: string } | null>(
+    null
+  );
+  const [novaAnnonce, setNovaAnnonce] = useState<{ id: string; titre: string } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/staff/annonces")
+      .then((res) => res.json())
+      .then((body) => {
+        if (!alive) return;
+        const first = Array.isArray(body.data) ? body.data[0] : null;
+        setNovaAnnonce(first ? { id: first.id, titre: first.titre } : null);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const load = useCallback(async (nextDate: string, mode: "full" | "soft" = "full") => {
     if (mode === "full") setStatus("loading");
@@ -318,6 +337,18 @@ export default function DirecteurBilanPage() {
         </div>
       </div>
 
+      {novaAnnonce ? (
+        <div className={`${portalPanelClass} flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`}>
+          <p className="text-sm leading-6 text-foreground">
+            <span className="font-semibold text-primary">Annonce NOVA · </span>
+            {novaAnnonce.titre}
+          </p>
+          <Button asChild type="button" variant="outline">
+            <Link href="/directeur/annonces">Lire</Link>
+          </Button>
+        </div>
+      ) : null}
+
       {status === "error" ? (
         <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
           <p className="text-sm leading-6 text-foreground">Impossible de charger le bilan.</p>
@@ -389,9 +420,23 @@ export default function DirecteurBilanPage() {
           ) : (
             <ul className="space-y-2">
               {(data?.alertes ?? []).map((item) => (
-                <li key={item.id} className="rounded-2xl bg-muted px-3 py-2">
-                  <p className="text-sm font-medium text-foreground">{item.titre}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleString("fr-FR")}</p>
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="w-full rounded-2xl bg-muted px-3 py-2 text-left transition hover:bg-muted/80"
+                    onClick={() =>
+                      setReading({
+                        titre: item.titre,
+                        detail: item.corps ?? null,
+                        date: item.date,
+                      })
+                    }
+                  >
+                    <p className="text-sm font-medium text-foreground">{item.titre}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(item.date).toLocaleString("fr-FR")}
+                    </p>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -499,10 +544,19 @@ export default function DirecteurBilanPage() {
             <ul className="space-y-2">
               {(pageItems as Liste[]).map((item) => (
                 <li key={item.id} className="flex items-start justify-between gap-3 rounded-2xl bg-muted px-3 py-2">
-                  <div>
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 text-left"
+                    onClick={() =>
+                      setReading({
+                        titre: item.titre ?? "Alerte",
+                        detail: item.detail,
+                      })
+                    }
+                  >
                     <p className="text-sm font-medium text-foreground">{item.titre}</p>
                     {item.detail ? <p className="text-xs text-muted-foreground">{item.detail}</p> : null}
-                  </div>
+                  </button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -593,6 +647,29 @@ export default function DirecteurBilanPage() {
             </Button>
             <Button type="button" onClick={addPerturbation} disabled={busy || titre.trim().length < 3}>
               {busy ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!reading} onOpenChange={(open) => !open && setReading(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{reading?.titre ?? "Alerte"}</DialogTitle>
+            {reading?.date ? (
+              <DialogDescription>
+                Publiée le {new Date(reading.date).toLocaleString("fr-FR")}
+              </DialogDescription>
+            ) : (
+              <DialogDescription>Alerte publiée sur le bilan du jour.</DialogDescription>
+            )}
+          </DialogHeader>
+          <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
+            {reading?.detail?.trim() || "Aucun détail supplémentaire."}
+          </p>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReading(null)}>
+              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>

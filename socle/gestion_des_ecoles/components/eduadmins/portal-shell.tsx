@@ -74,7 +74,7 @@ export function PortalShell({
   accountLinks?: { name: string; href: string }[];
 }) {
   void _accountLinks;
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -82,6 +82,20 @@ export function PortalShell({
   const [unread, setUnread] = useState(0);
   const [needsTerms, setNeedsTerms] = useState(false);
   const [acceptingTerms, setAcceptingTerms] = useState(false);
+  const [stoppingImpersonation, setStoppingImpersonation] = useState(false);
+  const impersonating = Boolean(session?.user?.impersonatorId);
+
+  const stopImpersonation = async () => {
+    if (stoppingImpersonation) return;
+    setStoppingImpersonation(true);
+    try {
+      await update({ stopImpersonation: true });
+      router.replace("/dashboard");
+      router.refresh();
+    } finally {
+      setStoppingImpersonation(false);
+    }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -120,7 +134,10 @@ export function PortalShell({
   }, [refreshUnread]);
 
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status !== "authenticated" || impersonating) {
+      setNeedsTerms(false);
+      return;
+    }
     let alive = true;
     fetch("/api/staff/me")
       .then((res) => res.json())
@@ -132,7 +149,7 @@ export function PortalShell({
     return () => {
       alive = false;
     };
-  }, [status]);
+  }, [status, impersonating]);
 
   const acceptTerms = async () => {
     setAcceptingTerms(true);
@@ -269,7 +286,29 @@ export function PortalShell({
       </aside>
 
       <div className="lg:pl-64 print:pl-0">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-6 print:hidden">
+        {impersonating ? (
+          <div className="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 bg-amber-500 px-4 py-2.5 text-sm font-medium text-amber-950 print:hidden sm:px-6">
+            <p>
+              Mode assistance NOVA · vous voyez l’écran de {session.user.prenom} {session.user.nom} (
+              {session.user.role.toLowerCase()})
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={stoppingImpersonation}
+              onClick={() => void stopImpersonation()}
+            >
+              {stoppingImpersonation ? "Retour…" : "Revenir à NOVA"}
+            </Button>
+          </div>
+        ) : null}
+        <header
+          className={cn(
+            "sticky z-30 flex h-16 items-center gap-4 bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-6 print:hidden",
+            impersonating ? "top-[3.25rem]" : "top-0"
+          )}
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -306,6 +345,17 @@ export function PortalShell({
                   Profil
                 </Link>
               </DropdownMenuItem>
+              {impersonating ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="cursor-pointer"
+                    onClick={() => void stopImpersonation()}
+                  >
+                    Revenir à NOVA
+                  </DropdownMenuItem>
+                </>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="cursor-pointer text-destructive focus:text-destructive"

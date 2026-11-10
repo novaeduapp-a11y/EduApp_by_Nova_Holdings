@@ -283,7 +283,14 @@ function ProfesseurAppelForm() {
   const setStatut = (eleveId: string, next: Statut) => {
     if (locked) return;
     setLignes((current) =>
-      current.map((ligne) => (ligne.eleveId === eleveId ? { ...ligne, statut: next } : ligne))
+      current.map((ligne) => {
+        if (ligne.eleveId !== eleveId) return ligne;
+        // Déjà absent (billet) sur le créneau précédent → marquer retard, pas une nouvelle absence.
+        const dejaAbsent =
+          ligne.statutPrecedent === "ABSENT" || ligne.statutPrecedent === "ABSENT_RETARD";
+        const statut = next === "ABSENT" && dejaAbsent ? "RETARD" : next;
+        return { ...ligne, statut };
+      })
     );
   };
 

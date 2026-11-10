@@ -33,15 +33,25 @@ export default function MotDePasseOublieScreen() {
         </Text>
 
         <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Appeler ${NOVA_CONTACT.phone}`}
-            onPress={() => Linking.openURL(NOVA_CONTACT.phoneHref).catch(() => undefined)}
-            style={({ pressed }) => [styles.primary, pressStyle(pressed, reduceMotion)]}
-          >
-            <Text style={[styles.primaryText, font.bold]}>Appeler le support</Text>
-            <Text style={[styles.primarySub, font.regular]}>{NOVA_CONTACT.phone}</Text>
-          </Pressable>
+          {NOVA_CONTACT.phones.map((phone, index) => (
+            <Pressable
+              key={phone.href}
+              accessibilityRole="button"
+              accessibilityLabel={`Appeler ${phone.label}`}
+              onPress={() => Linking.openURL(phone.href).catch(() => undefined)}
+              style={({ pressed }) => [
+                index === 0 ? styles.primary : styles.secondary,
+                pressStyle(pressed, reduceMotion),
+              ]}
+            >
+              <Text style={[index === 0 ? styles.primaryText : styles.secondaryText, font.bold]}>
+                Appeler le support
+              </Text>
+              <Text style={[index === 0 ? styles.primarySub : styles.secondarySub, font.regular]}>
+                {phone.label}
+              </Text>
+            </Pressable>
+          ))}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Écrire à ${NOVA_CONTACT.email}`}

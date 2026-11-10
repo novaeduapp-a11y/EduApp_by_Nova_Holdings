@@ -5,6 +5,10 @@ import type { Role } from "@prisma/client";
 import type { Session } from "next-auth";
 import { verifyMobileToken } from "@/lib/mobile-token";
 import { headers } from "next/headers";
+import {
+  ECOLE_ACCESS_BLOCKED_MESSAGE,
+  isEcoleAccessBlockedForUser,
+} from "@/lib/ecole-access";
 
 export type AuthSuccess<T = Session["user"]> = { ok: true; user: T };
 export type AuthFailure = { ok: false; response: NextResponse };
@@ -49,10 +53,20 @@ async function resolveUser(): Promise<
   if (session?.user?.id) {
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, actif: true, ecoleId: true },
+      select: { id: true, actif: true, ecoleId: true, role: true },
     });
     if (!user?.actif) {
       return unauthorized("Compte désactivé");
+    }
+    if (
+      !session.user.impersonatorId &&
+      (await isEcoleAccessBlockedForUser({
+        id: user.id,
+        role: user.role,
+        ecoleId: user.ecoleId,
+      }))
+    ) {
+      return forbidden(ECOLE_ACCESS_BLOCKED_MESSAGE);
     }
     return {
       ok: true as const,
@@ -78,6 +92,7 @@ async function resolveUser(): Promise<
     select: {
       id: true,
       actif: true,
+      role: true,
       ecoleId: true,
       tokenRevocations: {
         where: { createdAt: { lte: new Date() } },
@@ -99,6 +114,16 @@ async function resolveUser(): Promise<
   const latestRevocation = user.tokenRevocations[0];
   if (latestRevocation && latestRevocation.createdAt.getTime() >= tokenIssuedAt) {
     return unauthorized("Session révoquée. Reconnectez-vous.");
+  }
+
+  if (
+    await isEcoleAccessBlockedForUser({
+      id: user.id,
+      role: user.role,
+      ecoleId: user.ecoleId,
+    })
+  ) {
+    return forbidden(ECOLE_ACCESS_BLOCKED_MESSAGE);
   }
 
   return {

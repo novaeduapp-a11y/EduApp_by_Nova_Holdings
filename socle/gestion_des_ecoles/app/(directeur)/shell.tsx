@@ -9,6 +9,7 @@ import {
   Megaphone,
   MessageSquare,
   FileText,
+  Bell,
 } from "lucide-react";
 import { PortalShell } from "@/components/eduadmins/portal-shell";
 
@@ -20,6 +21,7 @@ const navigation = [
   { name: "Bulletins", href: "/directeur/bulletins", icon: FileText },
   { name: "Messages", href: "/directeur/messages", icon: MessageSquare },
   { name: "Communiqués", href: "/directeur/communiques", icon: Megaphone },
+  { name: "Annonces NOVA", href: "/directeur/annonces", icon: Bell },
   { name: "Agenda", href: "/directeur/agenda", icon: Calendar },
 ];
 

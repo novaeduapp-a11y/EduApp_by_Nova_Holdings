@@ -31,7 +31,7 @@ export default function TwoFaScreen() {
         <Pressable onPress={() => router.back()} accessibilityRole="button" style={styles.back}>
           <Text style={styles.backText}>Retour</Text>
         </Pressable>
-        <Text style={styles.title}>Code A2F</Text>
+        <Text style={styles.title}>Code de sécurité</Text>
         <Text style={styles.sub}>Saisissez le code à 6 chiffres reçu pour valider la connexion.</Text>
         <TextInput
           accessibilityLabel="Code à 6 chiffres"

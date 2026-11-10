@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { notifyUsers } from "@/lib/notify";
 import { requirePrefet } from "@/lib/request-auth";
 import { familleWhere, forbiddenCycle } from "@/lib/prefet-scope";
 import {
@@ -54,6 +53,8 @@ export async function GET() {
           niveau: bulletin.eleve.classe.niveau,
           periode: bulletin.periode.nom,
           date: bulletin.createdAt.toISOString(),
+          publieAt: bulletin.publieAt?.toISOString() ?? null,
+          envoyeParents: Boolean(bulletin.publieAt),
         })),
         appreciations: uniqueAppreciations(appreciations),
       },
@@ -139,23 +140,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const liens = await prisma.parentEleve.findMany({
-      where: { eleveId },
-      select: { parentId: true },
-    });
-    if (liens.length > 0) {
-      await notifyUsers(
-        liens.map((lien) => ({
-          userId: lien.parentId,
-          type: "bulletin",
-          title: `Bulletin disponible · ${eleve.prenom} ${eleve.nom}`,
-          message: "Un bulletin a été généré. Vous pouvez le télécharger dans EduParent.",
-          data: { eleveId, bulletinId: bulletin.id, periodeId },
-        }))
-      );
-    }
-
-    return NextResponse.json({ data: { id: bulletin.id, parentsNotifies: liens.length } }, { status: 201 });
+    // Génération seule : pas de notification parent. Utiliser /envoyer pour publier.
+    return NextResponse.json(
+      { data: { id: bulletin.id, publieAt: bulletin.publieAt, parentsNotifies: 0 } },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Erreur génération bulletin préfet:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

@@ -28,8 +28,42 @@ export async function GET(
         ecole: { select: { id: true, nom: true } },
       },
     });
+
+    // Compat : anciennes alertes bilan envoyées avec l’id d’un evenementJour.
     if (!communique) {
-      return NextResponse.json({ error: "Communiqué introuvable" }, { status: 404 });
+      const evenement = await prisma.evenementJour.findUnique({
+        where: { id: params.id },
+        include: { auteur: { select: { prenom: true, nom: true } } },
+      });
+      if (!evenement || evenement.type !== "PERTURBATION") {
+        return NextResponse.json({ error: "Communiqué introuvable" }, { status: 404 });
+      }
+      const lienEvt = await prisma.parentEleve.findFirst({
+        where: {
+          parentId: authResult.user.id,
+          eleve: { ecoleId: evenement.ecoleId, deletedAt: null },
+        },
+        select: { id: true },
+      });
+      if (!lienEvt && !notif) {
+        return NextResponse.json({ error: "Communiqué introuvable" }, { status: 404 });
+      }
+      const dataEvt = (notif?.data as { ackedAt?: string; auteur?: string } | null) ?? null;
+      return NextResponse.json({
+        data: {
+          id: evenement.id,
+          titre: evenement.titre ?? "Alerte",
+          corps: evenement.detail || "Alerte signalée par la direction.",
+          urgent: true,
+          auteur:
+            dataEvt?.auteur ||
+            `${evenement.auteur.prenom} ${evenement.auteur.nom}`.trim() ||
+            "Établissement",
+          createdAt: evenement.createdAt.toISOString(),
+          ackedAt: dataEvt?.ackedAt ?? (notif?.readAt ? notif.readAt.toISOString() : null),
+          notificationId: notif?.id ?? null,
+        },
+      });
     }
 
     const lien = await prisma.parentEleve.findFirst({

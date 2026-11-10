@@ -8,18 +8,23 @@ export function NavRow({
   subtitle,
   onPress,
   accessibilityLabel,
+  badge,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
   accessibilityLabel?: string;
+  badge?: number;
 }) {
   const reduceMotion = useReduceMotion();
+  const showBadge = typeof badge === "number" && badge > 0;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityLabel={
+        accessibilityLabel ?? (showBadge ? `${title}, ${badge} non lue${badge > 1 ? "s" : ""}` : title)
+      }
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressStyle(pressed, reduceMotion)]}
     >
@@ -30,6 +35,11 @@ export function NavRow({
         <Text style={[styles.title, font.bold]}>{title}</Text>
         <Text style={[styles.sub, font.regular]}>{subtitle}</Text>
       </View>
+      {showBadge ? (
+        <View style={styles.badge} accessibilityElementsHidden>
+          <Text style={[styles.badgeText, font.bold]}>{badge > 99 ? "99+" : String(badge)}</Text>
+        </View>
+      ) : null}
       <Ionicons name="chevron-forward" size={18} color={colors.muted} />
     </Pressable>
   );
@@ -55,4 +65,14 @@ const styles = StyleSheet.create({
   copy: { flex: 1, gap: 2 },
   title: { fontSize: type.body, fontWeight: "700", color: colors.text },
   sub: { fontSize: 14, color: colors.muted, lineHeight: 20 },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { color: "#fff", fontSize: 11, lineHeight: 14 },
 });

@@ -49,6 +49,8 @@ type Bulletin = {
   niveau: string;
   periode: string;
   date: string;
+  publieAt?: string | null;
+  envoyeParents?: boolean;
 };
 type Periode = { id: string; nom: string; actif: boolean };
 type Appreciation = { eleveId: string; periodeId: string; appreciation: string };
@@ -298,13 +300,50 @@ function PrefetBulletinsForm() {
     }
   };
 
+  const envoyerParents = async (ids?: string[]) => {
+    const cibles =
+      ids ??
+      bulletins
+        .filter((item) => !item.envoyeParents && (!filtreClasse || item.classeId === filtreClasse))
+        .filter((item) => !filtrePeriode || item.periodeId === filtrePeriode)
+        .map((item) => item.id);
+    if (cibles.length === 0) {
+      toast({ title: "Aucun bulletin à envoyer", description: "Générez d’abord les PDF." });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/staff/prefet/bulletins/envoyer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bulletinIds: cibles }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error);
+      toast({
+        title: "Bulletins envoyés aux parents",
+        description: `${body.data?.envoyes ?? cibles.length} bulletin(s) publiés sur EduParent.`,
+      });
+      await load();
+      setStatus("ready");
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Envoi refusé",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-balance text-[30px] font-bold leading-9 tracking-tight">Bulletins</h1>
           <p className={`${portalMutedClass} mt-1`}>
-            PDF du cycle, un élève ou toute une classe. Notification du parent dans EduParent.
+            Générez les PDF pour impression, puis envoyez-les aux parents quand vous le souhaitez.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -319,6 +358,13 @@ function PrefetBulletinsForm() {
           <Button type="button" onClick={() => openCreate()} disabled={eleves.length === 0}>
             <Plus className="h-4 w-4" aria-hidden />
             Générer un élève
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void envoyerParents()}
+            disabled={busy || bulletins.every((b) => b.envoyeParents)}
+          >
+            Envoyer les bulletins au parent
           </Button>
         </div>
       </div>
@@ -394,19 +440,23 @@ function PrefetBulletinsForm() {
                         {eleve.prenom} {eleve.nom}
                       </p>
                       <p className="text-xs text-muted-foreground sm:hidden">
-                        {bulletin ? "PDF généré" : "Pas encore généré"}
+                        {!bulletin
+                          ? "Pas encore généré"
+                          : bulletin.envoyeParents
+                            ? "Envoyé au parent"
+                            : "PDF généré · non envoyé"}
                       </p>
                     </TableCell>
                     <TableCell className="px-4 py-3.5">
                       <span className={portalChipClass}>{eleve.classe.nom}</span>
                     </TableCell>
                     <TableCell className="hidden px-4 py-3.5 sm:table-cell">
-                      {bulletin ? (
-                        <span className={portalChipClass}>
-                          {new Date(bulletin.date).toLocaleDateString("fr-FR")}
-                        </span>
-                      ) : (
+                      {!bulletin ? (
                         <span className={portalMutedClass}>Pas encore généré</span>
+                      ) : bulletin.envoyeParents ? (
+                        <span className={portalChipClass}>Envoyé au parent</span>
+                      ) : (
+                        <span className={portalChipClass}>PDF généré · non envoyé</span>
                       )}
                     </TableCell>
                     <TableCell className="px-4 py-3.5">
@@ -421,6 +471,16 @@ function PrefetBulletinsForm() {
                             >
                               <FileText />
                             </a>
+                          </Button>
+                        ) : null}
+                        {bulletin && !bulletin.envoyeParents ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => void envoyerParents([bulletin.id])}
+                          >
+                            Envoyer
                           </Button>
                         ) : null}
                         <Button

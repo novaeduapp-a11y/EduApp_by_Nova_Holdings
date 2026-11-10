@@ -29,9 +29,9 @@ export async function GET(
       return NextResponse.json({ error: "Accès non autorisé à cet élève" }, { status: 403 });
     }
 
-    // Récupérer les bulletins de l'élève avec les moyennes générales
+    // Uniquement les bulletins rendus publics par le préfet.
     const bulletins = await prisma.bulletin.findMany({
-      where: { eleveId, deletedAt: null },
+      where: { eleveId, deletedAt: null, publieAt: { not: null } },
       include: {
         periode: true,
         eleve: {

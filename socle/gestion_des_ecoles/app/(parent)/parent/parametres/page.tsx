@@ -17,7 +17,7 @@ export default function ParametresParentPage() {
       <section className={portalPanelClass}>
         <h2 className="font-bold tracking-tight text-foreground">Compte</h2>
         <p className={`${portalMutedClass} mt-1`}>
-          Mettez à jour votre nom, e-mail, mot de passe et la connexion en deux étapes.
+          Mettez à jour votre nom, e-mail, mot de passe et la sécurité du compte.
         </p>
         <Button asChild className="mt-4">
           <Link href="/parent/profil">Ouvrir le profil</Link>

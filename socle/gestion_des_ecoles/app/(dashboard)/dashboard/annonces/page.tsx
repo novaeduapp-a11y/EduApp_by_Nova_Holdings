@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,22 +27,36 @@ type Annonce = {
   titre: string;
   message: string;
   actif: boolean;
+  ecoleId: string | null;
+  ecoleNom: string | null;
   createdAt: string;
 };
+
+type EcoleOption = { id: string; nom: string };
 
 export default function AdminAnnoncesPage() {
   const { toast } = useToast();
   const [annonces, setAnnonces] = useState<Annonce[]>([]);
+  const [ecoles, setEcoles] = useState<EcoleOption[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ titre: "", message: "" });
+  const [filtreEcole, setFiltreEcole] = useState("all");
+  const [form, setForm] = useState({ titre: "", message: "", ecoleId: "" });
 
   const load = async () => {
-    const res = await fetch("/api/admin/annonces");
-    const body = await res.json();
-    if (!res.ok) throw new Error(body.error);
-    setAnnonces(body.data ?? []);
+    const [aRes, eRes] = await Promise.all([
+      fetch("/api/admin/annonces"),
+      fetch("/api/admin/ecoles"),
+    ]);
+    const aBody = await aRes.json();
+    const eBody = await eRes.json();
+    if (!aRes.ok) throw new Error(aBody.error);
+    setAnnonces(aBody.data ?? []);
+    if (eRes.ok) {
+      const list = (eBody.data ?? eBody.ecoles ?? []) as Array<{ id: string; nom: string }>;
+      setEcoles(list.map((e) => ({ id: e.id, nom: e.nom })));
+    }
   };
 
   const refresh = async () => {
@@ -59,6 +73,12 @@ export default function AdminAnnoncesPage() {
     void refresh();
   }, []);
 
+  const filtered = useMemo(() => {
+    if (filtreEcole === "all") return annonces;
+    if (filtreEcole === "global") return annonces.filter((a) => !a.ecoleId);
+    return annonces.filter((a) => a.ecoleId === filtreEcole);
+  }, [annonces, filtreEcole]);
+
   const create = async () => {
     if (form.titre.trim().length < 2 || form.message.trim().length < 2) {
       toast({ variant: "destructive", title: "Titre et message requis" });
@@ -69,13 +89,17 @@ export default function AdminAnnoncesPage() {
       const res = await fetch("/api/admin/annonces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          titre: form.titre,
+          message: form.message,
+          ecoleId: form.ecoleId || null,
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
       toast({ title: "Annonce publiée" });
       setOpen(false);
-      setForm({ titre: "", message: "" });
+      setForm({ titre: "", message: "", ecoleId: "" });
       await load();
       setStatus("ready");
     } catch (error) {
@@ -128,6 +152,21 @@ export default function AdminAnnoncesPage() {
         </Button>
       </div>
 
+      <select
+        className="edu-select"
+        aria-label="Filtrer par école"
+        value={filtreEcole}
+        onChange={(e) => setFiltreEcole(e.target.value)}
+      >
+        <option value="all">Toutes les écoles</option>
+        <option value="global">Annonces globales</option>
+        {ecoles.map((ecole) => (
+          <option key={ecole.id} value={ecole.id}>
+            {ecole.nom}
+          </option>
+        ))}
+      </select>
+
       {status === "error" ? (
         <div className={`${portalPanelClass} flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`}>
           <p className="text-sm leading-6 text-foreground">Impossible de charger les annonces.</p>
@@ -137,20 +176,22 @@ export default function AdminAnnoncesPage() {
         </div>
       ) : status === "loading" ? (
         <Skeleton className="h-40" />
-      ) : annonces.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className={`${portalPanelClass} py-10 text-center`}>
           <p className="font-medium text-foreground">Aucune annonce</p>
           <p className={`${portalMutedClass} mt-1`}>Publiez un message pour les directions.</p>
         </div>
       ) : (
         <ul className="space-y-3">
-          {annonces.map((annonce) => (
+          {filtered.map((annonce) => (
             <li key={annonce.id} className={`${portalPanelClass} space-y-2`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-foreground">{annonce.titre}</p>
                   <p className={portalMutedClass}>
                     {new Date(annonce.createdAt).toLocaleString("fr-FR")}
+                    {" · "}
+                    {annonce.ecoleNom ?? "Toutes les écoles"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -171,10 +212,26 @@ export default function AdminAnnoncesPage() {
           <DialogHeader>
             <DialogTitle>Nouvelle annonce</DialogTitle>
             <DialogDescription>
-              Message visible côté administration NOVA ; diffusion Direction à brancher ensuite sur le portail.
+              Choisissez toutes les écoles ou un établissement précis.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="annonce-ecole">Portée</Label>
+              <select
+                id="annonce-ecole"
+                className="edu-select w-full"
+                value={form.ecoleId}
+                onChange={(e) => setForm({ ...form, ecoleId: e.target.value })}
+              >
+                <option value="">Toutes les écoles</option>
+                {ecoles.map((ecole) => (
+                  <option key={ecole.id} value={ecole.id}>
+                    {ecole.nom}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="annonce-titre">Titre</Label>
               <Input

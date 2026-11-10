@@ -137,11 +137,11 @@ export default function AdminHomePage() {
               <p className={`${portalKpiClass} mt-1`}>{totals.eleves}</p>
             </div>
             <Link href="/dashboard/comptes?role=PROFESSEUR" className={portalPanelClass}>
-              <p className={portalMutedClass}>Comptes enseignant</p>
+              <p className={portalMutedClass}>Compte enseignant</p>
               <p className={`${portalKpiClass} mt-1`}>{totals.professeurs}</p>
             </Link>
             <Link href="/dashboard/comptes" className={portalPanelClass}>
-              <p className={portalMutedClass}>Comptes Direction et préfecture</p>
+              <p className={portalMutedClass}>Compte Direction et préfecture</p>
               <p className={`${portalKpiClass} mt-1`}>{totals.directeurs + totals.prefets}</p>
               <p className={`${portalMutedClass} mt-1`}>
                 {totals.directeurs} direction · {totals.prefets} préfecture

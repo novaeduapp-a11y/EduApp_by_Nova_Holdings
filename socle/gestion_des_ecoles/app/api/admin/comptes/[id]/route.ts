@@ -98,10 +98,7 @@ export async function PATCH(
       select: { id: true, email: true, actif: true, prenom: true, role: true },
     });
 
-    if (user.role === "PROFESSEUR" && parsed.data.matiereIds) {
-      const { remplacerCompetences } = await import("@/lib/prof-competences");
-      await remplacerCompetences(user.id, parsed.data.matiereIds);
-    }
+    // Affectation des matières = rôle du préfet, pas de l’admin NOVA.
 
     await logActivite({
       userId: authResult.user.id,

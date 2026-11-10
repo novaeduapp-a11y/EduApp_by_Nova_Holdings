@@ -11,8 +11,10 @@ export const colors = {
   muted: "#5B6B86",
   border: "#D7E2F5",
   tint: "#E8F0FE",
-  good: "#1A5FD4",
-  passable: "#3D6FBF",
+  good: "#15804E",
+  goodSoft: "#E4F4EB",
+  passable: "#1A5FD4",
+  passableSoft: "#E8F0FE",
   fail: "#C62828",
   failSoft: "#FDECEC",
 } as const;
@@ -50,19 +52,22 @@ export const hit = {
 
 export const motion = {
   pressScale: 0.96,
+  enterDuration: 180,
+  enterStagger: 40,
+  enterMaxSteps: 4,
 } as const;
 
 export const shadow = {
   card: Platform.select<ViewStyle>({
     ios: {
       shadowColor: "#0B2F7A",
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.12,
-      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.07,
+      shadowRadius: 10,
     },
-    android: { elevation: 5 },
+    android: { elevation: 2 },
     default: {
-      boxShadow: "0 0 0 1px rgba(11,47,122,0.05), 0 12px 32px rgba(11,47,122,0.12)",
+      boxShadow: "0 0 0 1px rgba(11,47,122,0.05), 0 3px 10px rgba(11,47,122,0.07)",
     },
   }) ?? {},
   bar: Platform.select<ViewStyle>({
@@ -80,13 +85,13 @@ export const shadow = {
   float: Platform.select<ViewStyle>({
     ios: {
       shadowColor: "#0B2F7A",
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.18,
-      shadowRadius: 28,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.12,
+      shadowRadius: 20,
     },
-    android: { elevation: 12 },
+    android: { elevation: 8 },
     default: {
-      boxShadow: "0 16px 40px rgba(11,47,122,0.18)",
+      boxShadow: "0 8px 24px rgba(11,47,122,0.12)",
     },
   }) ?? {},
 } as const;
@@ -116,6 +121,30 @@ export function noteColor(value: number | null): string {
   if (value >= 14) return colors.good;
   if (value >= 10) return colors.passable;
   return colors.fail;
+}
+
+const SUBJECT_PALETTE = [
+  { fg: "#1A5FD4", bg: "#E8F0FE" },
+  { fg: "#15804E", bg: "#E4F4EB" },
+  { fg: "#B45309", bg: "#FDF0E1" },
+  { fg: "#6D3FC4", bg: "#F0EAFB" },
+  { fg: "#0F766E", bg: "#E0F3F1" },
+  { fg: "#BE185D", bg: "#FCE7F1" },
+  { fg: "#3730A3", bg: "#E8E8FA" },
+  { fg: "#9A3412", bg: "#FBEAE2" },
+] as const;
+
+export function subjectColor(name: string): { fg: string; bg: string } {
+  let hash = 0;
+  for (const char of name.trim().toLowerCase()) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return SUBJECT_PALETTE[hash % SUBJECT_PALETTE.length];
+}
+
+export function noteSoft(value: number | null): string {
+  if (value == null) return colors.tint;
+  if (value >= 14) return colors.goodSoft;
+  if (value >= 10) return colors.passableSoft;
+  return colors.failSoft;
 }
 
 export function noteLabel(value: number | null): string {

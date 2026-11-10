@@ -5,6 +5,10 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { logActivite } from "@/lib/activity-log";
+import {
+  ECOLE_ACCESS_BLOCKED_MESSAGE,
+  isEcoleAccessBlockedForUser,
+} from "@/lib/ecole-access";
 
 declare module "next-auth" {
   interface Session {
@@ -15,6 +19,7 @@ declare module "next-auth" {
       prenom: string;
       role: Role;
       photo?: string | null;
+      impersonatorId?: string | null;
     };
   }
 
@@ -36,6 +41,7 @@ declare module "@auth/core/jwt" {
     prenom: string;
     role: Role;
     photo?: string | null;
+    impersonatorId?: string | null;
   }
 }
 
@@ -111,6 +117,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           }
           if (ecoleId && challenge.user.role !== "ADMIN" && challenge.user.ecoleId !== ecoleId) {
             throw new Error("Établissement incorrect");
+          }
+          if (await isEcoleAccessBlockedForUser(challenge.user)) {
+            await logActivite({
+              userId: challenge.user.id,
+              action: "connexion_refusee",
+              details: { voie: "web", motif: "ecole_bloquee", a2f: true },
+            });
+            throw new Error(ECOLE_ACCESS_BLOCKED_MESSAGE);
           }
           await prisma.twoFactorChallenge.update({
             where: { id: challenge.id },
@@ -217,6 +231,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           throw new Error("Établissement incorrect");
         }
 
+        if (await isEcoleAccessBlockedForUser(user)) {
+          await logActivite({
+            userId: user.id,
+            action: "connexion_refusee",
+            details: { voie: "web", motif: "ecole_bloquee" },
+          });
+          throw new Error(ECOLE_ACCESS_BLOCKED_MESSAGE);
+        }
+
         // Vérifier si un changement de mot de passe est requis
         if (user.mustChangePassword) {
           throw new Error("PASSWORD_CHANGE_REQUIRED");
@@ -248,11 +271,71 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.prenom = user.prenom;
         token.role = user.role;
         token.photo = user.photo;
+        token.impersonatorId = null;
       }
       if (trigger === "update" && session) {
         if (typeof session.nom === "string") token.nom = session.nom;
         if (typeof session.prenom === "string") token.prenom = session.prenom;
         if (typeof session.email === "string") token.email = session.email;
+
+        const impersonateUserId =
+          typeof (session as { impersonateUserId?: unknown }).impersonateUserId === "string"
+            ? String((session as { impersonateUserId: string }).impersonateUserId)
+            : "";
+        const stopImpersonation = Boolean(
+          (session as { stopImpersonation?: unknown }).stopImpersonation
+        );
+
+        if (impersonateUserId && token.role === "ADMIN" && !token.impersonatorId) {
+          const target = await prisma.user.findFirst({
+            where: {
+              id: impersonateUserId,
+              actif: true,
+              deletedAt: null,
+              role: { in: ["DIRECTEUR", "PREFET", "PROFESSEUR", "PARENT"] },
+            },
+            select: {
+              id: true,
+              email: true,
+              nom: true,
+              prenom: true,
+              role: true,
+              photo: true,
+            },
+          });
+          if (target) {
+            token.impersonatorId = token.id;
+            token.id = target.id;
+            token.email = target.email;
+            token.nom = target.nom;
+            token.prenom = target.prenom;
+            token.role = target.role;
+            token.photo = target.photo;
+          }
+        }
+
+        if (stopImpersonation && token.impersonatorId) {
+          const admin = await prisma.user.findFirst({
+            where: { id: token.impersonatorId, role: "ADMIN", actif: true, deletedAt: null },
+            select: {
+              id: true,
+              email: true,
+              nom: true,
+              prenom: true,
+              role: true,
+              photo: true,
+            },
+          });
+          if (admin) {
+            token.id = admin.id;
+            token.email = admin.email;
+            token.nom = admin.nom;
+            token.prenom = admin.prenom;
+            token.role = admin.role;
+            token.photo = admin.photo;
+            token.impersonatorId = null;
+          }
+        }
       }
       return token;
     },
@@ -264,6 +347,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.prenom = token.prenom;
         session.user.role = token.role;
         session.user.photo = token.photo;
+        session.user.impersonatorId = token.impersonatorId ?? null;
       }
       return session;
     },

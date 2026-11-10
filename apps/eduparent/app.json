@@ -2,37 +2,86 @@
   "expo": {
     "name": "EduParent",
     "slug": "eduparent",
-    "version": "1.0.0",
+    "version": "1.0.17",
     "orientation": "portrait",
     "scheme": "eduparent",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F4F7FF"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "sn.novaholdings.eduparent",
-      "buildNumber": "1"
+      "buildNumber": "49",
+      "entitlements": {
+        "aps-environment": "production"
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "package": "sn.novaholdings.eduparent",
-      "versionCode": 1,
+      "versionCode": 25,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1A5FD4"
-      }
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-sharing",
+      "expo-status-bar",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1A5FD4",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "EduParent utilise vos photos pour choisir votre photo de profil.",
+          "cameraPermission": "EduParent utilise l’appareil photo pour prendre votre photo de profil.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F4F7FF",
+          "imageWidth": 200
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "581daf51-a2ca-408b-9d36-ff235dc8adb6"
+      }
+    },
+    "owner": "novaholdingss-team"
   }
 }

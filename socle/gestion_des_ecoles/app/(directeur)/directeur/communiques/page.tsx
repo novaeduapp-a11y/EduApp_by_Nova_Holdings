@@ -34,6 +34,7 @@ import {
   portalTitleClass,
 } from "@/components/eduadmins/portal-shell";
 import { FAMILLES_CYCLE } from "@/lib/constants";
+import { emitNotificationsChanged } from "@/lib/notifications-client";
 
 type Destinataire = "PARENTS" | "PROFESSEURS" | "TOUS";
 type FamilleCycle = keyof typeof FAMILLES_CYCLE;
@@ -107,8 +108,8 @@ export default function DirecteurCommuniquesPage() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [search, setSearch] = useState("");
   const [filtreDest, setFiltreDest] = useState("");
-  const [filtreUrgent, setFiltreUrgent] = useState("");
-  const [filtreCycle, setFiltreCycle] = useState("");
+  const [filtreUrgent, setFiltreUrgent] = useState("normal");
+  const [filtreCycle, setFiltreCycle] = useState("ecole");
   const [page, setPage] = useState(1);
   const [formOpen, setFormOpen] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
@@ -212,6 +213,8 @@ export default function DirecteurCommuniquesPage() {
       toast({ title: "Communiqué retiré" });
       setToDelete(null);
       setReading(null);
+      setItems((current) => current.filter((item) => item.id !== toDelete.id));
+      emitNotificationsChanged();
       await load();
       setStatus("ready");
     } catch (error) {
@@ -279,7 +282,6 @@ export default function DirecteurCommuniquesPage() {
           value={filtreCycle}
           onChange={(e) => setFiltreCycle(e.target.value)}
         >
-          <option value="">Toute la portée</option>
           <option value="ecole">Établissement</option>
           {(Object.keys(FAMILLES_CYCLE) as FamilleCycle[]).map((key) => (
             <option key={key} value={key}>
@@ -293,9 +295,8 @@ export default function DirecteurCommuniquesPage() {
           value={filtreUrgent}
           onChange={(e) => setFiltreUrgent(e.target.value)}
         >
-          <option value="">Toutes les priorités</option>
-          <option value="urgent">Urgents</option>
           <option value="normal">Non urgents</option>
+          <option value="urgent">Urgents</option>
         </select>
       </div>
 
@@ -367,7 +368,7 @@ export default function DirecteurCommuniquesPage() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        aria-label={`Recopier ${item.titre}`}
+                        aria-label={`Copier ${item.titre}`}
                         onClick={() =>
                           openCreate({
                             titre: item.titre,
@@ -537,7 +538,7 @@ export default function DirecteurCommuniquesPage() {
                       setReading(null);
                     }}
                   >
-                    Recopier
+                    Copier
                   </Button>
                 </div>
               </DialogFooter>
