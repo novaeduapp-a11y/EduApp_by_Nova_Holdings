@@ -142,7 +142,6 @@ function AdminComptesForm() {
 
     if (!ecoleId) {
       setComptes([]);
-      setMatieres([]);
       return;
     }
 
